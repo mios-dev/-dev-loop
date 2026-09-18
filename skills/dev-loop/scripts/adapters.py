@@ -178,12 +178,14 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
     if h == "claude-code":
         # --max-turns was removed from the claude CLI (gone by 2.1.276); the lane
         # budget is the outer timeout plus optional --max-budget-usd.
-        # Defaults: 'fable' resolves to the newest Fable-line model on the account
-        # (alias, so it tracks releases); effort xhigh (operator default, 2026-09).
+        # Defaults: 'opus' resolves to the newest Opus-line model on the account
+        # (alias, so it tracks releases); effort xhigh. Operator policy 2026-09:
+        # Opus by default, and the dev-loop manager may assign lower tiers
+        # (sonnet/haiku) per lane via worker.model / worker.effort.
         argv = ["claude", "-p", obj, "--output-format", "json",
                 "--permission-mode", w.get("permission_mode", "dontAsk"),
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
-                "--model", w.get("model", "fable"), "--effort", w.get("effort", "xhigh")]
+                "--model", w.get("model", "opus"), "--effort", w.get("effort", "xhigh")]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":

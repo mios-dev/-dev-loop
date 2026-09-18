@@ -112,10 +112,13 @@ shell tool and reads `.devloop/run-*/report-*.json`. That is the same code path 
 which is why the skill stays universal: the host changes, the lane contract does not.
 
 **Host checklists.**
-- *Antigravity host:* Terminal Command Auto Execution = "Proceed in Sandbox" (or "Always Proceed"
-  inside a VM); add `claude`, `codex`, `gemini`, `agy`, `python3`, `git` to the Allow list; use
-  `/tasks` to watch background lanes; Antigravity's own sub-lanes can be `invoke_subagent` with
-  `workspace: branch` and the same lane prompt, reporting into `.devloop/run-*/`.
+- *Antigravity host:* **native-first** — Antigravity ships multi-agent patterns and workflows by
+  default, so its own lanes run as native subagents (`invoke_subagent` with `workspace: branch`,
+  the lane contract as the prompt, reporting into `.devloop/run-*/`) or native workflows; the
+  reference orchestrator is how OTHER harnesses join the loop, and the headless `agy -p` lane
+  template is the fallback when native subagents are out of reach. Terminal Command Auto
+  Execution = "Proceed in Sandbox" (or "Always Proceed" inside a VM); add `claude`, `codex`,
+  `gemini`, `agy`, `python3`, `git` to the Allow list; use `/tasks` to watch background lanes.
   For a **headless `agy` manager**, prefer scoped allow rules over
   `--dangerously-skip-permissions` — in `~/.gemini/antigravity-cli/settings.json`
   (Deny > Ask > Allow; verified against the CLI permissions docs, 2026-09):

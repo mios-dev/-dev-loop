@@ -1,4 +1,4 @@
-# dev-loop — universal autonomous engineering loop (v7.4.0)
+# dev-loop — universal autonomous engineering loop (v7.5.0)
 
 One repo, three things:
 
@@ -77,13 +77,19 @@ sh skills/dev-loop/scripts/agy_host.sh my-lanes.json                  # interact
 sh skills/dev-loop/scripts/agy_host.sh my-lanes.json --headless       # unattended manager (JSON out)
 ```
 
-Model defaults (operator policy, 2026-09): Claude Code lanes run `--model fable --effort xhigh`
-(the alias tracks the newest Fable-line release); Antigravity lanes default to
-`gemini-3.8-flash-high`; the headless manager defaults to `gemini-3.1-pro-high`
-(`AGY_HOST_MODEL` / `AGY_HOST_EFFORT` override; per-lane `worker.model` / `worker.effort` win).
-Verified live: the full AGY-managed mixed-lane e2e (`tests/e2e-mixed-lanes/`) passes end to end
-under scoped agy permission rules. Upstream pattern survey and vendored (docs-only, pinned)
-references: `skills/dev-loop/references/upstream-patterns.md` and `third_party/`.
+The manager is **native-first**: Antigravity's own multi-agent machinery (subagents via
+`invoke_subagent` with `workspace: branch`, native workflows) runs its own lanes by default;
+the reference orchestrator is how Claude Code and other harnesses join the loop. Harness-native
+loop commands inside lanes are allowed and never replace the gates.
+
+Model defaults (operator policy, 2026-09): Claude Code lanes run `--model opus --effort xhigh`
+(the alias tracks the newest Opus release; the manager assigns lower tiers — sonnet/haiku,
+lower effort — to light lanes); Antigravity lanes default to `gemini-3.8-flash-high`; the
+headless manager runs `gemini-3.1-pro-high` (`AGY_HOST_MODEL` / `AGY_HOST_EFFORT` override;
+per-lane `worker.model` / `worker.effort` win). Verified live: the full AGY-managed mixed-lane
+e2e (`tests/e2e-mixed-lanes/`) passes end to end under scoped agy permission rules. Upstream
+pattern survey, with patterns copied and credited at pinned commits (nothing vendored):
+`skills/dev-loop/references/upstream-patterns.md`.
 
 Mixed-lane example: `skills/dev-loop/assets/lanes.agy-manager.example.json` (2 AGY lanes +
 2 Claude Code lanes + an AGY auditor). The manager runs every merge gate itself; lanes never

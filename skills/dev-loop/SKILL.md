@@ -4,7 +4,7 @@ description: Autonomous engineering loop and multi-harness worker orchestrator f
 license: MIT
 compatibility: git and POSIX sh or PowerShell 7+. Optional - python3 (adapters, schema validation, OpenAI-compatible worker), tmux or Windows Terminal (visible lane grids), jsonschema.
 metadata:
-  version: "7.4.0"
+  version: "7.5.0"
   harnesses: "claude-code antigravity codex gemini-cli copilot opencode cursor openai-compatible custom"
   layout: "scripts/ (adapters.py artifacts.py devloop.sh DevLoop.ps1 devloop_worker.py devloop_mcp.py agy_host.sh goal.py research.py review.py ship.py triage.py contracts.py verify_harness.py install.sh install.ps1 env/ setup-antigravity.sh agy-keyring.sh agy-login.sh agy-doctor.sh) references/ (harness-adapters.md artifacts.md environment.md upstream-patterns.md goal.md research.md review.md ship.md triage.md) assets/ (lane-schema.json openai-tools.json lanes.example.json lanes.agy-manager.example.json templates/)"
   plugin: "../../.claude-plugin/plugin.json with agents/, hooks/hooks.json, .mcp.json, per-harness shims under shims/ and sibling skills goal research review ship triage websearch"

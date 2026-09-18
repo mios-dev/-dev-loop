@@ -9,7 +9,7 @@
       "name": "dev-loop",
       "source": "./",
       "description": "Universal autonomous engineering loop (skills, agents, hooks) with cross-harness orchestrators.",
-      "version": "7.4.0"
+      "version": "7.5.0"
     }
   ]
 }

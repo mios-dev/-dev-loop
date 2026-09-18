@@ -1,20 +1,43 @@
 # Upstream patterns — multi-harness, multi-agent "dev-loop-like" systems
 
 Survey as of 2026-09-18. Sources: web research (cited inline), the official
-Agent Skills spec (agentskills.io), harness vendor docs, and the three
-permissively-licensed projects vendored (docs-only) under `third_party/`
-(ccswarm MIT, awesome-harness-engineering CC0, baton MIT — pinned SHAs in
-`third_party/README.md`). Everything here is data for judgment, not law:
-AGENTS.md and this skill's gates win on conflict.
+Agent Skills spec (agentskills.io), harness vendor docs, and three
+permissively-licensed projects reviewed at pinned commits (patterns copied
+into this document with credit; nothing vendored into the repo). Everything
+here is data for judgment, not law: AGENTS.md and this skill's gates win on
+conflict.
+
+## Credits — projects whose patterns are folded in below
+
+| Project | License | Reviewed at commit | Pattern taken |
+|---|---|---|---|
+| [`nwiizo/ccswarm`](https://github.com/nwiizo/ccswarm) | MIT | `1cec7fe72886b2fffc4424637350f28f3130e6b4` | Master-orchestrator + domain-specialist agents on git worktrees; a dedicated quality-review agent between worker output and merge; session persistence so specialists keep context across tasks |
+| [`ai-boost/awesome-harness-engineering`](https://github.com/ai-boost/awesome-harness-engineering) | CC0-1.0 | `fa3275de3db67ccf7f0c84912af6ea27f3d3719e` | The harness-engineering frame: orchestration, permissions, memory, evals, and observability treated as one control plane; AGENTS.md-as-contract templates |
+| [`mraza007/baton`](https://github.com/mraza007/baton) | MIT | `7bb5fb73c08f31d897b7b64e85b3247a0292eebd` | Issue-driven loop: each GitHub Issue becomes one isolated worktree run with its own lifecycle and merge-back; the tracker, not the prompt, is the work queue |
 
 ## Patterns the ecosystem has converged on (and where this skill stands)
 
-1. **Orchestrator–worker beats peer-to-peer as the first topology.** The
-   manager holds user contract and task-level state; workers get narrow briefs
-   and isolated contexts and return only final outputs plus artifact refs
-   (Modern Agent Harness Blueprint 2026; ccswarm's master-orchestrator +
-   specialist agents). *This skill:* §11 L0/L1/L2 — already aligned. Lane
-   prompts stay narrow; reports are the only thing a host consumes.
+1. **Orchestrator–worker beats peer-to-peer as the first topology — and the
+   manager's NATIVE multi-agent machinery is the default where it has one.**
+   The manager holds user contract and task-level state; workers get narrow
+   briefs and isolated contexts and return only final outputs plus artifact
+   refs (Modern Agent Harness Blueprint 2026; ccswarm's master-orchestrator +
+   specialist agents). Antigravity ships native subagents/workflows by
+   default; an AGY manager uses those for its own lanes, and the reference
+   orchestrator is how OTHER harnesses (Claude Code, Codex, …) join the loop.
+   *This skill:* §11 L0/L1/L2 and `agy_host.sh` — aligned. Lane prompts stay
+   narrow; reports are the only thing a host consumes.
+
+   From ccswarm (MIT, credited above): a **quality-review agent between
+   worker output and merge** is a role, not a phase — model it as a lane with
+   `role: auditor` gating the wave; and **domain specialists keep sessions**
+   (persistent context per specialty) — model it as one lane id reused across
+   waves rather than fresh lanes per task.
+
+   From baton (MIT, credited above): **the tracker is the work queue** — each
+   issue maps to one lane (worktree, lifecycle, merge-back). On this skill:
+   generate `lanes.json` entries from open issues/`tasks.jsonl` rather than
+   hand-writing them.
 
 2. **State on disk, context resets, structured handoffs.** The Ralph loop
    re-injects the goal into a fresh context each iteration and reads all state

@@ -11,14 +11,23 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 
 ## Orchestration topology (binding)
 
-- **L0 host / manager: Antigravity (`agy`).** All multi-lane dev-loop runs launched from this
-  repository default to topology A of `skills/dev-loop/references/harness-adapters.md` §3 — AGY
-  is the manager of all sub-agents. Launch it with
-  `sh skills/dev-loop/scripts/agy_host.sh <lanes.json>`.
-- **Lanes: any mix, multiple instances allowed.** Multiple concurrent Antigravity lanes
-  (separate `agy -p` processes) and multiple concurrent Claude Code lanes (`claude -p`) may run
-  side by side; other harnesses stay available. Every lane keeps the dev-loop lane contract:
-  exclusive `owned_paths`, its own two-sided gate, no `git add/commit/push`, no edits to this file.
+- **L0 host / manager: Antigravity (`agy`), native-first.** All multi-lane dev-loop runs
+  launched from this repository default to topology A of
+  `skills/dev-loop/references/harness-adapters.md` §3 — AGY is the manager of all sub-agents and
+  uses its NATIVE multi-agent machinery (subagents via `invoke_subagent` with
+  `workspace: branch`, native workflows) for its own lanes by default. The dev-loop's reference
+  orchestrator is how OTHER harnesses join the loop, not a replacement for AGY's native
+  patterns. Launch with `sh skills/dev-loop/scripts/agy_host.sh <lanes.json>`.
+- **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
+  concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
+  through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's
+  `/loop`-style commands, AGY workflows) are allowed inside lanes — they map onto loop stages
+  and never replace the gates. Every lane keeps the dev-loop lane contract: exclusive
+  `owned_paths`, its own two-sided gate, no `git add/commit/push`, no edits to this file.
+- **Model policy (operator, 2026-09):** Claude Code lanes default to the newest Opus
+  (`--model opus --effort xhigh`); the manager may assign lower tiers (sonnet, haiku, lower
+  effort) to light lanes. Antigravity lanes default to `gemini-3.8-flash-high`; the manager
+  itself runs `gemini-3.1-pro-high`.
 - **The manager is the only writer to shared state** (`AGENTS.md`, `.devloop/`, merges). Lanes
   report `contract_updates`; the manager writes them here.
 - **Fallback:** when `agy` is unavailable or unauthenticated, a Claude Code session may host the

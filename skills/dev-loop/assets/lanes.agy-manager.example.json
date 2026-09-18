@@ -61,7 +61,7 @@
       ],
       "worker": {
         "harness": "claude-code",
-        "model": "fable",
+        "model": "opus",
         "allowed_tools": "Read,Edit,Write,Glob,Grep,Bash(python:*),Bash(pytest:*)",
         "effort": "xhigh"
       },
@@ -84,9 +84,9 @@
       ],
       "worker": {
         "harness": "claude-code",
-        "model": "fable",
+        "model": "sonnet",
         "allowed_tools": "Read,Edit,Write,Glob,Grep,Bash(make docs:*),Bash(python:*)",
-        "effort": "xhigh"
+        "effort": "high"
       },
       "positive_cmd": "make docs && python scripts/checks/links.py docs/",
       "negative_control_cmd": "cp docs/index.md .nc-4.bak; trap 'mv .nc-4.bak docs/index.md' EXIT; printf '[dead](../nope.md)\\n' >> docs/index.md; python scripts/checks/links.py docs/",
