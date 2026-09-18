@@ -23,6 +23,11 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   report `contract_updates`; the manager writes them here.
 - **Fallback:** when `agy` is unavailable or unauthenticated, a Claude Code session may host the
   run (topology B) but must say so in its report; it does not silently become the standing manager.
+- **Permissions for the headless manager (operator decision, 2026-09-18):** `--yolo`
+  (`--dangerously-skip-permissions`) is authorized whenever the run is requested via a
+  `/dev-loop`-style command. Scoped `permissions.allow` rules remain the default elsewhere; note
+  that models habitually prefix dispatch commands with `cd … &&`, and prefix rules match only the
+  first token, so a scoped allowlist needs `command(cd)` too.
 - Reference example for a mixed AGY + Claude Code run:
   `skills/dev-loop/assets/lanes.agy-manager.example.json`.
 
