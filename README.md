@@ -1,4 +1,4 @@
-# dev-loop — universal autonomous engineering loop (v7.5.0)
+# dev-loop — universal autonomous engineering loop (v7.6.0)
 
 One repo, three things:
 
@@ -94,3 +94,15 @@ pattern survey, with patterns copied and credited at pinned commits (nothing ven
 Mixed-lane example: `skills/dev-loop/assets/lanes.agy-manager.example.json` (2 AGY lanes +
 2 Claude Code lanes + an AGY auditor). The manager runs every merge gate itself; lanes never
 commit, and a lane whose negative control passes is never merged.
+
+## SCOPE staged review (v7.6.0, merged from the dev-loop v2.x lineage)
+
+`/review` now runs the full **SCOPE** oversight model (Staged Code Oversight with Proportional
+Escalation, after Greiler's staged-review work): Stage 1 agent review (severity × dimension
+findings; secret scan covers keyword assignments AND bare token formats — AKIA/ghp_/sk-/AIza/
+xox), Stage 2 steering-developer ownership with Agent-Dev Loop sizing (≤ 600 lines / ≤ 20
+files), Stage 3 proportional peer escalation (Understanding Need × Change Risk × Established
+Assurance → escalation tier), recorded in a Living Oversight Record
+(`OVERSIGHT_RECORD.md` + `.devloop/scope_review_*.json`). The goal/ship/research/triage engines
+took the same lineage's refinements, and `scripts/git_lock.py` plus a stale-`index.lock`
+sweep in the adapters' git retry protect multi-lane git contention.

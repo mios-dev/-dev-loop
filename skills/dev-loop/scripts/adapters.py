@@ -51,7 +51,11 @@ REPORT_KEYS = ["status", "objective", "summary", "changed_paths", "positive_cont
 STATUSES = {"done", "partial", "blocked", "converged_stuck", "budget", "halted"}
 NONINTERACTIVE = {"CI": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_PAGER": "cat", "PAGER": "cat", "NO_COLOR": "1",
                   "DEBIAN_FRONTEND": "noninteractive", "PIP_NO_INPUT": "1", "npm_config_yes": "true"}
-SECRET_RE = re.compile(r"(api[_-]?key|secret|token|password|BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE)\s*[:=\"']", re.I)
+# Keyword assignments AND bare value formats: a planted AWS key carries no
+# keyword in front of it, so a keyword-only gate waves it through (proved by
+# negative control against the review engine, 2026-09).
+SECRET_RE = re.compile(r"(api[_-]?key|secret|token|password|BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE)\s*[:=\"']"
+                       r"|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|xox[baprs]-[A-Za-z0-9\-]{10,}", re.I)
 
 
 def die(msg: str, code: int = 64) -> None:
@@ -376,6 +380,16 @@ def git(wt: Path, *args: str, retries: int = 5) -> subprocess.CompletedProcess:
         cp = subprocess.run(["git", "-C", str(wt), *args], capture_output=True, text=True, env={**os.environ, **NONINTERACTIVE})
         if cp.returncode == 0 or "index.lock" not in cp.stderr or attempt == retries:
             return cp
+        # A crashed lane leaves index.lock behind forever; pure retry then deadlocks
+        # every later git call. Clear only a lock older than 45s (git_lock.py's
+        # threshold) — a live process refreshes its lock well within that.
+        try:
+            gd = subprocess.run(["git", "-C", str(wt), "rev-parse", "--git-dir"], capture_output=True, text=True)
+            lock = (Path(wt) / gd.stdout.strip() / "index.lock") if gd.returncode == 0 else None
+            if lock and lock.exists() and time.time() - lock.stat().st_mtime > 45:
+                lock.unlink(missing_ok=True)
+        except OSError:
+            pass
         time.sleep(0.5 * attempt)
     return cp
 
