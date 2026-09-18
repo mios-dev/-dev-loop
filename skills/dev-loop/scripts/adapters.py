@@ -332,6 +332,12 @@ def normalize_report(lane: dict, harness: str, stdout: str, exit_code: int, time
         if isinstance(env, dict) and env.get("permission_denials"):
             rep["unverified"].append(f"harness denied {len(env['permission_denials'])} tool call(s) (permission_denials) — work may be incomplete")
             if rep["status"] == "done": rep["status"] = "partial"
+        # agy's envelope reports headless auto-denials as denied_actions and can still
+        # say status SUCCESS with an empty response (observed live, agy 1.2.6) — same
+        # trap as Claude's permission_denials, same downgrade.
+        if isinstance(env, dict) and env.get("denied_actions"):
+            rep["unverified"].append(f"harness denied {len(env['denied_actions'])} tool call(s) (denied_actions) — work may be incomplete")
+            if rep["status"] == "done": rep["status"] = "partial"
         if isinstance(env, dict) and env.get("is_error") and rep["status"] == "done": rep["status"] = "partial"
     except (json.JSONDecodeError, AttributeError):
         pass

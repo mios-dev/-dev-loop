@@ -45,10 +45,11 @@ PROMPT="You are the L0 host/manager of the dev-loop skill. Load the skill (dev-l
 Manager duties, in order:
 1. Orient: read AGENTS.md, the last .devloop/LEDGER.md entry, and TASKS.md. AGENTS.md is law.
 2. You manage ALL sub-agents for this run. The lane plan is $LANES (already schema-validated). Lanes may include several 'antigravity' lanes and several 'claude-code' lanes concurrently; each runs as its own headless process in its own git worktree.
-3. Dispatch every lane through the reference orchestrator, not by hand: run_command -> sh $SKILL_DIR/scripts/devloop.sh $LANES  (watch progress with /tasks; reports land in .devloop/run-*/report-*.json).
-4. Gate every lane yourself; never trust a lane's own claim: python3 $SKILL_DIR/scripts/adapters.py owned/gate/secrets/deps. A lane whose negative control passes is vacuous and is never merged.
-5. Merge --no-ff lane by lane; on conflict abort and keep the worktree. Run the integration command on base after merging.
-6. Close tasks with evidence, write contract_updates into AGENTS.md, append a ledger entry, and end with the devloop_report JSON block (status must be true: partial work is 'partial', never 'done').
+3. Dispatch every lane through the reference orchestrator, not by hand, and run it SYNCHRONOUSLY IN THE FOREGROUND: sh $SKILL_DIR/scripts/devloop.sh $LANES
+   NEVER background this command and NEVER respond while it is still running - when your process ends, every child lane dies with it. It runs the lanes, the two-sided gates, the --no-ff merges, and the integration command itself, and can take many minutes; wait for its exit code.
+4. Only after devloop.sh has exited: read .devloop/run-*/report-*.json and 'git log --oneline', and confirm each lane's merge really happened. Never trust a lane's own claim over the gates; a lane whose negative control passes is vacuous and is never merged. Rerun any gate yourself with python3 $SKILL_DIR/scripts/adapters.py gate if a report looks inconsistent with the git log.
+5. On a merge conflict devloop.sh aborts the merge and keeps the worktree - report it, do not resolve inside a lane.
+6. Close tasks with evidence, write contract_updates into AGENTS.md, append a ledger entry, and end with the devloop_report JSON block reflecting devloop.sh's ACTUAL exit code and the reports on disk (status must be true: partial work is 'partial', never 'done'). A response that only describes what you started, without that block grounded in the finished run, is a failed run.
 
 You are the only writer to shared state; lanes never git add/commit/push and never edit AGENTS.md."
 

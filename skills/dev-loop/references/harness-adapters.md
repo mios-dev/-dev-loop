@@ -43,7 +43,7 @@ instruction to end with the `devloop_report` block), `{wt}` = absolute worktree 
 | `claude-code` | `claude -p "{obj}" --output-format json --permission-mode dontAsk --allowedTools "…" --json-schema <report schema>` *(`--max-turns` was removed from the CLI — gone by 2.1.276; budget = outer timeout + `--max-budget-usd`)* | `-p` | `{result, structured_output, session_id, is_error, num_turns, total_cost_usd, permission_denials}` | `--max-budget-usd`, outer timeout | `--allowedTools` scoped rules + hooks (`allowed-tools` frontmatter alone is *not* enforced) | exit 0 ∧ `is_error=false` ∧ **`permission_denials` empty** ∧ report |
 | `codex` | `codex exec --json --cd "{wt}" --sandbox workspace-write --ask-for-approval never --ephemeral --output-schema <file> -o <last.txt> "{obj}"` | positional | JSONL events; `-o` file holds the schema-validated final message | no max-turns → outer timeout | `--sandbox` / `--ask-for-approval`; **`--cd` is the write fence, `--add-dir` is not (#24214)**; never `--full-auto` (overrides `--sandbox`); `.git/` read-only ⇒ host commits | exit 0 ∧ report |
 | `gemini-cli` *(legacy alias; consumer Gemini CLI ended 2026-06-18 — prefer `antigravity`)* | `gemini -p "{obj}" --output-format text --yolo` | `-p` (stdin appends) | text; fenced report parsed (**`--output-format json` aborts on any non-fatal tool error, #9281**) | none → outer timeout | trusted folders / policy engine; `--yolo` auto-approves | exit 0 ∧ report |
-| `antigravity` | `agy -p "{obj}" --output-format json --print-timeout {t}s --dangerously-skip-permissions` **(unverified surface — run `adapters.py probe`)** | `-p` | `{conversation_id, status, response, num_turns, usage, structured_output}` | `--print-timeout` (default 5m!) + outer timeout | `command(...)` rules in `~/.gemini/antigravity-cli/settings.json`; `--sandbox` | exit 0 ∧ report; **exit 12 = partial timeout** |
+| `antigravity` | `agy -p "{obj}" --output-format json --print-timeout {t}s --dangerously-skip-permissions` *(surface verified against agy 1.2.6, 2026-09)* | `-p` | `{conversation_id, status, response, num_turns, usage, structured_output, denied_actions}` | `--print-timeout` (default 5m!) + outer timeout | `permissions.allow` rules (`command(...)`, `read_file(...)`, `write_file(...)`) in `~/.gemini/antigravity-cli/settings.json`; `--sandbox` | exit 0 ∧ report ∧ **`denied_actions` empty** (headless auto-denials still report `status: SUCCESS` with an empty response); **exit 12 = partial timeout** |
 | `copilot` | `copilot -p "{obj}" --output-format json --add-dir "{wt}" --no-ask-user -s --allow-tool=… --deny-tool='shell(git push:*)' --deny-tool='shell(git commit:*)'` | `-p` | JSON | none → outer timeout | `--allow-tool`/`--deny-tool` (deny always wins, even under `--allow-all-tools`); `--agent <name>` → `.github/agents/<name>.agent.md` | exit 0 ∧ report |
 | `opencode` | `opencode run --format json [--agent a] [--model m] "{obj}"` (cwd = worktree) | positional | JSON events (**subagent parts dropped, #49300 — keep lanes single-agent**) | none → outer timeout | `opencode.json` permissions (last matching rule wins); `-c` to continue | exit 0 ∧ report |
 | `cursor` | `agent -p --output-format json --force --workspace "{wt}" [--model m] "{obj}"` | positional | one JSON object on completion | none → outer timeout | `.cursor/cli.json` permissions; **without `--force` print mode applies nothing** | exit 0 ∧ report |
@@ -116,6 +116,14 @@ which is why the skill stays universal: the host changes, the lane contract does
   inside a VM); add `claude`, `codex`, `gemini`, `agy`, `python3`, `git` to the Allow list; use
   `/tasks` to watch background lanes; Antigravity's own sub-lanes can be `invoke_subagent` with
   `workspace: branch` and the same lane prompt, reporting into `.devloop/run-*/`.
+  For a **headless `agy` manager**, prefer scoped allow rules over
+  `--dangerously-skip-permissions` — in `~/.gemini/antigravity-cli/settings.json`
+  (Deny > Ask > Allow; verified against the CLI permissions docs, 2026-09):
+  `{"permissions": {"allow": ["command(sh)", "command(python3)", "command(git)"]}}`.
+  And in print mode the manager MUST run `devloop.sh` synchronously in the foreground: a
+  headless `agy -p` answers once and exits, killing every backgrounded child with it — a manager
+  that "launches and awaits" reports SUCCESS while nothing merges (observed live, 2026-09;
+  `agy_host.sh` bakes this instruction into the manager prompt).
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple
