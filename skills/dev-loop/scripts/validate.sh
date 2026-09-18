@@ -21,6 +21,11 @@ import json,sys,glob,re; P=sys.argv[1]
 m=json.load(open(f"{P}/.claude-plugin/plugin.json")); assert "name" in m and "entrypoint" not in m, "plugin.json: name required, entrypoint invalid"
 for k in ("skills","agents","hooks","commands","mcpServers"):
     if k in m: assert isinstance(m[k],(str,dict,list)), k
+# hooks/hooks.json is auto-loaded; declaring it again makes the host refuse the whole plugin
+# ("Duplicate hooks file detected"), so manifest.hooks may only name ADDITIONAL files.
+_hk=m.get("hooks"); _hk=[_hk] if isinstance(_hk,str) else (_hk if isinstance(_hk,list) else [])
+for _h in _hk:
+    assert re.sub(r"^\./","",str(_h)) != "hooks/hooks.json", "plugin.json: remove \"hooks\": \"./hooks/hooks.json\" — the standard path is auto-loaded and declaring it fails plugin load"
 h=json.load(open(f"{P}/hooks/hooks.json")); assert isinstance(h["hooks"],dict), "hooks.json must be keyed by event name"
 EVENTS={"SessionStart","Setup","UserPromptSubmit","UserPromptExpansion","PreToolUse","PermissionRequest","PermissionDenied","PostToolUse","PostToolUseFailure","PostToolBatch","Notification","MessageDisplay","SubagentStart","SubagentStop","TaskCreated","TaskCompleted","Stop","StopFailure","TeammateIdle","InstructionsLoaded","ConfigChange","CwdChanged","DirectoryAdded","FileChanged","WorktreeCreate","WorktreeRemove","PreCompact","PostCompact","PreModelSwitch","PostModelSwitch","Elicitation","ElicitationResult","SessionEnd"}
 for ev,groups in h["hooks"].items():
