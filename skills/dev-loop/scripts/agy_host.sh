@@ -60,7 +60,11 @@ case "$MODE" in
         ;;
     headless)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }
-        set -- -p "$PROMPT" --output-format json --print-timeout "${AGY_HOST_PRINT_TIMEOUT:-60m}"
+        # Manager defaults to the deepest-reasoning model at high effort (the manager
+        # gates and merges everything — reasoning quality dominates its cost);
+        # override with AGY_HOST_MODEL / AGY_HOST_EFFORT (`agy models` lists slugs).
+        set -- -p "$PROMPT" --output-format json --print-timeout "${AGY_HOST_PRINT_TIMEOUT:-60m}" \
+               --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" --effort "${AGY_HOST_EFFORT:-high}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --dangerously-skip-permissions
         # Outer wall-clock timeout: no harness is trusted to stop itself (SKILL.md §10).
         exec timeout "${AGY_HOST_TIMEOUT:-4h}" agy "$@"

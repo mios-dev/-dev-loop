@@ -1,4 +1,4 @@
-# dev-loop — universal autonomous engineering loop (v7.3.0)
+# dev-loop — universal autonomous engineering loop (v7.4.0)
 
 One repo, three things:
 
@@ -76,6 +76,14 @@ python3 skills/dev-loop/scripts/adapters.py probe                     # flags dr
 sh skills/dev-loop/scripts/agy_host.sh my-lanes.json                  # interactive manager
 sh skills/dev-loop/scripts/agy_host.sh my-lanes.json --headless       # unattended manager (JSON out)
 ```
+
+Model defaults (operator policy, 2026-09): Claude Code lanes run `--model fable --effort xhigh`
+(the alias tracks the newest Fable-line release); Antigravity lanes default to
+`gemini-3.8-flash-high`; the headless manager defaults to `gemini-3.1-pro-high`
+(`AGY_HOST_MODEL` / `AGY_HOST_EFFORT` override; per-lane `worker.model` / `worker.effort` win).
+Verified live: the full AGY-managed mixed-lane e2e (`tests/e2e-mixed-lanes/`) passes end to end
+under scoped agy permission rules. Upstream pattern survey and vendored (docs-only, pinned)
+references: `skills/dev-loop/references/upstream-patterns.md` and `third_party/`.
 
 Mixed-lane example: `skills/dev-loop/assets/lanes.agy-manager.example.json` (2 AGY lanes +
 2 Claude Code lanes + an AGY auditor). The manager runs every merge gate itself; lanes never

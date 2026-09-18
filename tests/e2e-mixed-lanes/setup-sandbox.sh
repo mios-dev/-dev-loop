@@ -85,7 +85,6 @@ cat > lanes.e2e.json <<'EOF'
       "owned_paths": ["util.py"],
       "worker": {
         "harness": "claude-code",
-        "model": "claude-haiku-4-5-20251001",
         "allowed_tools": "Read,Edit,Write,Glob,Grep,Bash"
       },
       "positive_cmd": "python3 tests/test_util.py",

@@ -39,7 +39,7 @@ V1_HARNESS = {"claude": "claude-code", "gemini": "gemini-cli", "cloudcode": "ant
               "copilot": "copilot", "opencode": "opencode", "cursor": "cursor", "antigravity": "antigravity", "codex": "codex"}
 BINARY = {"claude-code": "claude", "codex": "codex", "gemini-cli": "gemini", "antigravity": "agy", "copilot": "copilot", "opencode": "opencode", "cursor": "agent"}
 # flags the adapter relies on, probed with `<bin> --help` by `probe`; a miss means the CLI moved under us
-PROBE_FLAGS = {"claude-code": ["--output-format", "--max-budget-usd", "--permission-mode", "--allowedTools", "--json-schema"],
+PROBE_FLAGS = {"claude-code": ["--output-format", "--max-budget-usd", "--permission-mode", "--allowedTools", "--json-schema", "--effort", "--model"],
                "codex": ["exec", "--json", "--cd", "--sandbox", "--ask-for-approval", "--output-schema"],
                "gemini-cli": ["-p", "--output-format", "--yolo"],
                "antigravity": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
@@ -178,11 +178,13 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
     if h == "claude-code":
         # --max-turns was removed from the claude CLI (gone by 2.1.276); the lane
         # budget is the outer timeout plus optional --max-budget-usd.
+        # Defaults: 'fable' resolves to the newest Fable-line model on the account
+        # (alias, so it tracks releases); effort xhigh (operator default, 2026-09).
         argv = ["claude", "-p", obj, "--output-format", "json",
                 "--permission-mode", w.get("permission_mode", "dontAsk"),
-                "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash")]
+                "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
+                "--model", w.get("model", "fable"), "--effort", w.get("effort", "xhigh")]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
-        if w.get("model"): argv += ["--model", w["model"]]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":
         # --cd is the real write fence (issue #24214: --add-dir is not); never --full-auto (it overrides --sandbox)
@@ -198,8 +200,11 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
         argv = ["gemini", "-p", obj, "--output-format", w.get("output_format", "text"), "--yolo"]
         if w.get("model"): argv += ["-m", w["model"]]
     elif h == "antigravity":  # flag surface verified against agy 1.2.6 --help (adapters.py probe, 2026-09)
-        argv = ["agy", "-p", obj, "--output-format", "json", "--print-timeout", f"{t}s", "--dangerously-skip-permissions"]
-        if w.get("model"): argv += ["--model", w["model"]]
+        # Default model: newest generation at high reasoning (slug carries effort);
+        # `agy models` lists what the account can use — flags drift, probe first.
+        argv = ["agy", "-p", obj, "--output-format", "json", "--print-timeout", f"{t}s", "--dangerously-skip-permissions",
+                "--model", w.get("model", "gemini-3.8-flash-high")]
+        if w.get("effort"): argv += ["--effort", w["effort"]]
         if w.get("sandbox"): argv += ["--sandbox", w["sandbox"]]
     elif h == "copilot":
         argv = ["copilot", "-p", obj, "--output-format", "json", "--add-dir", str(wt), "--no-ask-user", "-s"]
