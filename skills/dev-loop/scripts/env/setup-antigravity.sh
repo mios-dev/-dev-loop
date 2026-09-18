@@ -112,6 +112,48 @@ else
     warn "dev-loop skill install for Antigravity reported errors; run it manually: sh $SKILL_DIR/scripts/install.sh --harness antigravity --user"
 fi
 
+# --- 4b. headless permission grants -------------------------------------------
+# Headless agy cannot prompt, so it AUTO-DENIES any tool without a grant and still
+# reports status SUCCESS with an empty response -- a lane that did nothing looks like a
+# lane that passed. Grants are therefore part of provisioning, not an operator extra.
+#
+# Grammar (measured against agy 1.2.6, and nothing like Claude Code's `Bash(git:*)`):
+#   * valid actions are read_file, write_file and command -- ANY other action name
+#     (edit_file, list_dir, grep_search, run_command, invoke_subagent, ...) is DISCARDED
+#     with only a log line, so a careful-looking allowlist can grant nothing at all;
+#   * read_file/write_file take a target and do NOT glob over paths: `read_file(/repo/**)`
+#     and `read_file(/repo/*)` are accepted and match nothing. Only an exact path or the
+#     universal `(*)` works. GrepSearch resolves to read_file, so searching needs it too;
+#   * command() prefix-matches the binary, so the shell stays scoped to this list --
+#     which is what makes this narrower than --dangerously-skip-permissions.
+AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
+if [ -n "${MIOS_AGY_NO_GRANTS:-}" ]; then
+    log "skipping permission grants (MIOS_AGY_NO_GRANTS set)"
+elif command -v python3 >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$AGY_SETTINGS")"
+    AGY_SETTINGS="$AGY_SETTINGS" python3 - <<'PY' && log "headless grants written to ~/.gemini/antigravity-cli/settings.json"
+import json, os, pathlib
+p = pathlib.Path(os.environ["AGY_SETTINGS"])
+try:
+    cfg = json.loads(p.read_text()) if p.is_file() else {}
+except (json.JSONDecodeError, OSError):
+    cfg = {}
+if not isinstance(cfg, dict):
+    cfg = {}
+want = ["read_file(*)", "write_file(*)"] + [f"command({c})" for c in (
+    "sh", "bash", "python3", "git", "cat", "grep", "head", "tail", "ls", "find",
+    "wc", "sed", "awk", "mkdir", "cp", "mv", "printf", "echo", "jq", "cd")]
+allow = cfg.setdefault("permissions", {}).setdefault("allow", [])
+for rule in want:
+    if rule not in allow:
+        allow.append(rule)
+p.write_text(json.dumps(cfg, indent=2) + "\n")
+print(f"[antigravity-setup] {len(want)} grant(s) ensured, {len(allow)} total")
+PY
+else
+    warn "python3 missing -- cannot write permission grants; headless lanes will be auto-denied"
+fi
+
 # --- 5. persist session environment ---------------------------------------------
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
     grep -qs 'agy-cloud/keyring.env' "$CLAUDE_ENV_FILE" 2>/dev/null || {
