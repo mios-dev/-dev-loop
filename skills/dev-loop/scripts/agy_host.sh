@@ -81,7 +81,21 @@ case "$MODE" in
                --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" --effort "${AGY_HOST_EFFORT:-high}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --dangerously-skip-permissions
         # Outer wall-clock timeout: no harness is trusted to stop itself (SKILL.md §10).
-        exec timeout "${AGY_HOST_TIMEOUT:-4h}" agy "$@"
+        # NOT exec: a headless run whose tools were auto-denied still exits 0 with
+        # status SUCCESS and an empty response (agy 1.2.6, observed live), so exec'ing
+        # would hand the caller that 0 as if the manager had done the work. Capture the
+        # envelope, show it, and put it through the same denial check adapters.py
+        # applies to every lane (SKILL.md §10, "headless green can hide denials").
+        ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
+        timeout "${AGY_HOST_TIMEOUT:-4h}" agy "$@" >"$ENV_FILE" 2>&1
+        RC=$?
+        cat "$ENV_FILE"
+        if ! python3 "$SKILL_DIR/scripts/adapters.py" denials "$ENV_FILE"; then
+            echo "agy_host: manager run rejected — see the denial lines above; envelope kept at $ENV_FILE" >&2
+            [ "$SKIP_PERMS" = 1 ] || echo "agy_host: headless auto-denies tools it cannot prompt for; re-run with --yolo, or add the allow-rule the notice names to settings.json" >&2
+            [ "$RC" = 0 ] && RC=3
+        fi
+        exit "$RC"
         ;;
     interactive)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }

@@ -16,6 +16,9 @@ adapters.py — the one code path every host uses (stdlib only, Linux/macOS/Wind
   secrets   --wt DIR                                staged-diff secret scan (gitleaks if present)
   deps      --wt DIR [--force]                      supply-chain gate when a lockfile/manifest is staged (osv-scanner, pip-audit, cargo-audit, npm audit, govulncheck, socket)
   probe     [--harness h ...]                       verify harness binaries + relied-on flags via --help (run at install and after CLI upgrades)
+  denials   <envelope-file|->                       read a harness result envelope (agy / claude-code json, with or
+                                                    without a stderr notice sharing the stream) and report auto-denied
+                                                    tool calls. exit 0 clean, 3 denied/failed/no-envelope.
   ledger    --status S --objective O [--done --next --blockers --unverified]   append a handoff note to .devloop/LEDGER.md
   git       --wt DIR -- <git args>                  git with index.lock retry (≤5 × 500 ms backoff)
 """
@@ -323,6 +326,50 @@ def find_report_block(text: str) -> dict | None:
     return found
 
 
+# Keys that mark a harness envelope carrying auto-denied tool calls or a failed turn.
+DENIAL_KEYS = ("permission_denials", "denied_actions")
+
+
+def find_envelope(text: str) -> dict | None:
+    """The harness's own result envelope, found by brace balance rather than json.loads().
+
+    A bare json.loads() on the captured output misses the envelope whenever ANYTHING
+    shares the stream with it -- and agy prints its auto-denial notice to stderr, so a
+    caller that merges the streams (2>&1, a shell pipeline, a CI log) gets
+    `jetski: ... auto-denied\\n{...}` and the parse raises. The denial check downstream
+    then silently does nothing, which is the exact failure it exists to catch.
+    """
+    found = None
+    for d in _balanced_json_objects(text):
+        if isinstance(d, dict) and (
+            any(k in d for k in DENIAL_KEYS)
+            or "is_error" in d
+            or ("status" in d and "usage" in d)          # agy
+            or ("result" in d and "num_turns" in d)      # claude-code
+        ):
+            found = d                                    # keep the LAST one
+    return found
+
+
+def envelope_denials(env: dict | None) -> list[str]:
+    """One human-readable line per denial signal in the envelope; empty when clean."""
+    out = []
+    if not isinstance(env, dict):
+        return out
+    for k in DENIAL_KEYS:
+        v = env.get(k)
+        if v:
+            n = len(v) if isinstance(v, (list, tuple, dict)) else 1
+            names = ""
+            if isinstance(v, list):
+                got = [a.get("action") or a.get("display_name") for a in v if isinstance(a, dict)]
+                names = " (" + ", ".join(x for x in got if x) + ")" if any(got) else ""
+            out.append(f"harness denied {n} tool call(s) ({k}){names} — work may be incomplete")
+    if env.get("is_error"):
+        out.append("harness reported is_error — the turn failed")
+    return out
+
+
 def normalize_report(lane: dict, harness: str, stdout: str, exit_code: int, timed_out: bool, turns: int | None) -> dict:
     text = _extract_text(harness, stdout)
     rep = find_report_block(text)
@@ -338,20 +385,15 @@ def normalize_report(lane: dict, harness: str, stdout: str, exit_code: int, time
     if synth: rep["unverified"] = list(rep["unverified"]) + ["no devloop_report block emitted by the lane"]
     if timed_out and rep["status"] == "done": rep["status"] = "budget"
     if exit_code != 0 and rep["status"] == "done": rep["status"] = "partial"; rep["unverified"].append(f"harness exit {exit_code}")
-    try:
-        env = json.loads(stdout.strip())
-        if isinstance(env, dict) and env.get("permission_denials"):
-            rep["unverified"].append(f"harness denied {len(env['permission_denials'])} tool call(s) (permission_denials) — work may be incomplete")
-            if rep["status"] == "done": rep["status"] = "partial"
-        # agy's envelope reports headless auto-denials as denied_actions and can still
-        # say status SUCCESS with an empty response (observed live, agy 1.2.6) — same
-        # trap as Claude's permission_denials, same downgrade.
-        if isinstance(env, dict) and env.get("denied_actions"):
-            rep["unverified"].append(f"harness denied {len(env['denied_actions'])} tool call(s) (denied_actions) — work may be incomplete")
-            if rep["status"] == "done": rep["status"] = "partial"
-        if isinstance(env, dict) and env.get("is_error") and rep["status"] == "done": rep["status"] = "partial"
-    except (json.JSONDecodeError, AttributeError):
-        pass
+    # agy's envelope reports headless auto-denials as denied_actions and can still say
+    # status SUCCESS with an empty response (observed live, agy 1.2.6) — same trap as
+    # Claude's permission_denials, same downgrade. Located by brace balance, never by a
+    # bare json.loads: agy's denial notice goes to stderr, so any caller that merges the
+    # streams would make the parse raise and skip this check entirely.
+    notes = envelope_denials(find_envelope(stdout))
+    if notes:
+        rep["unverified"].extend(notes)
+        if rep["status"] == "done": rep["status"] = "partial"
     rep["_meta"] = {"lane": lane["id"], "harness": harness, "exit": exit_code, "timed_out": timed_out, "turns": turns}
     return rep
 
@@ -538,6 +580,26 @@ def cmd_gate(a):
         print("full gate: PASS")
 
 
+def cmd_denials(a):
+    """A host that execs a harness directly gets its exit code, and a fully-denied
+    headless run exits 0 with status SUCCESS and an empty response (agy 1.2.6). This is
+    the seam that lets such a host reach the same check `run` applies to lanes."""
+    text = sys.stdin.read() if a.envelope == "-" else Path(a.envelope).read_text("utf-8", errors="replace")
+    env = find_envelope(text)
+    if env is None:
+        die(f"no harness result envelope found in {a.envelope} — cannot tell whether the run did anything", 3)
+    notes = envelope_denials(env)
+    empty = not str(env.get("response") or env.get("result") or "").strip()
+    if notes or empty:
+        for n in notes:
+            print(f"denials: {n}", file=sys.stderr)
+        if empty:
+            print(f"denials: the harness produced an EMPTY response over {env.get('num_turns', '?')} turn(s) "
+                  f"— it reported {env.get('status') or 'success'} while doing nothing", file=sys.stderr)
+        die("denials: this run is NOT a success, whatever its exit code said", 3)
+    print(f"denials: none — envelope clean ({env.get('num_turns', '?')} turn(s))")
+
+
 def cmd_secrets(a):
     wt = Path(a.wt)
     if shutil.which("gitleaks"):
@@ -626,6 +688,7 @@ def main():
     p = sp.add_parser("owned"); p.add_argument("--lane", required=True); p.add_argument("--wt", required=True); p.set_defaults(f=cmd_owned)
     p = sp.add_parser("gate"); p.add_argument("--lane", required=True); p.add_argument("--wt", required=True)
     p.add_argument("--run", required=True); p.add_argument("--shell", choices=["sh", "pwsh"]); p.set_defaults(f=cmd_gate)
+    p = sp.add_parser("denials"); p.add_argument("envelope"); p.set_defaults(f=cmd_denials)
     p = sp.add_parser("secrets"); p.add_argument("--wt", required=True); p.set_defaults(f=cmd_secrets)
     p = sp.add_parser("deps"); p.add_argument("--wt", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_deps)
     p = sp.add_parser("probe"); p.add_argument("--harness", nargs="*"); p.set_defaults(f=cmd_probe)
