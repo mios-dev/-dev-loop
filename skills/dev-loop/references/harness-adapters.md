@@ -132,7 +132,13 @@ which is why the skill stays universal: the host changes, the lane contract does
   And in print mode the manager MUST run `devloop.sh` synchronously in the foreground: a
   headless `agy -p` answers once and exits, killing every backgrounded child with it — a manager
   that "launches and awaits" reports SUCCESS while nothing merges (observed live, 2026-09;
-  `agy_host.sh` bakes this instruction into the manager prompt).
+  `agy_host.sh` bakes this instruction into the manager prompt). Two more print-mode facts,
+  both observed live: `run_command` auto-backgrounds anything still running after its
+  `WaitMsBeforeAsync` parameter (the prompt pins it to 30 min for the dispatch), and
+  **`invoke_subagent` fails under headless `agy -p`** — the manager attempts it first and takes
+  the documented fallback (full plan through `devloop.sh`), which carried a verified green run
+  (gates, merges, integration, truthful report). The native subagent path needs an interactive
+  Antigravity session (IDE or `agy` TUI).
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple
