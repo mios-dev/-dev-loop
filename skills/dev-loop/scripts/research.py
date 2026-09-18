@@ -45,11 +45,15 @@ class UpstreamResearcher:
         self.script_dir = Path(__file__).resolve().parent
 
     def _find_repo_root(self) -> Path:
-        cur = Path.cwd()
-        for parent in [cur] + list(cur.parents):
-            if (parent / ".git").exists():
-                return parent
-        return cur
+        try:
+            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+            return Path(out).resolve()
+        except Exception:
+            cur = Path.cwd()
+            for parent in [cur] + list(cur.parents):
+                if (parent / ".git").exists():
+                    return parent
+            return cur
 
     def scaffold_template(self, template_type: str, dest_name: Optional[str] = None) -> Path:
         mapping = {
@@ -66,7 +70,7 @@ class UpstreamResearcher:
         dest_path = self.repo_root / target_name
 
         if not src_path.exists():
-            src_path = self.script_dir.parent / "assets" / "templates" / src_name
+            src_path = self.repo_root / "reference" / "templates" / src_name
 
         if not src_path.exists():
             print(f"[ERROR] Template source not found: {src_path}", file=sys.stderr)
