@@ -1,4 +1,4 @@
-# dev-loop — universal autonomous engineering loop (v7.2.0)
+# dev-loop — universal autonomous engineering loop (v7.3.0)
 
 One repo, three things:
 
@@ -36,9 +36,9 @@ Any harness can be the host; any harness can run a lane (`references/harness-ada
 ## Environments: devcontainers (Fedora default) + Claude Code on the web
 
 The environment layer ships **inside the skill** (`skills/dev-loop/scripts/env/`, docs in
-`references/environment.md`; `environment/` at the repo root holds compat wrappers), so every
-dev-loop install carries it. It is distro-aware — **Fedora/RHEL (dnf5/dnf/microdnf) first,
-Debian/Ubuntu (apt) second** — idempotent, and location-independent.
+`references/environment.md`), so every dev-loop install carries it. It is distro-aware —
+**Fedora/RHEL (dnf5/dnf/microdnf) first, Debian/Ubuntu (apt) second** — idempotent, and
+location-independent.
 
 **Devcontainers:** `.devcontainer/devcontainer.json` is **Fedora 44** (this repo's default
 image); `.devcontainer/ubuntu/` is the Ubuntu 24.04 variant. Both bake the keyring stack plus

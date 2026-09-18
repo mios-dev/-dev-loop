@@ -19,10 +19,17 @@ flags too — verify against `<cli> --help` before relying on one.
 | OpenAI-compatible runtime (Open WebUI pipe, custom) | pass `SKILL.md` as system context (Open WebUI core has no SKILL.md discovery) | n/a — expose `dev_loop` from `openai-tools.json` as a host-side tool | tool call | JSON |
 
 `scripts/install.sh` / `install.ps1` copies the skill and every shim into the right places for
-the harnesses it detects (`--all` to install for all, `--user` for user scope). Frontmatter stays
-within the six portable keys; Claude Code-only keys (`argument-hint`, `context: fork`,
-`disable-model-invocation`) are on the **shim**, not the skill, because claude.ai/Skills API
-rejects them.
+the harnesses it detects (`--all` to install for all, `--user` for user scope). The current spec
+(agentskills.io, 2025-12) makes conformant runtimes ignore unrecognized frontmatter keys, so
+extra keys are legal — but the claude.ai Skills API still rejects them, so install strips
+frontmatter to the portable keys outside Claude Code, and heavy Claude-only keys
+(`context: fork`, `disable-model-invocation`) stay on the **shim**. Keep angle brackets out of
+frontmatter entirely (spec safety note: prompt-injection surface).
+
+**Antigravity workflows retire 2026-11-01** (they stop being indexed or slash-invocable). After
+that, `/dev-loop` resolves directly from the skill itself: `.agents/skills/dev-loop/` (workspace)
+or `~/.gemini/config/skills/dev-loop/` — the one global path all three surfaces (IDE, agent,
+`agy` CLI) read. The workflow shims installed today are a bridge, not the destination.
 
 ## 2. Headless lane command templates (`harness` field → command)
 
@@ -33,7 +40,7 @@ instruction to end with the `devloop_report` block), `{wt}` = absolute worktree 
 
 | `harness` | Command (cwd = worktree) | Objective | Native JSON envelope | Turn / time caps | Tool / permission control | Done signal |
 |---|---|---|---|---|---|---|
-| `claude-code` | `claude -p "{obj}" --output-format json --max-turns {n} --permission-mode dontAsk --allowedTools "…" --json-schema <report schema>` | `-p` | `{result, structured_output, session_id, is_error, num_turns, total_cost_usd, permission_denials}` | `--max-turns`, `--max-budget-usd`, outer timeout | `--allowedTools` scoped rules + hooks (`allowed-tools` frontmatter alone is *not* enforced) | exit 0 ∧ `is_error=false` ∧ **`permission_denials` empty** ∧ report |
+| `claude-code` | `claude -p "{obj}" --output-format json --permission-mode dontAsk --allowedTools "…" --json-schema <report schema>` *(`--max-turns` was removed from the CLI — gone by 2.1.276; budget = outer timeout + `--max-budget-usd`)* | `-p` | `{result, structured_output, session_id, is_error, num_turns, total_cost_usd, permission_denials}` | `--max-budget-usd`, outer timeout | `--allowedTools` scoped rules + hooks (`allowed-tools` frontmatter alone is *not* enforced) | exit 0 ∧ `is_error=false` ∧ **`permission_denials` empty** ∧ report |
 | `codex` | `codex exec --json --cd "{wt}" --sandbox workspace-write --ask-for-approval never --ephemeral --output-schema <file> -o <last.txt> "{obj}"` | positional | JSONL events; `-o` file holds the schema-validated final message | no max-turns → outer timeout | `--sandbox` / `--ask-for-approval`; **`--cd` is the write fence, `--add-dir` is not (#24214)**; never `--full-auto` (overrides `--sandbox`); `.git/` read-only ⇒ host commits | exit 0 ∧ report |
 | `gemini-cli` *(legacy alias; consumer Gemini CLI ended 2026-06-18 — prefer `antigravity`)* | `gemini -p "{obj}" --output-format text --yolo` | `-p` (stdin appends) | text; fenced report parsed (**`--output-format json` aborts on any non-fatal tool error, #9281**) | none → outer timeout | trusted folders / policy engine; `--yolo` auto-approves | exit 0 ∧ report |
 | `antigravity` | `agy -p "{obj}" --output-format json --print-timeout {t}s --dangerously-skip-permissions` **(unverified surface — run `adapters.py probe`)** | `-p` | `{conversation_id, status, response, num_turns, usage, structured_output}` | `--print-timeout` (default 5m!) + outer timeout | `command(...)` rules in `~/.gemini/antigravity-cli/settings.json`; `--sandbox` | exit 0 ∧ report; **exit 12 = partial timeout** |
@@ -49,6 +56,19 @@ Corrections to earlier drafts: `claude -w <name> -p` is real but creates *its ow
 `opencode run -d … -p …` **do not exist**; the forms above are the shipped ones. `adapters.py probe`
 checks each installed binary's `--help` for the flags the adapter relies on — run it at install and
 after every CLI upgrade; flags drift monthly.
+
+**A lane's tool allowlist must cover its own controls.** The lane prompt tells the worker to run
+both controls itself and a scoped rule like `Bash(python3:*)` does not match a compound
+`negative_control_cmd` (`trap …; printf …; python3 …`), so the worker self-reports `blocked` and
+the host — which refuses to merge on any non-`done` report even when its own gates hold — parks
+the lane (observed live with claude-code + Haiku, 2026-09). Grant lanes plain `Bash` (the
+worktree is the fence) or write controls as single non-compound commands.
+
+**Restore controls by copy, never by `git checkout --`.** `git checkout -- <file>` restores from
+the INDEX, and a lane's fix is uncommitted and unstaged when the host gate runs — so that trap
+silently replaces the fix with the seeded bug, the tree-restored check fails, and the work is
+destroyed (observed live 2026-09; the gate now parks the pre-control diff so the evidence
+survives). Write `cp f .nc.bak; trap 'mv .nc.bak f' EXIT; …` — correct regardless of git state.
 
 **Exit codes** are not fully enumerated by any vendor: branch on zero vs non-zero and read the
 structured output for the real reason. Known traps the adapter handles: Claude denied-permission

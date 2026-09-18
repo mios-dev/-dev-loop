@@ -1,7 +1,7 @@
 ---
 name: triage
 description: Phantom-failure and flakiness triage for a failing command - separates deterministic bugs from flaky tests and environment/path/cache artefacts by repeated isolated runs, produces a minimal repro script and a TRIAGE_INCIDENT record. Use when a test or build fails, especially "passes locally, fails in CI" or intermittent failures.
-argument-hint: "<failing command> [--runs N]"
+argument-hint: "FAILING-COMMAND [--runs N]"
 context: fork
 agent: dev-loop:triage
 allowed-tools: Read, Grep, Glob, Bash

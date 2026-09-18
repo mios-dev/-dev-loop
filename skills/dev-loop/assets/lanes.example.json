@@ -32,7 +32,7 @@
         "allowed_tools": "Read,Edit,Write,Glob,Grep,Bash(python:*),Bash(pytest:*)"
       },
       "positive_cmd": "python -m pytest -q tests/unit/test_telemetry_async.py",
-      "negative_control_cmd": "trap 'git checkout -- src/telemetry/queue.py' EXIT; sed -i 's/backoff_factor = 2/backoff_factor = 0/' src/telemetry/queue.py; python -m pytest -q tests/unit/test_telemetry_async.py -k backoff",
+      "negative_control_cmd": "cp src/telemetry/queue.py .nc-1.bak; trap 'mv .nc-1.bak src/telemetry/queue.py' EXIT; sed -i 's/backoff_factor = 2/backoff_factor = 0/' src/telemetry/queue.py; python -m pytest -q tests/unit/test_telemetry_async.py -k backoff",
       "negative_expect": "test_.*backoff.*FAILED|assert.*backoff",
       "full_gate_cmd": "make test",
       "task_id": "T-002",
@@ -58,7 +58,7 @@
         "model": "gpt-5-mini"
       },
       "positive_cmd": "python -m pytest -q tests/checks",
-      "negative_control_cmd": "trap 'git checkout -- tests/checks/VACUOUS.md' EXIT; printf '\\n# planted-vacuous\\n' >> tests/checks/VACUOUS.md; python -m pytest -q tests/checks -k vacuous",
+      "negative_control_cmd": "cp tests/checks/VACUOUS.md .nc-2.bak; trap 'mv .nc-2.bak tests/checks/VACUOUS.md' EXIT; printf '\\n# planted-vacuous\\n' >> tests/checks/VACUOUS.md; python -m pytest -q tests/checks -k vacuous",
       "negative_expect": "planted-vacuous|VACUOUS"
     },
     {
@@ -76,7 +76,7 @@
         "timeout_s": 900
       },
       "positive_cmd": "make docs && python scripts/checks/links.py docs/",
-      "negative_control_cmd": "trap 'git checkout -- docs/telemetry.md' EXIT; printf '[dead](../nope.md)\\n' >> docs/telemetry.md; python scripts/checks/links.py docs/",
+      "negative_control_cmd": "cp docs/telemetry.md .nc-3.bak; trap 'mv .nc-3.bak docs/telemetry.md' EXIT; printf '[dead](../nope.md)\\n' >> docs/telemetry.md; python scripts/checks/links.py docs/",
       "negative_expect": "nope\\.md"
     },
     {
@@ -92,7 +92,7 @@
         "base_url": "http://localhost:11434/v1"
       },
       "positive_cmd": "make lint",
-      "negative_control_cmd": "trap 'git checkout -- src/infra/__init__.py' EXIT; printf 'import os\\n' >> src/infra/__init__.py; make lint",
+      "negative_control_cmd": "cp src/infra/__init__.py .nc-4.bak; trap 'mv .nc-4.bak src/infra/__init__.py' EXIT; printf 'import os\\n' >> src/infra/__init__.py; make lint",
       "negative_expect": "F401|unused import"
     },
     {
@@ -107,7 +107,7 @@
         "model": "openai/gpt-5-mini"
       },
       "positive_cmd": "make lint",
-      "negative_control_cmd": "trap 'git checkout -- src/cli/__init__.py' EXIT; printf 'import os\\n' >> src/cli/__init__.py; make lint",
+      "negative_control_cmd": "cp src/cli/__init__.py .nc-5.bak; trap 'mv .nc-5.bak src/cli/__init__.py' EXIT; printf 'import os\\n' >> src/cli/__init__.py; make lint",
       "negative_expect": "F401|unused import"
     }
   ]

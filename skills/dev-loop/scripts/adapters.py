@@ -39,7 +39,7 @@ V1_HARNESS = {"claude": "claude-code", "gemini": "gemini-cli", "cloudcode": "ant
               "copilot": "copilot", "opencode": "opencode", "cursor": "cursor", "antigravity": "antigravity", "codex": "codex"}
 BINARY = {"claude-code": "claude", "codex": "codex", "gemini-cli": "gemini", "antigravity": "agy", "copilot": "copilot", "opencode": "opencode", "cursor": "agent"}
 # flags the adapter relies on, probed with `<bin> --help` by `probe`; a miss means the CLI moved under us
-PROBE_FLAGS = {"claude-code": ["--output-format", "--max-turns", "--permission-mode", "--allowedTools", "--json-schema"],
+PROBE_FLAGS = {"claude-code": ["--output-format", "--max-budget-usd", "--permission-mode", "--allowedTools", "--json-schema"],
                "codex": ["exec", "--json", "--cd", "--sandbox", "--ask-for-approval", "--output-schema"],
                "gemini-cli": ["-p", "--output-format", "--yolo"],
                "antigravity": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
@@ -176,7 +176,9 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
     obj = prompt_file.read_text("utf-8")
     structured = w.get("structured_output", True)
     if h == "claude-code":
-        argv = ["claude", "-p", obj, "--output-format", "json", "--max-turns", n,
+        # --max-turns was removed from the claude CLI (gone by 2.1.276); the lane
+        # budget is the outer timeout plus optional --max-budget-usd.
+        argv = ["claude", "-p", obj, "--output-format", "json",
                 "--permission-mode", w.get("permission_mode", "dontAsk"),
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash")]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
@@ -195,7 +197,7 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
         # text output on purpose: --output-format json aborts on any non-fatal tool error (issue #9281)
         argv = ["gemini", "-p", obj, "--output-format", w.get("output_format", "text"), "--yolo"]
         if w.get("model"): argv += ["-m", w["model"]]
-    elif h == "antigravity":  # flag surface UNVERIFIED against agy --help in this release; run `adapters.py probe`
+    elif h == "antigravity":  # flag surface verified against agy 1.2.6 --help (adapters.py probe, 2026-09)
         argv = ["agy", "-p", obj, "--output-format", "json", "--print-timeout", f"{t}s", "--dangerously-skip-permissions"]
         if w.get("model"): argv += ["--model", w["model"]]
         if w.get("sandbox"): argv += ["--sandbox", w["sandbox"]]
@@ -483,12 +485,16 @@ def cmd_gate(a):
     if code != 0: die(f"positive: FAIL (exit {code}, see pos-{lid}.log)", 1)
     print("positive: PASS")
     before = tree_snapshot(wt)
+    # Park the lane's work BEFORE the control runs: a broken control can wipe
+    # uncommitted lane edits (e.g. a `git checkout -- <file>` trap restores from
+    # the INDEX, i.e. the seed), and a post-control diff would park nothing.
+    pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
     code, out, _ = run_shell(lane["negative_control_cmd"], wt, t, prefer=a.shell)
     (run / f"neg-{lid}.log").write_text(out, "utf-8")
     after = tree_snapshot(wt)
     if before != after:
-        (run / f"lane-{lid}.patch").write_text(git(wt, "diff").stdout, "utf-8")
-        die("negative control did not restore the tree — control is broken (SKILL §6)", 2)
+        (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+        die("negative control did not restore the tree — control is broken (SKILL §6); pre-control diff parked", 2)
     if code == 0: die("negative control PASSED => VACUOUS LANE. Refusing to merge.", 2)
     if lane["negative_expect"] and not re.search(lane["negative_expect"], out):
         die(f"negative failed but did NOT name the planted violation (/{lane['negative_expect']}/). Refusing.", 2)

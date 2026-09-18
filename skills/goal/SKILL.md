@@ -1,7 +1,7 @@
 ---
 name: goal
-description: Define an engineering goal with explicit stopping conditions, decompose it into tasks, and drive it to done through the dev loop (`/goal dev <objective>`), or evaluate whether the current goal's stopping conditions hold (`/goal eval`). Use when the user names an outcome to reach rather than a single change.
-argument-hint: "[dev|eval|status] <objective>"
+description: Define an engineering goal with explicit stopping conditions, decompose it into tasks, and drive it to done through the dev loop (`/goal dev OBJECTIVE`), or evaluate whether the current goal's stopping conditions hold (`/goal eval`). Use when the user names an outcome to reach rather than a single change.
+argument-hint: "[dev|eval|status] OBJECTIVE"
 allowed-tools: Read, Grep, Glob, Bash, Agent, Skill
 ---
 # /goal — goal-driven autonomous engineering

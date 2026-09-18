@@ -1,7 +1,7 @@
 ---
 name: research
 description: Upstream research before deciding - vendor docs, changelogs, release diffs (`base_ref..upstream_ref`), breaking-change audits, and technology evaluations, written into SPIKE / UPSTREAM_AUDIT / TECH_EVAL documents. Use before an architectural decision, a dependency bump, a migration, or when a deprecation warning appears.
-argument-hint: "<topic> | diff <base_ref> <upstream_ref> | template spike|upstream-audit|tech-eval"
+argument-hint: "TOPIC | diff BASE_REF UPSTREAM_REF | template spike|upstream-audit|tech-eval"
 context: fork
 agent: dev-loop:researcher
 allowed-tools: WebSearch, WebFetch, Read, Grep, Glob, Bash

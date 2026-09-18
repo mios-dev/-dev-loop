@@ -4,10 +4,10 @@ description: Autonomous engineering loop and multi-harness worker orchestrator f
 license: MIT
 compatibility: git and POSIX sh or PowerShell 7+. Optional - python3 (adapters, schema validation, OpenAI-compatible worker), tmux or Windows Terminal (visible lane grids), jsonschema.
 metadata:
-  version: "7.2.0"
+  version: "7.3.0"
   harnesses: "claude-code antigravity codex gemini-cli copilot opencode cursor openai-compatible custom"
   layout: "scripts/ (adapters.py artifacts.py devloop.sh DevLoop.ps1 devloop_worker.py devloop_mcp.py agy_host.sh goal.py research.py review.py ship.py triage.py contracts.py verify_harness.py install.sh install.ps1 env/ setup-antigravity.sh agy-keyring.sh agy-login.sh agy-doctor.sh) references/ (harness-adapters.md artifacts.md environment.md goal.md research.md review.md ship.md triage.md) assets/ (lane-schema.json openai-tools.json lanes.example.json lanes.agy-manager.example.json templates/)"
-  plugin: "../../.claude-plugin/plugin.json with agents/, hooks/hooks.json, .mcp.json, shims/<harness>/ shims and sibling skills goal research review ship triage websearch"
+  plugin: "../../.claude-plugin/plugin.json with agents/, hooks/hooks.json, .mcp.json, per-harness shims under shims/ and sibling skills goal research review ship triage websearch"
 ---
 
 # The Dev Loop
@@ -27,10 +27,13 @@ live in `references/harness-adapters.md`.
 
 ## 0. Harness Adaptation (host or lane, any vendor)
 
-This skill is written against the Agent Skills open standard (`SKILL.md`, frontmatter limited to
-the six portable keys) and loads unchanged in every harness that reads it. It ships as a **Claude
-Code plugin** (`.claude-plugin/plugin.json`) whose pieces are also installed into every other
-harness by `scripts/install.sh` / `install.ps1`:
+This skill is written against the Agent Skills open standard (agentskills.io, published 2025-12,
+stewarded by the Agentic AI Foundation): only `name` and `description` are required, conformant
+runtimes ignore unrecognized frontmatter keys, `description` ≤ 1024 chars stating what AND when,
+`name` matches the folder, and **no angle brackets anywhere in frontmatter** (they can inject
+into a host's system prompt). It loads unchanged in every harness that reads the standard, and
+ships as a **Claude Code plugin** (`.claude-plugin/plugin.json`) whose pieces are also installed
+into every other harness by `scripts/install.sh` / `install.ps1`:
 
 | Piece | Claude Code (native) | Other harnesses |
 |---|---|---|

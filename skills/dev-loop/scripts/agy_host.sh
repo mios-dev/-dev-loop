@@ -58,10 +58,10 @@ case "$MODE" in
         ;;
     headless)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }
-        set -- -p "$PROMPT" --output-format json --print-timeout 60m
+        set -- -p "$PROMPT" --output-format json --print-timeout "${AGY_HOST_PRINT_TIMEOUT:-60m}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --dangerously-skip-permissions
         # Outer wall-clock timeout: no harness is trusted to stop itself (SKILL.md §10).
-        exec timeout 4h agy "$@"
+        exec timeout "${AGY_HOST_TIMEOUT:-4h}" agy "$@"
         ;;
     interactive)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }

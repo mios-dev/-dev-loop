@@ -1,7 +1,7 @@
 ---
 name: websearch
 description: Targeted web discovery for canonical vendor documentation, API specifications, changelogs, and exact error signatures. Use for a quick fact check during work; use /research for a full upstream audit.
-argument-hint: "<query or error signature>"
+argument-hint: "QUERY-or-error-signature"
 allowed-tools: WebSearch, WebFetch
 ---
 # /websearch — quick, cited fact check

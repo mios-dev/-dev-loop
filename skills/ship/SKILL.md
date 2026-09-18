@@ -1,7 +1,7 @@
 ---
 name: ship
 description: Safe trunk-based shipping of a lane or feature branch - pre-flight gates, --no-ff merge with abort-on-conflict, worktree and branch cleanup, CHANGELOG entry, optional tag. Use only after /review passed; ship is user-invoked, never auto-triggered.
-argument-hint: "<source_branch> [--target main] [--tag vX.Y.Z]"
+argument-hint: "SOURCE_BRANCH [--target main] [--tag vX.Y.Z]"
 disable-model-invocation: true
 allowed-tools: Read, Bash
 ---

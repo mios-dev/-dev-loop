@@ -28,8 +28,8 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 
 ## Environments (devcontainer default: Fedora; also Claude Code on the web)
 
-Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`;
-`environment/` holds compat wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
+Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`; there is
+no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
 `.devcontainer/` defaults to **Fedora 44**; `.devcontainer/ubuntu/` is the apt variant.
 
 - `bash skills/dev-loop/scripts/env/setup-antigravity.sh` — idempotent provisioning (also run
