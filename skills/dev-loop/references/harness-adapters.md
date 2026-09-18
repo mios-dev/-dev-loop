@@ -121,8 +121,14 @@ which is why the skill stays universal: the host changes, the lane contract does
   `gemini`, `agy`, `python3`, `git` to the Allow list; use `/tasks` to watch background lanes.
   For a **headless `agy` manager**, prefer scoped allow rules over
   `--dangerously-skip-permissions` — in `~/.gemini/antigravity-cli/settings.json`
-  (Deny > Ask > Allow; verified against the CLI permissions docs, 2026-09):
-  `{"permissions": {"allow": ["command(sh)", "command(python3)", "command(git)"]}}`.
+  (Deny > Ask > Allow; verified against the CLI permissions docs and live runs, 2026-09):
+  `{"permissions": {"allow": ["read_file(*)", "write_file(*)", "command(sh)",
+  "command(python3)", "command(git)", "command(cat)", "command(ls)", "command(head)",
+  "command(tail)", "command(mkdir)", "command(cp)", "command(mv)", "command(printf)",
+  "command(echo)", "command(jq)", "command(cd)"]}}`. Prefix rules match the FIRST token
+  only (`cd …&&` needs `command(cd)`), `list_dir` is not a valid action name, and an
+  unanchored manager invents paths in its trusted workspace instead of the run's repo —
+  `agy_host.sh` now pins the run root in the prompt.
   And in print mode the manager MUST run `devloop.sh` synchronously in the foreground: a
   headless `agy -p` answers once and exits, killing every backgrounded child with it — a manager
   that "launches and awaits" reports SUCCESS while nothing merges (observed live, 2026-09;

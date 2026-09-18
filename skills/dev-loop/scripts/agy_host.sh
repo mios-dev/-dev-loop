@@ -35,6 +35,11 @@ done
 # Validate the lane file before handing it to a model: fail here, not mid-run.
 python3 "$SKILL_DIR/scripts/adapters.py" validate "$LANES" >/dev/null || { echo "lane file failed validation: $LANES" >&2; exit 65; }
 
+# The run's repository root: everything the manager creates lives under it.
+# (An agy manager perceives its TRUSTED WORKSPACE as home and, unanchored,
+# invents paths in the wrong checkout — observed live 2026-09.)
+RUN_ROOT=$(cd "$(dirname "$LANES")" && git rev-parse --show-toplevel 2>/dev/null || dirname "$LANES")
+
 # Cloud containers keep the keyring's bus address in this env file; without it
 # agy (and every agy -p lane it spawns) cannot see the cached credential and
 # stalls on authentication. No-op where the file does not exist.
@@ -42,11 +47,14 @@ python3 "$SKILL_DIR/scripts/adapters.py" validate "$LANES" >/dev/null || { echo 
 
 PROMPT="You are the L0 host/manager of the dev-loop skill. Load the skill (dev-loop, in ~/.gemini/config/skills or .agents/skills) and follow SKILL.md sections 11-13 exactly.
 
+THE REPOSITORY ROOT FOR THIS RUN IS: $RUN_ROOT
+Every path you read, create, or modify lives under $RUN_ROOT - the lane plan, lanes.external.json, .devloop/, .worktrees/, every merge. Never touch any other checkout, whatever your workspace or trust settings say; your shell commands already execute with $RUN_ROOT as the working directory. Do not pre-create .devloop/ or .worktrees/ - the orchestrator makes its own run directories.
+
 Manager duties, in order:
-1. Orient: read AGENTS.md, the last .devloop/LEDGER.md entry, and TASKS.md. AGENTS.md is law.
-2. You manage ALL sub-agents for this run. The lane plan is $LANES (already schema-validated). YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes: run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt, reports written into .devloop/run-*/report-LANE_ID.json). Native workflows and each harness's own loop commands (/dev-loop and equivalents) are allowed inside lanes; they map onto loop stages, they never replace the gates.
-3. Other harnesses join the loop through the reference orchestrator: write the non-antigravity lanes (claude-code, codex, gemini-cli, copilot, opencode, cursor, openai-compatible, custom) unchanged into lanes.external.json in the workspace root, then run SYNCHRONOUSLY IN THE FOREGROUND, as EXACTLY this shape - starting with 'sh', no 'cd' prefix, no shell operators before it (your working directory is already the workspace root, and a scoped permission rule matches this command only as written):
-   sh $SKILL_DIR/scripts/devloop.sh lanes.external.json
+1. Orient: read $RUN_ROOT/AGENTS.md, the last entry of $RUN_ROOT/.devloop/LEDGER.md, and $RUN_ROOT/TASKS.md (each may be absent in a fresh repo - note it and move on). AGENTS.md is law.
+2. You manage ALL sub-agents for this run. The lane plan is $LANES (already schema-validated). YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes: run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into $RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). Native workflows and each harness's own loop commands (/dev-loop and equivalents) are allowed inside lanes; they map onto loop stages, they never replace the gates.
+3. Other harnesses join the loop through the reference orchestrator: write the non-antigravity lanes (claude-code, codex, gemini-cli, copilot, opencode, cursor, openai-compatible, custom) unchanged (same version/base_ref/worktree_root/integration_cmd envelope) into $RUN_ROOT/lanes.external.json with write_file, then run SYNCHRONOUSLY IN THE FOREGROUND, as EXACTLY this shape - starting with 'sh', no 'cd' prefix, no shell operators before it (a scoped permission rule matches this command only as written):
+   sh $SKILL_DIR/scripts/devloop.sh $RUN_ROOT/lanes.external.json
    NEVER background this command and NEVER respond while it is still running - when your process ends, every child lane dies with it. It can take many minutes; wait for its exit code. If native subagents are unavailable in this mode, fall back to dispatching the FULL plan the same way: sh $SKILL_DIR/scripts/devloop.sh $LANES
 4. Model tiers are yours to manage: claude-code lanes default to Opus at xhigh effort; assign lower tiers (worker.model 'sonnet' or a haiku id, worker.effort high) to light lanes (docs, lint, small fixes) when writing lanes.external.json.
 5. Gate every native lane YOURSELF before merging it - python3 $SKILL_DIR/scripts/adapters.py owned/gate/secrets/deps with the lane json and worktree - then merge --no-ff exactly as devloop.sh does for external lanes. Never trust a lane's own claim over the gates; a lane whose negative control passes is vacuous and is never merged. After devloop.sh exits, read .devloop/run-*/report-*.json and 'git log --oneline' and confirm each external merge really happened.
