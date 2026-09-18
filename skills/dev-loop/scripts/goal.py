@@ -17,11 +17,16 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
+# The closed set evaluate() dispatches on. Anything outside it fails rather than passes:
+# an unrecognised type means the criterion was never measured, which is not a pass.
+CRITERION_TYPES = ("test", "invariant", "artifact", "git_clean", "non_empty")
+
+
 @dataclass
 class GoalCriterion:
     id: str
     description: str
-    criterion_type: str  # test, invariant, artifact, git_clean, non_empty
+    criterion_type: str  # one of CRITERION_TYPES
     command: Optional[str] = None
     target_path: Optional[str] = None
     passed: bool = False
@@ -93,20 +98,34 @@ class GoalEngine:
         c_objs = []
         if criteria:
             for idx, c in enumerate(criteria):
+                ctype = c.get("type", "invariant")
+                if ctype not in CRITERION_TYPES:
+                    raise SystemExit(f"[ERROR] criterion {idx+1}: unknown type {ctype!r}; "
+                                     f"expected one of {', '.join(CRITERION_TYPES)}")
+                if ctype in ("test", "invariant") and not c.get("command"):
+                    raise SystemExit(f"[ERROR] criterion {idx+1}: type {ctype!r} needs a command to run")
+                if ctype == "non_empty" and not c.get("target_path"):
+                    raise SystemExit(f"[ERROR] criterion {idx+1}: type 'non_empty' needs a target_path")
                 c_objs.append(GoalCriterion(
                     id=f"C-{idx+1:02d}",
                     description=c.get("description", ""),
-                    criterion_type=c.get("type", "invariant"),
+                    criterion_type=ctype,
                     command=c.get("command"),
                     target_path=c.get("target_path")
                 ))
         else:
+            if not stopping_condition:
+                raise SystemExit("[ERROR] --stop is required: the stopping condition is the goal's "
+                                 "only executable criterion. Give the project's own gate command.")
             # Default minimal robust criteria adhering to 2026 verification standard
             c_objs = [
-                GoalCriterion(id="C-01", description=f"Stopping condition: {stopping_condition}", criterion_type="test", command=stopping_condition if stopping_condition else "pytest"),
+                GoalCriterion(id="C-01", description=f"Stopping condition: {stopping_condition}", criterion_type="test", command=stopping_condition),
                 GoalCriterion(id="C-02", description="Working tree clean of uncommitted residue", criterion_type="git_clean"),
-                GoalCriterion(id="C-03", description="Artifact manifest SHA-256 validated", criterion_type="artifact")
             ]
+            # Only mint the artifact criterion where there are task artifacts to validate;
+            # a criterion nothing can satisfy is worse than no criterion at all.
+            if (self.artifacts_dir / "tasks.jsonl").is_file():
+                c_objs.append(GoalCriterion(id="C-03", description="Task artifacts validate (ids, vocabulary, dependency graph, done⇒evidence)", criterion_type="artifact"))
 
         self.goal = GoalDefinition(
             objective=objective,
@@ -150,6 +169,15 @@ class GoalEngine:
         with open(self.goal_file, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
+    def _artifacts_py(self) -> Optional[Path]:
+        """artifacts.py ships beside this file; a repo may also vendor its own copy."""
+        for cand in (Path(__file__).resolve().parent / "artifacts.py",
+                     self.repo_root / "skills" / "dev-loop" / "scripts" / "artifacts.py",
+                     self.repo_root / ".devloop" / "artifacts.py"):
+            if cand.is_file():
+                return cand
+        return None
+
     def evaluate(self) -> bool:
         if not self.goal:
             print("[ERROR] No goal initialized. Run 'goal.py init' first.", file=sys.stderr)
@@ -159,7 +187,7 @@ class GoalEngine:
         all_passed = True
 
         for c in self.goal.criteria:
-            if c.criterion_type == "test" and c.command:
+            if c.criterion_type in ("test", "invariant") and c.command:
                 res = subprocess.run(c.command, shell=True, cwd=self.repo_root, capture_output=True, text=True)
                 c.passed = (res.returncode == 0)
                 c.details = f"Exit code {res.returncode}"
@@ -171,21 +199,40 @@ class GoalEngine:
                 c.passed = clean
                 c.details = "Working tree clean" if clean else f"Dirty files: {len(dirty_lines)} files"
             elif c.criterion_type == "artifact":
-                art_py = self.repo_root / "reference" / "artifacts.py"
-                if art_py.exists():
-                    res = subprocess.run([sys.executable, str(art_py), "verify"], cwd=self.repo_root, capture_output=True, text=True)
-                    c.passed = (res.returncode == 0)
-                    c.details = "Manifest verified" if c.passed else "Manifest verify failed"
+                art_py = self._artifacts_py()
+                tasks = self.artifacts_dir / "tasks.jsonl"
+                if art_py is None:
+                    c.passed = False
+                    c.details = "artifacts.py not found — cannot validate; drop this criterion or install the skill scripts"
+                elif not tasks.is_file():
+                    # `tasks validate` reports "ok: 0 tasks" on an absent file. Passing on an
+                    # empty set would let this criterion be satisfied by having no artifacts.
+                    c.passed = False
+                    c.details = f"{tasks.relative_to(self.repo_root)} does not exist — nothing to validate"
                 else:
-                    c.passed = True
-                    c.details = "No artifact manager found, skipped"
-            elif c.criterion_type == "non_empty" and c.target_path:
-                target = self.repo_root / c.target_path
-                c.passed = target.exists() and target.is_file() and target.stat().st_size > 0
-                c.details = f"Size: {target.stat().st_size} bytes" if target.exists() else "File missing"
+                    res = subprocess.run([sys.executable, str(art_py), "tasks", "validate", "--root", str(self.repo_root)],
+                                         cwd=self.repo_root, capture_output=True, text=True)
+                    c.passed = (res.returncode == 0)
+                    why = ((res.stderr or res.stdout).strip().splitlines() or ["validate failed"])[-1]
+                    c.details = "Task artifacts validate" if c.passed else why
+            elif c.criterion_type == "non_empty":
+                if not c.target_path:
+                    c.passed = False
+                    c.details = "non_empty criterion has no target_path — nothing to measure"
+                else:
+                    target = self.repo_root / c.target_path
+                    c.passed = target.exists() and target.is_file() and target.stat().st_size > 0
+                    c.details = f"Size: {target.stat().st_size} bytes" if target.exists() else "File missing"
+            elif c.criterion_type in ("test", "invariant"):
+                # reached only when the command is missing: the branches above require one
+                c.passed = False
+                c.details = f"{c.criterion_type} criterion has no command — nothing was run"
             else:
-                c.passed = True
-                c.details = "Manual check verified"
+                # Fail closed. A typo'd or unimplemented type must never satisfy a goal:
+                # this branch used to report PASSED, which made "invariant" (the default
+                # type for every caller-supplied criterion) unfalsifiable.
+                c.passed = False
+                c.details = f"unknown criterion_type {c.criterion_type!r}; expected one of {', '.join(sorted(CRITERION_TYPES))}"
 
             status_sym = "\033[92m[PASSED]\033[0m" if c.passed else "\033[91m[FAILED]\033[0m"
             print(f"  {status_sym} {c.id}: {c.description} ({c.details})")

@@ -28,6 +28,5 @@
     "./agents/researcher.md",
     "./agents/triage.md"
   ],
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json"
 }
