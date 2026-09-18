@@ -38,6 +38,9 @@ fi
 
 # 4. optional live probe: proves authentication AND the headless JSON envelope
 if [ "${1:-}" = "--probe" ] && command -v agy >/dev/null 2>&1; then
+    # The check above verified the keyring in a subshell; agy here needs the
+    # bus address in THIS shell or it cannot see the cached credential.
+    [ -f "$HOME/.config/agy-cloud/keyring.env" ] && . "$HOME/.config/agy-cloud/keyring.env"
     echo "probing headless agy (one small model call)..."
     out="$(timeout 180 agy -p 'Reply with exactly: DEVLOOP-PROBE-OK' --output-format json --print-timeout 2m 2>&1)"
     rc=$?

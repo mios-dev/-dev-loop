@@ -35,6 +35,11 @@ done
 # Validate the lane file before handing it to a model: fail here, not mid-run.
 python3 "$SKILL_DIR/scripts/adapters.py" validate "$LANES" >/dev/null || { echo "lane file failed validation: $LANES" >&2; exit 65; }
 
+# Cloud containers keep the keyring's bus address in this env file; without it
+# agy (and every agy -p lane it spawns) cannot see the cached credential and
+# stalls on authentication. No-op where the file does not exist.
+[ -f "$HOME/.config/agy-cloud/keyring.env" ] && . "$HOME/.config/agy-cloud/keyring.env"
+
 PROMPT="You are the L0 host/manager of the dev-loop skill. Load the skill (dev-loop, in ~/.gemini/config/skills or .agents/skills) and follow SKILL.md sections 11-13 exactly.
 
 Manager duties, in order:
