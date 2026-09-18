@@ -1,0 +1,27 @@
+{
+  "name": "dev-loop",
+  "displayName": "Dev Loop",
+  "version": "7.0.0",
+  "description": "Universal autonomous engineering loop: /dev-loop, /goal, /research, /review, /ship, /triage, /websearch - DoD-first, two-sided verification, worktree lanes in any harness (Claude Code, Antigravity, Codex, Gemini, Copilot, Cursor, OpenCode, OpenAI-compatible), enforcement hooks, project artifacts (AGENTS.md, GOALS, ROADMAP, MADR ADRs, tasks.jsonl, ledger), and an MCP server so any host can drive the orchestrator.",
+  "author": {
+    "name": "Kabu"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dev-loop",
+    "autonomous",
+    "verification",
+    "worktree",
+    "multi-agent",
+    "antigravity",
+    "codex",
+    "gemini",
+    "copilot",
+    "cursor",
+    "opencode"
+  ],
+  "skills": "./skills",
+  "agents": "./agents",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}
