@@ -1,0 +1,17 @@
+{
+  "name": "dev-loop (Fedora, default)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": { "FEDORA_VERSION": "44" }
+  },
+  "remoteUser": "dev",
+  "postCreateCommand": "bash skills/dev-loop/scripts/env/setup-antigravity.sh",
+  "postStartCommand": "bash -c '. skills/dev-loop/scripts/env/agy-keyring.sh || true'",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

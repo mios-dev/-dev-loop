@@ -1,0 +1,15 @@
+{
+  "name": "dev-loop-marketplace",
+  "description": "Marketplace for the dev-loop plugin: universal autonomous engineering loop with cross-harness worktree lanes (Claude Code, Antigravity, Codex, Gemini, Copilot, Cursor, OpenCode).",
+  "owner": {
+    "name": "Kabu"
+  },
+  "plugins": [
+    {
+      "name": "dev-loop",
+      "source": "./",
+      "description": "Universal autonomous engineering loop (skills, agents, hooks) with cross-harness orchestrators.",
+      "version": "7.5.0"
+    }
+  ]
+}
