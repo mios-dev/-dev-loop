@@ -100,7 +100,7 @@ which is why the skill stays universal: the host changes, the lane contract does
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple
   `claude-code` lanes; all of them reuse one cached credential, so on a headless box the Secret
-  Service keyring must be running first (in the cloud container: `environment/agy-keyring.sh`)
+  Service keyring must be running first (`scripts/env/agy-keyring.sh`; see `references/environment.md`)
   or every lane re-asks for auth and hangs its budget away.
 - *Claude Code host:* same-vendor lanes as subagents with `isolation: worktree` (still pass
   `git -C`); cross-vendor lanes via Bash → orchestrator; `PreToolUse` hook blocking `git add -A`

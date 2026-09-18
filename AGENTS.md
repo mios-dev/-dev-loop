@@ -6,7 +6,7 @@ to this file; loaders differ, so those files must stay pointers. Per the dev-loo
 
 ## What this repository is
 
-The `dev-loop` plugin/skill set (see `README.md`), plus a cloud-environment layer (`environment/`)
+The `dev-loop` plugin/skill set (see `README.md`), plus an environment layer (`skills/dev-loop/scripts/env/`, devcontainers in `.devcontainer/`)
 that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web containers.
 
 ## Orchestration topology (binding)
@@ -26,13 +26,18 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 - Reference example for a mixed AGY + Claude Code run:
   `skills/dev-loop/assets/lanes.agy-manager.example.json`.
 
-## Cloud environment (Claude Code on the web)
+## Environments (devcontainer default: Fedora; also Claude Code on the web)
 
-- `bash environment/setup-antigravity.sh` — idempotent provisioning (also run by the
-  SessionStart hook in `.claude/settings.json`).
-- `bash environment/agy-login.sh` — one-time interactive Google sign-in per container
-  (`--tmux` when an agent drives it). Headless `agy -p` needs this done first.
-- `bash environment/agy-doctor.sh [--probe]` — health/auth verification.
+Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`;
+`environment/` holds compat wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
+`.devcontainer/` defaults to **Fedora 44**; `.devcontainer/ubuntu/` is the apt variant.
+
+- `bash skills/dev-loop/scripts/env/setup-antigravity.sh` — idempotent provisioning (also run
+  by the SessionStart hook in `.claude/settings.json` and devcontainer `postCreateCommand`).
+- `bash skills/dev-loop/scripts/env/agy-login.sh` — first-run login, two steps: no args prints
+  the Google auth URL; `--code '<code>'` finishes onboarding (telemetry consent OFF unless
+  `--telemetry`; workspace trust YES unless `--no-trust`) and chains into the live probe.
+- `bash skills/dev-loop/scripts/env/agy-doctor.sh [--probe]` — health/auth verification.
 - The keyring holds the AGY credential unencrypted-at-rest (empty-password keyring) — accepted
   for ephemeral single-user containers only. Never print or export the credential.
 

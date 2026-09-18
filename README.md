@@ -1,4 +1,4 @@
-# dev-loop — universal autonomous engineering loop (v7.1.0)
+# dev-loop — universal autonomous engineering loop (v7.2.0)
 
 One repo, three things:
 
@@ -33,26 +33,36 @@ Required Claude Code settings: `"worktree": {"baseRef": "head"}`; version ≥ 2.
 
 Any harness can be the host; any harness can run a lane (`references/harness-adapters.md`). State lives on disk (`.devloop/`), never in the context window (`references/artifacts.md`).
 
-## Cloud environment: Google Antigravity in Claude Code on the web
+## Environments: devcontainers (Fedora default) + Claude Code on the web
 
-This repo provisions Google Antigravity's CLI (`agy`) inside its Claude Code on the web
-container. The SessionStart hook (`.claude/settings.json` → `.claude/hooks/session-start.sh`)
-runs `environment/setup-antigravity.sh` on every remote session: it installs `agy` (official
-installer → `~/.local/bin`), the keyring stack (`dbus`, `gnome-keyring`, `libsecret-tools`) that
-lets the one-time login persist for the container's life, and the dev-loop skill into
-Antigravity's user-scope skill/workflow directories.
+The environment layer ships **inside the skill** (`skills/dev-loop/scripts/env/`, docs in
+`references/environment.md`; `environment/` at the repo root holds compat wrappers), so every
+dev-loop install carries it. It is distro-aware — **Fedora/RHEL (dnf5/dnf/microdnf) first,
+Debian/Ubuntu (apt) second** — idempotent, and location-independent.
 
-One-time per container (there is no non-interactive Antigravity auth):
+**Devcontainers:** `.devcontainer/devcontainer.json` is **Fedora 44** (this repo's default
+image); `.devcontainer/ubuntu/` is the Ubuntu 24.04 variant. Both bake the keyring stack plus
+Node + Claude Code for `claude-code` lanes, provision at `postCreateCommand`, and re-arm the
+keyring at `postStartCommand` — after a container restart no new login is needed.
+
+**Claude Code on the web:** the SessionStart hook (`.claude/settings.json` →
+`.claude/hooks/session-start.sh`) runs the same provisioning on every remote session.
+
+**First-run login — two commands, from any of these environments** (Antigravity has no
+non-interactive auth; the driver walks agy's entire first-run TUI and *proves* the result with a
+live headless probe):
 
 ```sh
-bash environment/agy-login.sh          # prints a Google authorization URL — open it in YOUR browser
-bash environment/agy-doctor.sh --probe # verifies binary, keyring round-trip, and authenticated headless run
+bash skills/dev-loop/scripts/env/agy-login.sh                  # 1. prints the Google auth URL
+bash skills/dev-loop/scripts/env/agy-login.sh --code '<code>'  # 2. finishes onboarding + verifies
 ```
 
-`agy-login.sh --tmux` runs the login inside a `tmux` session so an agent can capture the URL for
-you and relay your responses. Containers are ephemeral: a brand-new container needs the login
-again. The keyring is empty-password (credential recoverable by anyone with container access) —
-acceptable for a single-user ephemeral session only.
+Defaults chosen for you (flags to override): Google's "share Interactions data" checkbox OFF
+(`--telemetry` to opt in — that consent belongs to the human), workspace trust YES
+(`--no-trust`). Already signed in? Either command detects it and skips straight to the
+verification probe. Containers are ephemeral: a brand-new container needs the login once. The
+keyring is empty-password (credential recoverable by anyone with container access) — acceptable
+for a single-user ephemeral session only.
 
 ## AGY as manager (topology A, this repo's default)
 

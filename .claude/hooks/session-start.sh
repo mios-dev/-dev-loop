@@ -9,10 +9,10 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
     exit 0
 fi
 
-if bash "$CLAUDE_PROJECT_DIR/environment/setup-antigravity.sh" --quiet; then
+if bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/setup-antigravity.sh" --quiet; then
     :
 else
-    echo "antigravity setup incomplete (see errors above) — run manually: bash environment/setup-antigravity.sh"
+    echo "antigravity setup incomplete (see errors above) — run manually: bash skills/dev-loop/scripts/env/setup-antigravity.sh"
 fi
 
 exit 0

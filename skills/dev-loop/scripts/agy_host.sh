@@ -10,7 +10,7 @@
 #   sh scripts/agy_host.sh <lanes.json> --print-prompt           # just emit the manager prompt
 #
 # Requirements: `agy` installed and authenticated once on this machine
-# (in the cloud container: environment/setup-antigravity.sh + agy-login.sh),
+# (scripts/env/setup-antigravity.sh + scripts/env/agy-login.sh),
 # and — for parallel lanes — a live Secret Service keyring so every spawned
 # `agy -p` lane reuses the cached credential instead of re-asking.
 # The agy flag surface drifts monthly; run `python3 scripts/adapters.py probe` first.
