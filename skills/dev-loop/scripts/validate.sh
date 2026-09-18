@@ -45,7 +45,11 @@ PY
 "$PY" - "$PLUG" <<'PY' || FAIL=1
 import json,sys; P=sys.argv[1]; A=f"{P}/skills/dev-loop/assets"
 try:
-    import jsonschema; s=json.load(open(f"{A}/lane-schema.json")); jsonschema.Draft202012Validator.check_schema(s); jsonschema.validate(json.load(open(f"{A}/lanes.example.json")),s); print("lane-schema + example: ok")
+    import jsonschema, glob; s=json.load(open(f"{A}/lane-schema.json")); jsonschema.Draft202012Validator.check_schema(s)
+    ex=sorted(glob.glob(f"{A}/lanes*.json"))          # EVERY shipped plan, not just one: agy_host.sh validates before launching, so an example that fails the schema is an unlaunchable reference
+    assert ex, f"no lanes*.json under {A} -- nothing validated"
+    for f in ex: jsonschema.validate(json.load(open(f)),s)
+    print(f"lane-schema + {len(ex)} example plan(s): ok")
 except ImportError: print("lane-schema: jsonschema not installed (skipped)")
 for t in json.load(open(f"{A}/openai-tools.json")):
     p=t["function"]["parameters"]; assert p["additionalProperties"] is False and set(p["required"])==set(p["properties"]), t["function"]["name"]

@@ -12,9 +12,14 @@ ALL=0; USER_SCOPE=0; DRY=0; ONLY=""; SCAF=0
 while [ $# -gt 0 ]; do case "$1" in --all) ALL=1;; --user|--global) USER_SCOPE=1;; --project) USER_SCOPE=0;; --dry-run) DRY=1;; --scaffold) SCAF=1;; --harness) ONLY=$2; shift;; *) echo "unknown $1" >&2; exit 64;; esac; shift; done
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); H=${HOME:-~}
 # name | detect | project skills root | user skills root | project cmd dir | user cmd dir | extra routes (ext=dir;...) — cmd dirs relative to ROOT / absolute for user
+# Antigravity: its skills dirs give first-class /<name> slash commands on their own, so the
+# shims are belt-and-braces. Upstream calls workflows deprecated (its own `migrate-workflows`
+# builtin skill says so) and scans .agents|_agents|.agent|_agent/workflows/ in a workspace and
+# ~/.gemini/config/{workflows,global_workflows}/ globally — NOT ~/.gemini/antigravity/workflows,
+# where these used to land unread.
 TABLE='
 claude|claude|.claude/skills|'"$H"'/.claude/skills|.claude/commands|'"$H"'/.claude/commands|
-antigravity|agy|.agents/skills|'"$H"'/.gemini/config/skills|.agent/workflows|'"$H"'/.gemini/antigravity/workflows|
+antigravity|agy|.agents/skills|'"$H"'/.gemini/config/skills|.agents/workflows|'"$H"'/.gemini/config/workflows|
 gemini|gemini|.gemini/skills|'"$H"'/.gemini/skills|.gemini/commands|'"$H"'/.gemini/commands|
 codex|codex|.agents/skills|'"$H"'/.agents/skills|.codex/prompts|'"$H"'/.codex/prompts|
 cursor|.cursor|.cursor/skills|'"$H"'/.cursor/skills|.cursor/commands|'"$H"'/.cursor/commands|mdc=.cursor/rules

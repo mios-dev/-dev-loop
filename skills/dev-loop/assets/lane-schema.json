@@ -85,6 +85,10 @@
           "type": "string",
           "description": "Model id passed to the harness (--model / lane model for openai-compatible)."
         },
+        "effort": {
+          "type": "string",
+          "description": "Reasoning effort passed as --effort to the harnesses that take it (claude-code, antigravity). adapters.py defaults claude-code lanes to xhigh and omits the flag elsewhere when unset."
+        },
         "base_url": {
           "type": "string",
           "format": "uri",
