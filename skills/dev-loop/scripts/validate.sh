@@ -53,6 +53,11 @@ print("openai-tools strict: ok")
 PY
 for f in "$PLUG"/skills/dev-loop/scripts/*.py; do "$PY" -m py_compile "$f" || FAIL=1; done; rm -rf "$PLUG"/skills/dev-loop/scripts/__pycache__
 for f in "$PLUG"/skills/dev-loop/scripts/*.sh "$PLUG"/hooks/*.sh; do sh -n "$f" || { note "syntax: $f"; FAIL=1; }; done; note "python/shell syntax: ok"
+# 3b. behavioural tests — syntax checks above cannot see a criterion that reports PASSED unmeasured
+for t in "$PLUG"/tests/test_*.py; do
+  [ -f "$t" ] || continue
+  "$PY" "$t" >/dev/null 2>&1 && note "tests: $(basename "$t") ok" || { note "tests: $(basename "$t") FAILED"; "$PY" "$t"; FAIL=1; }
+done
 # 4. Claude Code's own validator when available
 command -v claude >/dev/null 2>&1 && { claude plugin validate "$PLUG" --strict || FAIL=1; } || note "claude CLI not present: run 'claude plugin validate . --strict' on a workstation"
 [ "$FAIL" = 0 ] && note "== conformance: PASS" || note "== conformance: FAIL"; exit $FAIL
