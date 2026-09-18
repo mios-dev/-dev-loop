@@ -50,6 +50,11 @@ PROMPT="You are the L0 host/manager of the dev-loop skill. Load the skill (dev-l
 THE REPOSITORY ROOT FOR THIS RUN IS: $RUN_ROOT
 Every path you read, create, or modify lives under $RUN_ROOT - the lane plan, lanes.external.json, .devloop/, .worktrees/, every merge. Never touch any other checkout, whatever your workspace or trust settings say; your shell commands already execute with $RUN_ROOT as the working directory. Do not pre-create .devloop/ or .worktrees/ - the orchestrator makes its own run directories.
 
+HARD RULES FOR YOUR SHELL TOOL (violations kill the whole run):
+- The ONLY commands permitted by policy are: sh, python3, git, cat, ls, head, tail, mkdir, cp, mv, printf, echo, jq, cd. There is NO rm - never clean up; leave lanes.external.json and every artifact in place. One denied command aborts your remaining output.
+- run_command sends any command still running after WaitMsBeforeAsync milliseconds TO THE BACKGROUND, and background tasks DIE when your turn ends. For devloop.sh (and any command that can run minutes) you MUST set WaitMsBeforeAsync to 1800000 so it completes in the foreground. Never accept an async handoff for devloop.sh.
+- Work in STRICT SEQUENCE, no concurrency: native lane first (subagent to completion), then devloop.sh to completion, then gates and merges, then the report.
+
 Manager duties, in order:
 1. Orient: read $RUN_ROOT/AGENTS.md, the last entry of $RUN_ROOT/.devloop/LEDGER.md, and $RUN_ROOT/TASKS.md (each may be absent in a fresh repo - note it and move on). AGENTS.md is law.
 2. You manage ALL sub-agents for this run. The lane plan is $LANES (already schema-validated). YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes: run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into $RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). Native workflows and each harness's own loop commands (/dev-loop and equivalents) are allowed inside lanes; they map onto loop stages, they never replace the gates.
