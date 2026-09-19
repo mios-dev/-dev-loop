@@ -637,7 +637,7 @@ def cmd_gate(a):
     # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.
     for _sent in re.findall(r"\bDEVLOOP-PLANTED-[A-Z0-9-]+\b", lane["negative_control_cmd"]):
         _hits = [str(q.relative_to(wt)) for q in wt.rglob(f"*{_sent}*")
-                 if ".git" not in q.parts and ".worktrees" not in q.parts]
+                 if ".git" not in q.relative_to(wt).parts and ".worktrees" not in q.relative_to(wt).parts]
         if _hits:
             die(f"negative control is VACUOUS BEFORE IT RAN: its sentinel {_sent} already exists "
                 f"in the worktree ({', '.join(_hits[:3])}), so the planted citation would resolve "
