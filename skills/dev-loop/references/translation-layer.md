@@ -89,7 +89,7 @@ Resolution:
   into MiOS `tools/native/`; the ports, the schema and the mapping table are the portable parts and
   the HTTP/stdio plumbing is the throwaway part. Stated plainly rather than pretended.
 - **Lane execution:** one subprocess per lane, **stdin held open**:
-  - AGY lane — `agy -p --input-format stream-json --output-format stream-json --json-schema <report.schema.json> --print-timeout 0`
+  - AGY lane — `agy --input-format stream-json --output-format stream-json --json-schema <report.schema.json> --print-timeout 0 -p=''` (flag order is load-bearing — see §5.1a)
   - Claude lane — `claude -p --output-format stream-json --json-schema <report.schema.json>`
 
   This replaces today's shell-out-and-die model in `adapters.py`. It is the root fix for the
@@ -98,8 +98,11 @@ Resolution:
   once and exits, killing backgrounded children. A held session removes the reason for that
   instruction instead of restating it.
 - **Concurrency:** one `loopd`, N lane subprocesses, **one shared credential** in the keyring —
-  so the keyring must be up before fan-out or every lane re-auths and burns its budget hanging
-  (`scripts/env/agy-keyring.sh`).
+  so the keyring must be up before fan-out or every lane re-auths and burns its budget hanging.
+  Measured: the credential file survives a container restart but the daemon and
+  `DBUS_SESSION_BUS_ADDRESS` do not, so `loopd` runs `scripts/env/agy-keyring.sh` and loads
+  `~/.config/agy-cloud/keyring.env` itself at startup rather than inheriting a shell that
+  happens to have it.
 
 ---
 
@@ -107,46 +110,96 @@ Resolution:
 
 ### 5.1 Envelope normalisation
 
-Three real shapes, **zero shared field names** (measured):
+Measured end to end against `agy` 1.2.6 and `claude -p`. **The two AGY framings carry the same
+payload**: `--output-format json` emits the result object bare; `--output-format stream-json` wraps
+that identical object as `{"event":"result","result":{…}}`. There is one AGY shape, two framings.
 
 ```
-agy --output-format json
-  {conversation_id, status, response, num_turns, denied_actions[], …}
+agy --output-format json          # success, measured verbatim
+  {"conversation_id":"da9f0586-…","status":"SUCCESS","response":"PROBE_OK\n",
+   "duration_seconds":2.657665837,"num_turns":1,
+   "usage":{"input_tokens":12569,"output_tokens":38,"thinking_tokens":34,
+            "cache_read_tokens":0,"total_tokens":12607}}
 
-agy --output-format stream-json      # NDJSON: {"event":"<t>","<t>":{…}}; terminal line:
-  {"event":"result","result":{conversation_id, status, response, error,
-                              duration_seconds, num_turns,
-                              usage:{input_tokens, output_tokens, thinking_tokens,
-                                     cache_read_tokens, total_tokens}}}
+agy --output-format stream-json   # same object, wrapped per line
+  {"event":"result","result":{ …identical keys… }}
 
 claude -p --output-format json
   {result, num_turns, permission_denials[], …}
 ```
 
-Canonical `loop.v1` envelope — one schema, OpenAI-shaped per the global directive:
+**Conditional keys.** `error` and `denied_actions` are *absent on success*, not null. A consumer
+that reads `env["denied_actions"]` unconditionally raises; one that reads `env.get("status")` and
+trusts it is worse (§5.2). Measured success key set, exactly:
+`['conversation_id','duration_seconds','num_turns','response','status','usage']`.
 
-```json
-{
-  "run_id": "…", "lane_id": "…", "harness": "antigravity|claude-code|…",
-  "status": "delivered|refused|vacuous|gate_failed|control_invalid|errored|timed_out",
-  "text": "…", "turns": 0, "denials": [], "usage": {}, "duration_s": 0.0, "error": null,
-  "evidence": {"diff_bytes": 0, "positive": null, "negative": null}
-}
-```
+**Cumulative counters.** In a multi-turn session `num_turns` and `duration_seconds` are
+**cumulative across the session**, not per-turn: successive result events measured 1 → 2 turns and
+1.20s → 2.29s. `loop.v1.turns` and `duration_s` therefore mean *cumulative at this result*, and a
+per-turn delta requires subtracting the previous result. Getting this wrong silently double-counts
+every budget.
 
-| `loop.v1` | from AGY json | from AGY stream-json | from Claude json |
-|---|---|---|---|
-| `text` | `response` | `result.response` | `result` |
-| `turns` | `num_turns` | `result.num_turns` | `num_turns` |
-| `denials` | `denied_actions[]` | `result.denied_actions[]` | `permission_denials[]` |
-| `usage` | *(absent)* | `result.usage` | *(harness-specific; normalise or omit)* |
-| `duration_s` | *(absent — wall-clock from the caller)* | `result.duration_seconds` | *(caller)* |
-| `error` | *(absent)* | `result.error` | *(absent)* |
-| `status` | **not** `status` — see §5.2 | **not** `result.status` | **not** exit code |
+| `loop.v1` | from AGY (either framing) | from Claude json |
+|---|---|---|
+| `text` | `response` | `result` |
+| `turns` | `num_turns` *(cumulative)* | `num_turns` |
+| `denials` | `denied_actions[]` *(absent when empty)* | `permission_denials[]` |
+| `usage` | `usage{input,output,thinking,cache_read,total}` | *(harness-specific; normalise or omit)* |
+| `duration_s` | `duration_seconds` *(cumulative)* | *(caller wall-clock)* |
+| `error` | `error` *(absent on success)* | *(absent)* |
+| `status` | **not** `status` — see §5.2 | **not** the exit code |
 
 Two things this table must never do: trust the harness's own `status` field, and trust exit 0.
 `denied_actions` is **undocumented but real** (measured), which is why `adapters.py.find_envelope()`
 locates the envelope by brace balance rather than `json.loads` on the whole stream.
+
+### 5.1a The AGY session protocol (measured end to end)
+
+This is the transport P1 is built on. It was verified by a stateful two-turn session, not inferred
+from `--help`: turn 1 stored a number, turn 2 recalled it correctly, both under one
+`conversation_id` in one process.
+
+**Invocation.** Flags first, prompt attached to the flag:
+
+```sh
+agy --input-format stream-json --output-format stream-json --print-timeout 0 -p=''
+```
+
+*CLI trap (measured):* bare `-p` swallows the **next token** as its prompt —
+`agy -p --input-format stream-json` fails with *"-p took \"--input-format\" as its prompt"*, exit 2.
+Always `-p='…'` or `-p=''`.
+
+**Input**, one NDJSON object per line on stdin, stdin held open:
+
+```json
+{"event":"user","message":{"role":"user","content":"…"}}
+```
+
+The `message` field is **top-level**, not nested under `user`. Discovered by probe; the error that
+names it is *"stream input \"user\" message is missing the \"message\" field"*.
+
+**Output events** (`{"event":"<t>","<t>":{…}}`):
+
+| event | Payload | Use |
+|---|---|---|
+| `init` | `conversation_id`, `cwd`, `tools[]` (**57** measured), `permission_mode` | **capability discovery** — read the real tool inventory and effective permission mode at session start instead of assuming them |
+| `step_update` | `step_index`, `state` (`ACTIVE`/`DONE`), `step_type` (`user_input`, `agent_response`, …), `text_delta`, per-step `duration_seconds`/`usage` | incremental streaming; `step_type` is the same vocabulary AGY's hook matchers use |
+| `result` | the §5.1 object | **one per turn**, not only at session end |
+
+**Two failure asymmetries the layer must encode:**
+
+- An **unknown** input event is a *warning*, ignored: `warning: ignoring unsupported stream input
+  message event "…"`. A stream of only-unknown events produced **no `result` event at all** — so
+  *absence of a terminal envelope* is its own outcome and must map to `errored`, never to success.
+  This is the §7 Skip-as-Pass shape at the protocol layer.
+- A **malformed known** event is *fatal*: it emits an ERROR result and aborts the stream.
+
+**Operational prerequisite (measured).** The credential persists in the keyring file across
+container restarts, but the daemon and `DBUS_SESSION_BUS_ADDRESS` do not. Without them `agy` falls
+back to interactive login and times out. Every invocation needs
+`bash scripts/env/agy-keyring.sh` once, then `. ~/.config/agy-cloud/keyring.env` in the calling
+shell. `loopd` must do this itself rather than inherit it, or a fan-out silently degrades into N
+auth prompts.
 
 ### 5.2 Status vocabulary — representing "reported SUCCESS but did nothing"
 
@@ -177,6 +230,14 @@ Measured asymmetry. AGY's permission grammar has exactly five live actions — `
 "unknown action" **into the log only**. `command(x)` prefix-matches **the first token only**.
 `read_file(*)` is universal; `read_file(/repo/**)` is *accepted and matches nothing*. Claude Code
 uses a different algebra entirely (`Bash(git:*)`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, …).
+
+**First, a distinction the grammar hides.** AGY's permission *actions* are not its tool *names*.
+The `init` event lists **57 tools** — `run_command`, `view_file`, `write_to_file`,
+`replace_file_content`, `grep_search`, `find_by_name`, `list_dir`, `invoke_subagent`,
+`define_subagent`, `list_permissions`, … — while `settings.json` accepts exactly five actions
+(`read_file`, `write_file`, `command`, `url`, `mcp`). That is precisely why `list_dir` is rejected
+as an action while being a perfectly real tool: many tools collapse onto one action. Any mapper
+built from the tool list instead of the action list is wrong in both directions.
 
 There is no total function between them:
 
@@ -310,12 +371,16 @@ detection) and depend on nothing external. P3 is the safety phase. P4 onward is 
 
 All version-stamped; probed in this container unless marked otherwise.
 
-- `agy` **1.2.6** — `--help` surface, `--input-format`/`--output-format stream-json`,
-  `--json-schema`, `--print-timeout 0`, `remote-control` subcommand, absence of any worktree flag,
-  absence of a serve verb other than `mic-serve`; the stream-json terminal event shape; the
-  permission grammar (5 live actions, first-token prefix match, no path globbing); the
-  `toolPermission` enum and its file-voiding behaviour; `invoke_subagent` failing under `-p`;
+- `agy` **1.2.6** — `--help` surface; `remote-control` subcommand; absence of any worktree flag;
+  absence of a serve verb other than `mic-serve`; the permission grammar (5 live actions,
+  first-token prefix match, no path globbing) and its distinction from the 57-tool inventory;
+  the `toolPermission` enum and its file-voiding behaviour; `invoke_subagent` failing under `-p`;
   `denied_actions` in the envelope.
+- `agy` **1.2.6 session protocol** — verified by a stateful two-turn NDJSON session (turn 1
+  stored a value, turn 2 recalled it, one `conversation_id`, one process): the `user`/`message`
+  input shape, `init`/`step_update`/`result` output events, one `result` per turn, cumulative
+  `num_turns`/`duration_seconds`, conditional `error`/`denied_actions` keys, warning-vs-fatal
+  asymmetry on bad input, the `-p` token-swallowing trap, and the keyring/DBUS prerequisite.
 - `google-antigravity` PyPI **0.1.17**, Apache-2.0, `requires_python >=3.10`, six platform wheels,
   no sdist; `LocalOpenAIAgentConfig`; `max_subagent_depth` default 1. *(docs + package metadata)*
 - Claude Code — plugin auto-discovery, declaration merge/replace semantics, depth 3 / 20
@@ -326,7 +391,8 @@ All version-stamped; probed in this container unless marked otherwise.
 
 **Two upstream sources are contradicted by measurement.** antigravity-cli issue #31 and the pi-go
 write-up both state `agy` has only three modes and offers no programmatic orchestration. The
-installed binary has a documented bidirectional NDJSON session channel. Design against the binary.
+installed binary has a working bidirectional NDJSON session channel — not merely documented in
+`--help`, but exercised here across two stateful turns. Design against the binary.
 
 ---
 
@@ -343,9 +409,11 @@ Carried forward, unanswered:
 New, raised by this design:
 
 3. **`agy remote-control`** — out of scope by default (§8.4). Confirm, or investigate?
-4. **AGY auth has lapsed in this container** (`authentication failed or timed out` — measured
-   today). Re-login needs your Google OAuth code through `scripts/env/agy-login.sh`. Nothing in
-   this design is blocked by it; P1's probes are.
+4. ~~AGY auth lapsed in this container.~~ **Resolved — no re-login was needed.** The credential
+   had persisted; only the keyring daemon and `DBUS_SESSION_BUS_ADDRESS` were missing after a
+   container restart. `scripts/env/agy-keyring.sh` plus sourcing `~/.config/agy-cloud/keyring.env`
+   restored it, and P1's transport was then verified end to end (§5.1a). Standing requirement,
+   not a question: `loopd` must do this itself at startup.
 5. **Build vs adopt on transport** — this design takes ACP's lesson but not its dependency. Want
    `jiridanek/agy-acp` evaluated as an alternative lane transport at P6, or is the NDJSON channel
    sufficient?

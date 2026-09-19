@@ -139,6 +139,14 @@ which is why the skill stays universal: the host changes, the lane contract does
   the documented fallback (full plan through `devloop.sh`), which carried a verified green run
   (gates, merges, integration, truthful report). The native subagent path needs an interactive
   Antigravity session (IDE or `agy` TUI).
+  **However, `-p` single-shot is not the only headless mode (measured, 1.2.6).**
+  `agy --input-format stream-json --output-format stream-json --print-timeout 0 -p=''` holds a
+  **stateful multi-turn session** on stdin: one NDJSON `{"event":"user","message":{...}}` per line,
+  one `result` event per turn, one `conversation_id` throughout -- verified by a two-turn session
+  where turn 2 recalled turn 1's state. A caller that holds this session does not need the
+  synchronous-foreground workaround above, because nothing is backgrounded and nothing is killed.
+  Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full protocol,
+  event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple

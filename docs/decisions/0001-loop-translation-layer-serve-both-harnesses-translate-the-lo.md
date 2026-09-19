@@ -71,20 +71,33 @@ semantics.
 
 ### Newly measured facts this decision rests on
 
-Probed against the installed `agy` 1.2.6 in this container on 2026-09-19. These **contradict
-upstream issue #31 and the pi-go write-up**, both of which state `agy` offers no programmatic
-orchestration:
+Probed against the installed `agy` 1.2.6 in this container. These **contradict upstream issue #31
+and the pi-go write-up**, both of which state `agy` offers no programmatic orchestration — and the
+session channel is not merely documented, it was exercised here across two stateful turns:
 
-- `agy --input-format stream-json` — "reads one NDJSON message per line from stdin and runs a turn
-  for each; it requires `--output-format stream-json`". This is a **caller-held, multi-turn
-  session over stdio**. The "print mode answers once and dies, so a headless manager cannot wait"
-  constraint baked into `scripts/agy_host.sh` is therefore *one mode*, not the only one.
-- `--output-format text|json|stream-json`, `--json-schema`, `--print-timeout 0` (wait until
-  complete).
-- Terminal stream-json line, captured verbatim:
-  `{"event":"result","result":{"conversation_id":"","status":"ERROR","response":"","error":"…","duration_seconds":0,"num_turns":0,"usage":{"input_tokens":0,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":0}}}`
-  — i.e. NDJSON is `{"event":"<t>","<t>":{…}}`, and the result payload carries `error`,
-  `duration_seconds` and a `usage` block absent from the `--output-format json` envelope.
+- **A stateful multi-turn session over stdio, verified.** Feeding two NDJSON `user` messages to
+  one held process: turn 1 stored a number, **turn 2 recalled it correctly**, both under one
+  `conversation_id`. The "print mode answers once and dies, so a headless manager cannot wait"
+  constraint baked into `scripts/agy_host.sh` is therefore *one mode*, not the only one — and the
+  fix for the "manager reports SUCCESS while nothing merges" failure is structural, not a prompt.
+- **Input shape** `{"event":"user","message":{"role":"user","content":"…"}}` — `message` is
+  top-level, not nested. **Output events** `init` / `step_update` / `result`, with **one `result`
+  per turn**, not only at session end.
+- **`init` is a capability-discovery surface**: `cwd`, `permission_mode`, and the real **57-tool**
+  inventory. The layer can read what a session actually has instead of assuming it.
+- **Correction to an earlier reading:** `duration_seconds` and `usage` are present in the
+  `--output-format json` envelope too — the two framings carry the *same* payload. `error` and
+  `denied_actions` are *conditional*, absent on success. And `num_turns`/`duration_seconds` are
+  **cumulative across the session**, so per-turn deltas require subtraction or every budget
+  double-counts.
+- **Two failure asymmetries:** an *unknown* input event only warns and is ignored — a stream of
+  them yields **no `result` event at all**, so absence of a terminal envelope is its own outcome
+  and must map to `errored`, never success. A *malformed known* event is fatal.
+- **CLI trap:** bare `-p` swallows the next token as its prompt (`agy -p --input-format …` exits 2).
+  Flags first, `-p=''` last.
+- **Operational prerequisite:** the credential survives a container restart but the keyring daemon
+  and `DBUS_SESSION_BUS_ADDRESS` do not; without them `agy` falls back to interactive login and
+  times out. `loopd` must start the keyring itself rather than inherit it.
 - `agy remote-control {start,status,stop}` exists (a background daemon). **Not adopted** — see
   Consequences.
 
