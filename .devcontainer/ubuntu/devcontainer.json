@@ -2,7 +2,9 @@
   "name": "dev-loop (Ubuntu)",
   "build": {
     "dockerfile": "Dockerfile",
-    "args": { "UBUNTU_VERSION": "24.04" }
+    "args": {
+      "UBUNTU_VERSION": "24.04"
+    }
   },
   "remoteUser": "dev",
   "postCreateCommand": "bash skills/dev-loop/scripts/env/setup-antigravity.sh",
@@ -13,5 +15,10 @@
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
   }
 }

@@ -2,7 +2,9 @@
   "name": "dev-loop (Fedora, default)",
   "build": {
     "dockerfile": "Dockerfile",
-    "args": { "FEDORA_VERSION": "44" }
+    "args": {
+      "FEDORA_VERSION": "44"
+    }
   },
   "remoteUser": "dev",
   "postCreateCommand": "bash skills/dev-loop/scripts/env/setup-antigravity.sh",
@@ -13,5 +15,10 @@
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
   }
 }
