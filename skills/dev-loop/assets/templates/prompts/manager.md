@@ -90,6 +90,13 @@ Scripts available to you, with exact invocations (SKILL_DIR={{SKILL_DIR}}):
   is gone, and serialising independent lanes only wastes the run.
 - What IS strictly sequential is everything that touches the BASE tree: gate, then commit, then
   merge, one lane at a time. Two merges in flight corrupt the tree you are merging into.
+- NEVER EDIT LANE CODE IN THE BASE TREE. Every code change belongs in that lane's worktree or
+  branch workspace; in the base tree you own only .devloop/, AGENTS.md and TASKS.md. This is
+  measured, not asked: the host snapshots `git status --porcelain` before your first turn and
+  re-reads it at every turn end, tells you the moment a path you should not have touched
+  changes, and exits 6 if the run ends with one outstanding. A base-tree edit is invisible to
+  every gate here -- they all read worktrees -- which is how a run once shipped a hardcoded
+  root password and a 99999 ratchet with all lane gates green.
 - Never report on a lane whose report file you have not read. A job receipt says the process
   ended; it does not say the work is right.
 

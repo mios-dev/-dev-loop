@@ -36,6 +36,7 @@ Wire protocol (all measured, see references/translation-layer.md 5.1a)
 
 Exit codes: 0 ok · 3 no terminal envelope / session produced nothing · 4 agy missing
             5 lane reports still missing when the poll budget ran out
+            6 the manager left the base tree dirty outside every lane worktree
 
 STATUS OF THE POLL LOOP: UNEXERCISED as of the first end-to-end run (2026-09-19). The manager
 dispatched both native lanes, gated them and merged them inside a SINGLE turn, so `missing_reports`
@@ -95,6 +96,66 @@ def missing_reports(native_dir: Path, lane_ids: list[str], jobs_dir: Path | None
     return out
 
 
+# The manager is not a lane, so nothing else in this file watches what IT writes.
+# Measured 2026-09-19: a manager run with worktree_root set never created a worktree and
+# edited the base tree directly, planting a negatives-suite fixture -- `echo
+# "Root:<literal>" | chpasswd` -- into a shipped boot script and a 99999 ratchet into the
+# SSOT. Every lane gate passed, because lane gates read WORKTREES. The dispatch prompt
+# already said to use isolated workspaces; a rule with no measurement behind it is a check
+# that cannot fail (SKILL.md 7), so this measures it.
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md")
+
+
+def base_tree_state(root: Path) -> dict[str, str] | None:
+    """`git status --porcelain` as {path: XY}, or None when git cannot answer.
+
+    None is NOT "clean". A control that reports nothing to report when its instrument is
+    missing is the Skip-as-Pass this whole guard exists to catch, so the caller says so out
+    loud and turns the guard OFF rather than letting it pass vacuously.
+    """
+    try:
+        p = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                           capture_output=True, text=True)
+    except OSError:
+        return None
+    if p.returncode != 0:
+        return None
+    out: dict[str, str] = {}
+    for ln in p.stdout.splitlines():
+        if len(ln) < 4:
+            continue
+        path = ln[3:]
+        # `R  old -> new` names two paths; the destination is the one that appeared.
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        out[path.strip().strip('"')] = ln[:2]
+    return out
+
+
+def stray_base_edits(before: dict[str, str], now: dict[str, str] | None,
+                     allowed: tuple[str, ...]) -> list[str]:
+    """Paths whose base-tree status CHANGED since `before` and that no lane may own.
+
+    Compared against a baseline rather than against clean, because a run that starts on a
+    dirty tree would otherwise blame the manager for every path it inherited.
+    """
+    if now is None:
+        return []
+    return sorted(path for path, st in now.items()
+                  if before.get(path) != st
+                  and not any(path == a or path.startswith(a) for a in allowed))
+
+
+def worktree_root_of(lanes_path: Path) -> str:
+    """The lane plan's worktree_root, normalised to a directory prefix."""
+    try:
+        doc = json.loads(lanes_path.read_text())
+    except Exception:
+        return ".worktrees/"
+    root = str(doc.get("worktree_root") or ".worktrees").strip().lstrip("./")
+    return (root.rstrip("/") or ".worktrees") + "/"
+
+
 def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     try:
         doc = json.loads(lanes_path.read_text())
@@ -136,6 +197,18 @@ def main() -> int:
     native_dir = Path(a.run_root) / ".devloop" / "native"
     jobs_dir = Path(a.jobs_root) if a.jobs_root else None
     lane_ids = antigravity_lane_ids(Path(a.lanes)) if a.lanes else []
+
+    # Baseline BEFORE turn 1, so inherited dirt is never attributed to the manager.
+    allowed = BASE_TREE_ALWAYS_ALLOWED + (
+        (worktree_root_of(Path(a.lanes)),) if a.lanes else (".worktrees/",))
+    # No off switch: a guard that can be turned off is turned off by whatever is failing it.
+    base_before = base_tree_state(Path(a.run_root))
+    if base_before is None:
+        print("agy_session: base-tree guard OFF -- git could not read %s, so a manager editing "
+              "the base tree instead of a lane worktree will NOT be detected" % a.run_root,
+              file=sys.stderr)
+    strays: list[str] = []
+    stray_warned: set[str] = set()
 
     events = None
     if a.events_out:
@@ -187,7 +260,26 @@ def main() -> int:
                 continue
 
             last_result = evt.get("result", {})
+            if base_before is not None:
+                strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)
+            fresh = [x for x in strays if x not in stray_warned]
             outstanding = missing_reports(native_dir, lane_ids, jobs_dir)
+            if fresh and turns_sent <= a.poll_max:
+                # Say it once per path, in the turn after it appears, while the session is
+                # still alive and the manager can still undo it.
+                stray_warned.update(fresh)
+                print("agy_session: BASE TREE EDITED outside any lane worktree: %s"
+                      % ", ".join(fresh), file=sys.stderr)
+                proc.stdin.write(ndjson_user(
+                    "STOP. You changed the BASE TREE, not a lane worktree: "
+                    + ", ".join(fresh) + ". Lane work belongs in the lane's own worktree or "
+                    "branch workspace; the base tree is yours only for .devloop/, AGENTS.md "
+                    "and TASKS.md. Revert those paths now (git checkout -- <path>, or delete "
+                    "the file if you created it), then continue the run in the correct "
+                    "workspace. Do not merge anything until the base tree is clean again."))
+                proc.stdin.flush()
+                turns_sent += 1
+                continue
             if not outstanding or turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
@@ -228,6 +320,15 @@ def main() -> int:
     if a.envelope_out:
         Path(a.envelope_out).write_text(text + "\n")
     print(text)
+
+    if base_before is not None:
+        strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)
+        if strays:
+            print("agy_session: run ended with the BASE TREE dirty outside every lane "
+                  "worktree: %s -- these were never gated, because lane gates read "
+                  "worktrees. Review and revert them before trusting this run."
+                  % ", ".join(strays), file=sys.stderr)
+            return 6
 
     still = missing_reports(native_dir, lane_ids, jobs_dir)
     if still:

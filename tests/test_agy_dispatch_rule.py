@@ -177,7 +177,11 @@ def test_no_dead_flags_on_the_session_driver() -> None:
     Asserting the general property rather than the one flag means the next such flag is caught
     too: a flag the driver declares but the host never passes is dead unless excused here."""
     print("session driver flags:")
-    declared = set(re.findall(r'"(--[a-z][a-z-]*)"', SESSION.read_text()))
+    # argparse declarations ONLY. A bare scan for a quoted "--token" also matched flags the
+    # driver PASSES to other programs -- `git status --porcelain` -- and reported them dead,
+    # which is this file's own "measuring the wrong property" (SKILL.md 7): the property is
+    # "the driver accepts this flag", and only add_argument establishes that.
+    declared = set(re.findall(r'add_argument\(\s*"(--[a-z][a-z-]*)"', SESSION.read_text()))
     passed = set(re.findall(r'(--[a-z][a-z-]{2,})', HOST.read_text()))
     check("the driver declares flags at all", len(declared) > 5, f"found {len(declared)}")
     dead = sorted(declared - passed - FLAGS_THE_HOST_NEED_NOT_PASS)
