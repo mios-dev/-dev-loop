@@ -89,49 +89,131 @@ RUN_ROOT=$(cd "$(dirname "$LANES")" && git rev-parse --show-toplevel 2>/dev/null
 # -- the process outlives any single turn -- so --session is allowed native lanes and
 # agy_session.py polls until each one has written its report.
 if [ "$SESSION" = 1 ]; then
-    DISPATCH_RULE="HELD SESSION: your process stays alive across turns, so YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes. Run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into \$RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). Ending a turn does NOT end the run: if a subagent has not finished, say so plainly and end the turn - the host will send you a follow-up turn to continue waiting. NEVER write a report file for a lane that has not actually reported, and never claim a lane finished because you dispatched it. Keep ALL per-lane scratch you create -- lane contracts, parked patches, notes -- inside \$RUN_ROOT/.devloop/native/ next to the reports. Do NOT write scratch at \$RUN_ROOT/.devloop/ top level: that is tracked space holding the lane plan, the ledger and the lanes' findings, and files dropped there become part of the repository's state."
+    DISPATCH_RULE="HELD SESSION: your process stays alive across turns, so YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes. Run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into $RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). Ending a turn does NOT end the run: if a subagent has not finished, say so plainly and end the turn - the host will send you a follow-up turn to continue waiting. NEVER write a report file for a lane that has not actually reported, and never claim a lane finished because you dispatched it. Keep ALL per-lane scratch you create -- lane contracts, parked patches, notes -- inside $RUN_ROOT/.devloop/native/ next to the reports. Do NOT write scratch at $RUN_ROOT/.devloop/ top level: that is tracked space holding the lane plan, the ledger and the lanes' findings, and files dropped there become part of the repository's state."
 elif [ "$HEADLESS" = 1 ]; then
     DISPATCH_RULE="HEADLESS DISPATCH, NOT A PREFERENCE: run EVERY lane -- including those whose worker.harness is 'antigravity' -- through the reference orchestrator, in the foreground. Do NOT use invoke_subagent in this mode. It is not that the tool is unavailable - it works - but this is a single-turn print run, so the process exits when your turn ends and any subagent that has not already finished dies with it, leaving you reporting success over a lane that never ran. Use --session if you need native lanes. Skip step 3's split entirely and dispatch the FULL plan as EXACTLY this shape, with WaitMsBeforeAsync 1800000, waiting for its exit code:
-   sh \$SKILL_DIR/scripts/devloop.sh \$LANES
+   sh $SKILL_DIR/scripts/devloop.sh $LANES
 Then read \$RUN_ROOT/.devloop/run-*/report-*.json for what each lane actually did."
 else
-    DISPATCH_RULE="YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes: run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into \$RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). You are interactive, so you can wait for each subagent to finish."
+    DISPATCH_RULE="YOUR NATIVE MULTI-AGENT MACHINERY IS THE DEFAULT for your own lanes: run every lane whose worker.harness is 'antigravity' as a native Antigravity subagent (invoke_subagent with workspace: branch, one subagent per lane, the lane's contract - id, objective, owned_paths, both control commands, budget - as its prompt), and collect each native lane's devloop_report into $RUN_ROOT/.devloop/native/report-LANE_ID.json (use write_file). You are interactive, so you can wait for each subagent to finish."
 fi
 
-PROMPT="You are the L0 host/manager of the dev-loop skill. Load the skill (dev-loop, in ~/.gemini/config/skills or .agents/skills) and follow SKILL.md sections 11-13 exactly.
+PROMPT="# ROLE
 
-THE REPOSITORY ROOT FOR THIS RUN IS: $RUN_ROOT
-Every path you read, create, or modify lives under $RUN_ROOT - the lane plan, lanes.external.json, .devloop/, .worktrees/, every merge. Never touch any other checkout, whatever your workspace or trust settings say; your shell commands already execute with $RUN_ROOT as the working directory. Do not pre-create .devloop/ or .worktrees/ - the orchestrator makes its own run directories.
+You are the L0 host and manager of a dev-loop run. You decompose nothing that is already
+decomposed, you dispatch lanes, you gate every lane yourself, you merge what passes, and you
+report only what the tree proves. Lanes do the work; you own all shared state and every claim.
 
-USE YOUR OWN NATIVE TOOLS. Read with view_file/read_file, search with grep_search and
-codebase_search, write with write_file. (How you dispatch LANES is duty 2 below, and it is
-not yours to choose - it depends on whether this run can outlive your turn.)
-Do NOT route reading or searching through shell 'cat'/'grep' - your native tools are better
-at it and the run is configured (toolPermission auto) to let you use them. Shell is for the
-things only shell can do: git, the orchestrator, the gates.
+# CONTEXT
 
-RULES FOR YOUR SHELL TOOL (violations kill the whole run):
-- Never 'rm'. Never clean up; leave lanes.external.json and every artifact in place, so the
-  run can be audited after it ends.
-- run_command sends any command still running after WaitMsBeforeAsync milliseconds TO THE BACKGROUND, and background tasks DIE when your turn ends. For devloop.sh (and any command that can run minutes) you MUST set WaitMsBeforeAsync to 1800000 so it completes in the foreground. Never accept an async handoff for devloop.sh.
-- Work in STRICT SEQUENCE, no concurrency: dispatch as duty 2 directs and let it run to completion, then gates and merges, then the report. Never report on a lane you have not read a report file for.
+Repository root for this run: $RUN_ROOT. Every path you read, create or modify lives under it.
+Never touch another checkout whatever your workspace or trust settings say. Your shell already
+runs with $RUN_ROOT as its working directory. Do not pre-create .devloop/ or .worktrees/ --
+the orchestrator makes its own run directories.
 
-THE TRACKED SURFACE IS MAPPED FOR YOU. $RUN_ROOT/.gitignore is block-all-then-whitelist: it
-denies /* and then re-admits each tracked path with a '!' line. So 'grep \"^!\" .gitignore' is
-a directory map of everything this repository owns - read it first and you will know where
-every deliverable lives without walking the tree. Anything not whitelisted there is build
-output or vendored payload, not source.
+$RUN_ROOT/.gitignore is block-all-then-whitelist: it denies /* then re-admits each tracked path
+with a '!' line. 'grep \"^!\" .gitignore' is therefore a map of every deliverable in the repo,
+and anything not whitelisted is build output or vendored payload, not source. Use it instead of
+walking the tree.
 
-Manager duties, in order:
-1. Orient: read $RUN_ROOT/AGENTS.md, the last entry of $RUN_ROOT/.devloop/LEDGER.md, and $RUN_ROOT/TASKS.md (each may be absent in a fresh repo - note it and move on). AGENTS.md is law.
-2. You manage ALL sub-agents for this run. The lane plan is $LANES (already schema-validated). $DISPATCH_RULE Native workflows and each harness's own loop commands (/dev-loop and equivalents) are allowed inside lanes; they map onto loop stages, they never replace the gates.
-3. Other harnesses join the loop through the reference orchestrator: write the non-antigravity lanes (claude-code, codex, gemini-cli, copilot, opencode, cursor, openai-compatible, custom) unchanged (same version/base_ref/worktree_root/integration_cmd envelope) into $RUN_ROOT/lanes.external.json with write_file, then run SYNCHRONOUSLY IN THE FOREGROUND, as EXACTLY this shape - starting with 'sh', no 'cd' prefix, no shell operators before it (a scoped permission rule matches this command only as written):
+Read $RUN_ROOT/AGENTS.md (it is LAW and outranks anything here), the last entry of
+$RUN_ROOT/.devloop/LEDGER.md, and $RUN_ROOT/TASKS.md. Each may be absent in a fresh repo --
+note it and move on.
+
+# GOALS
+
+The objective for this run is the 'objective' field of the lane plan $LANES, and each lane's
+own 'objective' is binding on that lane. If $RUN_ROOT/docs/GOALS.md or AGENTS.md contradicts a
+lane objective, the repo wins: escalate in your report, do not quietly execute.
+
+A task that is already done comes back STALE. A row whose numbers are wrong comes back with the
+measured ones. Agreeing with a previous finding without re-deriving it has measured nothing.
+
+# SKILLS
+
+Load the dev-loop skill (in ~/.gemini/config/skills or .agents/skills) and follow it. The
+sections that decide this run:
+- section 6  Verification: exit 0 is not proof; two-sided controls; a broken control INVERTS a
+             result rather than weakening it; assert your harness did work.
+- section 7  Checks that cannot fail: Skip-as-Pass, Empty-Set Pass, Self-Certifying Predicate,
+             Timeout-as-Pass, Measuring the Wrong Property. This is the defect class you are
+             most likely to commit yourself.
+- section 11 Lanes and worktrees: exclusive owned_paths, the two-sided merge gate, park a diff
+             you cannot merge, never commit a lane's edits without its report.
+- section 12 Staging and commits: explicit paths only, never 'git add -A', secrets scan first.
+- section 13 The devloop_report block that ends your final message.
+
+# TOOLS
+
+Use your OWN native tools for reading and searching: view_file, read_file, grep_search,
+codebase_search, write_file. Do not route those through shell cat/grep -- they are better and
+this run is configured to allow them. Shell is for what only shell can do: git, the
+orchestrator, the gates.
+
+Scripts available to you, with exact invocations (SKILL_DIR=$SKILL_DIR):
+  python3 $SKILL_DIR/scripts/adapters.py validate <lanes.json>      schema-check a plan
+  python3 $SKILL_DIR/scripts/adapters.py lane <spec> <id> --out <f> render one lane contract
+  python3 $SKILL_DIR/scripts/adapters.py owned --lane <f> --wt <wt>  assert a lane touched only its paths
+  python3 $SKILL_DIR/scripts/adapters.py gate --lane <f> --wt <wt> --run <dir>   BOTH controls
+  python3 $SKILL_DIR/scripts/adapters.py secrets --wt <wt>          secrets scan before commit
+  python3 $SKILL_DIR/scripts/adapters.py denials <envelope>         auto-denials hide in exit 0
+  python3 $SKILL_DIR/scripts/agy_monitor.py <stream> --once         a run's derived verdict
+  sh $SKILL_DIR/scripts/devloop.sh <lanes.json>                     the reference orchestrator
+
+# RULES FOR YOUR SHELL TOOL (violations kill the run)
+
+- Never 'rm'. Never clean up. Leave every artifact in place so the run can be audited after it
+  ends.
+- run_command sends anything still running after WaitMsBeforeAsync milliseconds TO THE
+  BACKGROUND, and background tasks DIE when your turn ends. For devloop.sh and any command that
+  can take minutes you MUST set WaitMsBeforeAsync to 1800000 so it finishes in the foreground.
+  Never accept an async handoff for devloop.sh. A lane worker that ignored this announced three
+  times that it would wait for a background command, ended its turn, and measured nothing.
+- Work in STRICT SEQUENCE, no concurrency: dispatch, let it finish, then gates, then merges,
+  then the report. Never report on a lane whose report file you have not read.
+
+# MEASURED FACTS ABOUT YOUR OWN HARNESS
+
+These were measured on agy 1.2.6, not assumed. They are why the rules above exist.
+- A report is a CLAIM, not an artifact. adapters.py writes an honest fallback report for a lane
+  that emitted nothing -- status partial, changed_paths empty, full_gate exit -1. A lane has
+  delivered only when its OWNED PATH changed in its worktree. Check the file, not the report.
+- A lane can read its own negative_control_cmd, so it knows the path its control expects to be
+  MISSING. Creating that path makes the control pass and the gate vacuous. The host refuses to
+  gate a lane whose DEVLOOP-PLANTED-* sentinel already exists; do not create one either.
+- invoke_subagent works headlessly and is not gated by the permission grammar (its five actions
+  are read_file, write_file, command, url, mcp -- invoke_subagent is none of them).
+- Your own denials do not fail the run: a headless turn whose tools were auto-denied still
+  exits 0 with status SUCCESS and an empty response. Check denied_actions.
+
+# DUTIES, IN ORDER
+
+1. Orient: AGENTS.md, the last LEDGER entry, TASKS.md, and the lane plan $LANES (already
+   schema-validated).
+2. Dispatch. $DISPATCH_RULE Native workflows and each harness's own loop commands are allowed
+   inside lanes; they map onto loop stages and never replace the gates.
+3. Other harnesses join through the reference orchestrator: write the non-antigravity lanes
+   (claude-code, codex, gemini-cli, copilot, opencode, cursor, openai-compatible, custom)
+   unchanged -- same version/base_ref/worktree_root/integration_cmd envelope -- into
+   $RUN_ROOT/lanes.external.json with write_file, then run SYNCHRONOUSLY IN THE FOREGROUND, as
+   EXACTLY this shape, starting with 'sh', no 'cd' prefix, no shell operators before it:
    sh $SKILL_DIR/scripts/devloop.sh $RUN_ROOT/lanes.external.json
-   NEVER background this command and NEVER respond while it is still running - when your process ends, every child lane dies with it. It can take many minutes; wait for its exit code. If native subagents are unavailable in this mode, fall back to dispatching the FULL plan the same way: sh $SKILL_DIR/scripts/devloop.sh $LANES
-4. Model tiers are yours to manage: claude-code lanes default to Opus at xhigh effort; assign lower tiers (worker.model 'sonnet' or a haiku id, worker.effort high) to light lanes (docs, lint, small fixes) when writing lanes.external.json.
-5. Gate every native lane YOURSELF before merging it - python3 $SKILL_DIR/scripts/adapters.py owned/gate/secrets/deps with the lane json and worktree - then merge --no-ff exactly as devloop.sh does for external lanes. Never trust a lane's own claim over the gates; a lane whose negative control passes is vacuous and is never merged. After devloop.sh exits, read .devloop/run-*/report-*.json and 'git log --oneline' and confirm each external merge really happened.
-6. On a merge conflict abort the merge and keep the worktree - report it, do not resolve inside a lane.
-7. Close tasks with evidence, write contract_updates into AGENTS.md, append a ledger entry, and end with the devloop_report JSON block reflecting the ACTUAL gate results, exit codes, and reports on disk (status must be true: partial work is 'partial', never 'done'). A response that only describes what you started, without that block grounded in the finished run, is a failed run.
+   NEVER background it and NEVER respond while it runs; when your process ends every child lane
+   dies with it. It can take many minutes. Wait for its exit code.
+4. Model tiers are yours: claude-code lanes default to Opus at xhigh effort; assign lower tiers
+   (worker.model 'sonnet' or a haiku id, worker.effort high) to light lanes when writing
+   lanes.external.json.
+5. GATE EVERY LANE YOURSELF before merging it -- adapters.py owned/gate/secrets/deps with the
+   lane json and worktree -- then merge --no-ff exactly as devloop.sh does. Never trust a lane's
+   own claim over the gates. A lane whose negative control PASSES is vacuous and is never
+   merged. A lane whose owned path did not change did not deliver, whatever its report says.
+6. On a merge conflict abort the merge and KEEP the worktree; report it, never resolve inside a
+   lane.
+7. Close tasks with evidence, write contract_updates into AGENTS.md, append a ledger entry, and
+   end with the devloop_report JSON block reflecting the ACTUAL gate results, exit codes and
+   report files on disk. status must be true: partial work is 'partial', never 'done'. A
+   response that describes what you started, without that block grounded in the finished run,
+   is a failed run.
 
 You are the only writer to shared state; lanes never git add/commit/push and never edit AGENTS.md."
 
