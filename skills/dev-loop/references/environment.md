@@ -134,6 +134,42 @@ run 60s wall clock, well inside the ~5-minute budget the cache needs; re-run
 1.4s. Fedora 44 with git 2.55, Python 3.14, Node 22, gcc 16; `dnf`, `pip` and
 `curl` all verified through the proxy with TLS verification on.
 
+### When the dialog has no Setup script field
+
+Observed 2026-09: an environment dialog showing only **Name**, **Network
+access** and **Environment variables** — no Setup script box, though the docs
+describe one. Pasting a script into the variables box fails loudly, because
+that box validates `.env` format and reports every line of a shell script as
+invalid.
+
+For that case the script takes `--wrapper-only`: it installs
+`/usr/local/bin/fedora` and skips the pull and build, so the first `fedora …`
+call builds the image on demand instead. The repo's SessionStart hook
+(`.claude/hooks/session-start.sh`) runs it that way, which needs no
+environment configuration at all — at the cost of paying the ~60s build once
+per fresh container rather than once per environment, and only in sessions
+that check out this repo.
+
+Two hazards that path has to handle, both of them found by hitting them:
+
+- **A script must not rewrite itself while it runs.** The on-demand build
+  re-runs this script, which would reinstall the wrapper that is *currently
+  executing*; bash reads a script incrementally by byte offset, so truncating
+  and rewriting it makes the shell resume mid-line (`ome/*|/root|…`). The
+  wrapper is installed write-then-rename so the running shell keeps its open
+  inode, and an autobuild skips reinstalling it entirely.
+- **Build the image before reading container state.** The build's own
+  verification call goes through the wrapper and can create the container, so
+  any state read before the build is stale by the time it is used — which
+  surfaced as a `container name already in use` failure.
+
+`FEDORA_NO_AUTOBUILD=1` guards the recursion: the setup script verifies itself
+through the wrapper, and a failed build must not bounce the two off each other
+forever.
+
+**Measured:** `--wrapper-only` install 0.016s; cold first use with no image, no
+build cache and dockerd down, 60s; every call after that 0.18s.
+
 ### Creating the environment
 
 The environment itself can only be created in the UI — there is no API for it,

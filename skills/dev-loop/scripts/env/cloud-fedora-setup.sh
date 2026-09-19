@@ -34,6 +34,12 @@
 #   FEDORA_PACKAGES   package set baked into the image   (default below)
 #   FEDORA_IMAGE      derived image tag                  (default dev-loop-fedora:$FEDORA_VERSION)
 #   FEDORA_REBUILD=1  force a rebuild even if the image is already cached
+#
+# ALSO USABLE WITHOUT THE SETUP-SCRIPT FIELD
+#   `--wrapper-only` installs /usr/local/bin/fedora and skips the pull+build,
+#   so a SessionStart hook can install it in well under a second and the first
+#   `fedora …` call builds the image on demand. Use that when an environment
+#   dialog offers no Setup script field, or to keep session startup instant.
 
 set -u
 
@@ -42,6 +48,9 @@ FEDORA_IMAGE="${FEDORA_IMAGE:-dev-loop-fedora:${FEDORA_VERSION}}"
 FEDORA_BASE="registry.fedoraproject.org/fedora:${FEDORA_VERSION}"
 FEDORA_CONTAINER="${FEDORA_CONTAINER:-fedora}"
 BUILD_CTX=/opt/dev-loop-fedora
+SELF=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")
+WRAPPER_ONLY=0
+[ "${1:-}" = "--wrapper-only" ] && WRAPPER_ONLY=1
 
 # Kept close to .devcontainer/Dockerfile so a cloud session and the devcontainer
 # present the same Fedora. install_weak_deps=False keeps the build inside budget.
@@ -139,7 +148,13 @@ DOCKERFILE
 # Self-healing on purpose: it starts dockerd and the container itself, so it
 # works in every later session even though only files survive the snapshot.
 install_wrapper() {
-    cat > /usr/local/bin/fedora <<'WRAPPER'
+    # Write-then-rename, never write in place: this script can be invoked BY
+    # the wrapper (on-demand build), and bash reads a script incrementally by
+    # byte offset — truncating and rewriting the file a shell is executing
+    # makes it resume mid-line on shifted offsets. A rename swaps the directory
+    # entry and leaves the running shell's open inode untouched.
+    tmp=/usr/local/bin/.fedora.$$
+    cat > "$tmp" <<'WRAPPER'
 #!/usr/bin/env bash
 # Run a command inside this environment's Fedora userspace.
 #   fedora                 interactive Fedora shell
@@ -150,6 +165,7 @@ set -u
 
 IMAGE="${FEDORA_IMAGE:-dev-loop-fedora:${FEDORA_VERSION:-44}}"
 CONTAINER="${FEDORA_CONTAINER:-fedora}"
+SETUP_SCRIPT="__SETUP_SCRIPT__"
 
 die() { printf 'fedora: %s\n' "$*" >&2; exit 1; }
 
@@ -183,13 +199,25 @@ run_args() {
     done
 }
 
+ensure_image() {
+    docker image inspect "$IMAGE" >/dev/null 2>&1 && return 0
+    # FEDORA_NO_AUTOBUILD guards the recursion: the setup script verifies itself
+    # by calling this wrapper, and a failed build must not bounce the two off
+    # each other forever.
+    [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ] &&
+        die "image $IMAGE is missing and the build did not produce it (see /var/log/dev-loop-fedora-build.log)"
+    [ -r "$SETUP_SCRIPT" ] || die "image $IMAGE is missing — re-run $SETUP_SCRIPT"
+    printf 'fedora: first use — building %s, about a minute…\n' "$IMAGE" >&2
+    FEDORA_NO_AUTOBUILD=1 bash "$SETUP_SCRIPT" >&2
+    docker image inspect "$IMAGE" >/dev/null 2>&1 ||
+        die "build failed (see /var/log/dev-loop-fedora-build.log)"
+}
+
 ensure_container() {
     state=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null) || state=""
     case "$state" in
         running) return 0 ;;
         "")
-            docker image inspect "$IMAGE" >/dev/null 2>&1 ||
-                die "image $IMAGE is missing — re-run the environment's setup script"
             mapfile -t args < <(run_args)
             docker run -d --name "$CONTAINER" "${args[@]}" "$IMAGE" sleep infinity >/dev/null ||
                 die "could not start the Fedora container"
@@ -199,6 +227,10 @@ ensure_container() {
 }
 
 ensure_dockerd
+# Before ensure_container, never after: an on-demand build runs the setup
+# script, which verifies itself through this same wrapper and may create the
+# container — so any container state read earlier would already be stale.
+ensure_image
 ensure_container
 
 workdir=$PWD
@@ -215,11 +247,19 @@ if [ "$#" -eq 0 ]; then
 fi
 exec docker exec "${exec_flags[@]}" "$CONTAINER" "$@"
 WRAPPER
-    chmod 0755 /usr/local/bin/fedora
+    sed -i "s#__SETUP_SCRIPT__#${SELF}#" "$tmp" || { rm -f "$tmp"; return 1; }
+    chmod 0755 "$tmp" || { rm -f "$tmp"; return 1; }
+    mv -f "$tmp" /usr/local/bin/fedora
 }
 
 # --- main ---------------------------------------------------------------------
 main() {
+    if [ "$WRAPPER_ONLY" = 1 ]; then
+        install_wrapper && log "installed /usr/local/bin/fedora (builds $FEDORA_IMAGE on first use)" ||
+            log "could not install /usr/local/bin/fedora"
+        return 0
+    fi
+
     ensure_dockerd || { log "skipping Fedora provisioning"; return 0; }
 
     if [ "${FEDORA_REBUILD:-0}" != "1" ] && docker image inspect "$FEDORA_IMAGE" >/dev/null 2>&1; then
@@ -239,7 +279,11 @@ main() {
         fi
     fi
 
-    install_wrapper || { log "could not install /usr/local/bin/fedora"; return 0; }
+    if [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ]; then
+        log "invoked by the wrapper — leaving /usr/local/bin/fedora as it is"
+    else
+        install_wrapper || { log "could not install /usr/local/bin/fedora"; return 0; }
+    fi
 
     if ver=$(/usr/local/bin/fedora cat /etc/fedora-release 2>/dev/null); then
         log "ready: $ver — run 'fedora <command>' or 'fedora' for a shell"
