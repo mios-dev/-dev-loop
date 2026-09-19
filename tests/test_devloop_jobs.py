@@ -316,9 +316,19 @@ def test_the_wave_waits_on_one_deadline_not_n() -> None:
     src = DEVLOOP.read_text()
     check("the per-lane wait loop is gone", "for id in $WAVE; do wait_lane" not in src)
     check("the wave is waited on as a set", "wait_wave $WAVE" in src)
+    # Assert the PROPERTY (the swallow), not a proxy. This used to grep for the literal
+    # '--interval 20 || :', which pinned an unrelated tuning value into the predicate: once the
+    # interval became configurable ("${LANE_WAIT_INTERVAL:-2}") the substring stopped matching
+    # and the check went red while the invariant it guards -- the deliberate `|| :` -- was still
+    # right there. A test that breaks on a legitimate refactor of a neighbouring token is
+    # measuring the wrong property (SKILL.md 7).
+    wait_lines = [l for l in src.splitlines() if '"$JOB_PY" wait ' in l]
+    check("the wave wait invocation is still there to assert about", wait_lines,
+          "no line invokes `job.py wait`; the next check would fail for the wrong reason")
     check("the wait's non-zero exit is swallowed deliberately",
-          '--interval 20 || :' in src,
-          "a non-zero wait is this code's normal reporting channel, not an error")
+          all(l.rstrip().endswith("|| :") for l in wait_lines),
+          "a non-zero wait is this code's normal reporting channel, not an error; "
+          f"wait line(s): {[l.strip() for l in wait_lines]!r}")
     root = Path(tempfile.mkdtemp(prefix="jobs-deadline-"))
     for i in range(3):
         job.spawn(root, f"w{i}", ["sh", "-c", "sleep 30"], Path("."), budget_s=60)
