@@ -135,10 +135,65 @@ which is why the skill stays universal: the host changes, the lane contract does
   `agy_host.sh` bakes this instruction into the manager prompt). Two more print-mode facts,
   both observed live: `run_command` auto-backgrounds anything still running after its
   `WaitMsBeforeAsync` parameter (the prompt pins it to 30 min for the dispatch), and
-  **`invoke_subagent` fails under headless `agy -p`** — the manager attempts it first and takes
+  **`invoke_subagent` fails under headless `agy -p`** *(STALE as of 1.2.6 -- see the correction below)* — the manager attempts it first and takes
   the documented fallback (full plan through `devloop.sh`), which carried a verified green run
   (gates, merges, integration, truthful report). The native subagent path needs an interactive
   Antigravity session (IDE or `agy` TUI).
+  **CORRECTION (measured, 1.2.6): `invoke_subagent` does NOT fail headlessly.** Three probes,
+  all `status: SUCCESS`, no `denied_actions`: (a) inside a held stream-json session, and (b) in
+  plain single-shot `agy -p=`, and (c) single-shot with no prior `define_subagent` at all. A
+  `subagent` step is emitted carrying each child's own `conversation_id`. The paragraph above is
+  retained because the fallback it describes is sound, but its premise is not: native AGY fan-out
+  IS reachable headlessly, so `agy_host.sh`'s rule forbidding it under `--headless` is
+  over-restrictive **as an availability claim**. Its *lifetime* rationale still holds: every
+  subagent in those probes finished INSIDE the dispatching turn, and a single-shot `-p`
+  process still exits when the turn ends, taking an unfinished subagent with it. The leading
+  suspect for the original failure -- a settings file voided by an invalid `toolPermission`
+  -- was tested and **eliminated**: with the file voided and `permission_mode` degraded to
+  `request-review`, `invoke_subagent` still succeeded. The cause remains unexplained.
+  **Resolution:** the rule is now keyed on process lifetime, not on being unattended.
+  `agy_host.sh --session` holds a stream-json session open across turns
+  (`scripts/agy_session.py`), so native lanes survive their dispatch and the host polls
+  until each writes `.devloop/native/report-<id>.json`; `--headless` keeps the
+  orchestrator-only rule. Controls: `tests/test_agy_dispatch_rule.py`.
+  **Separately, `-p` single-shot is not the only headless mode.**
+  `agy --input-format stream-json --output-format stream-json --print-timeout 0 -p=''` holds a
+  **stateful multi-turn session** on stdin: one NDJSON `{"event":"user","message":{...}}` per line,
+  one `result` event per turn, one `conversation_id` throughout -- verified by a two-turn session
+  where turn 2 recalled turn 1's state. A caller holding this session does not need the
+  synchronous-foreground workaround above, because nothing is backgrounded and nothing is killed.
+  That is a property of the held session; it is **not** what makes subagents work, as (b) and (c)
+  above show. **Status of the poll loop: UNEXERCISED.** In the first end-to-end `--session` run
+  (2026-09-19, two research lanes) the manager dispatched native subagents, gated both lanes and
+  merged both -- all inside ONE turn (`num_turns: 1`, zero polls). It announced "I am ending my
+  turn now so the host can provide follow-up turns" and then simply kept working. So that run
+  proves native fan-out and merge discipline under a headless manager; it does **not** prove the
+  poll loop, because the turn never ended. The mechanism that justifies `--session` over
+  `--headless` is still untested in the case it was built for: a subagent outliving its turn. Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full
+  protocol, event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
+  **Watching an AGY-managed run (`--tmux`).** `devloop.sh` has had a tmux grid since the
+  beginning (`devloop.sh:52`), but the AGY path never used it: the manager ran as one opaque
+  process whose only signal was the envelope, at the end. `agy_host.sh … --session --tmux` now
+  opens a tmux session with the manager in pane 0 and `scripts/agy_monitor.py --follow` in pane 1,
+  both reading the SAME NDJSON stream that `agy_session.py --events-out` tees (default
+  `.devloop/native/session-events.ndjson`). Attach with `tmux attach -t <session>`; without
+  `--tmux` the stream is still written, so a monitor can be started later or from elsewhere.
+  Degrades to a plain run when tmux is absent, and says so.
+
+  **Monitoring/reporting task (surfacing a run in a Claude client).** `agy_monitor.py <stream>
+  --once --report-out <file>` emits one JSON status from the same state the pane renders — so the
+  operator's pane and the reporting agent can never disagree. Its `verdict` is derived from the
+  stream, never from the harness's own `status`: `working`, `refused` (denials present),
+  `vacuous` (a result claiming success with no text and no tool calls), `no_result` (a stream
+  that produced no result event at all — measured, an all-unknown-event stream does exactly
+  this), `no_stream` (the file does not exist, which is NOT a quiet healthy run), `errored`.
+  Exit 2 on `vacuous`/`no_result`/`no_stream` so a caller can gate on it. It also counts and
+  surfaces non-JSON lines rather than dropping them: agy writes its warnings and bare-text
+  errors into the same stream, and those are precisely the lines saying a run is doing nothing.
+  Spawn a Claude Code subagent that polls `--once` on an interval and reports the verdict, and a
+  run being denied or idling becomes visible in the client while it happens instead of at the end.
+  Controls: `tests/test_agy_monitor.py`.
+
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple

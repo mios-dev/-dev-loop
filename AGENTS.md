@@ -18,6 +18,16 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   `workspace: branch`, native workflows) for its own lanes by default. The dev-loop's reference
   orchestrator is how OTHER harnesses join the loop, not a replacement for AGY's native
   patterns. Launch with `sh skills/dev-loop/scripts/agy_host.sh <lanes.json>`.
+  **Native lanes require a manager whose process outlives a turn.** `--session` holds a
+  stream-json NDJSON session open across turns and is the unattended mode that keeps the
+  native topology above; `--headless` is single-turn `agy -p` and routes every lane through
+  the reference orchestrator instead, because a subagent that has not finished when the turn
+  ends dies with the process. This is a lifetime constraint, not an availability one --
+  `invoke_subagent` itself works headlessly (measured 1.2.6, four probes, including one with
+  `settings.json` voided). Controls: `tests/test_agy_dispatch_rule.py`. The first `--session`
+  run dispatched, gated and merged two native lanes in ONE turn, so the poll loop that keeps a
+  session alive past a turn end is implemented but **not yet exercised** -- do not cite it as
+  proven.
 - **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
   concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
   through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's

@@ -215,7 +215,7 @@
         },
         "negative_expect": {
           "type": "string",
-          "description": "Regex (ERE / .NET) that must match the negative control's combined output \u2014 it must name the planted violation."
+          "description": "Regex (ERE / .NET) that must match the negative control's combined output -- it must name the planted violation. Prefer the tool's OWN error for a real mutation. Where the plant is synthetic, use the sentinel DEVLOOP-PLANTED-<LANE_ID> (lane id uppercased, non-alphanumerics to '-'): it must appear in negative_control_cmd, be unique to this lane, and not exist in the tree. Never alternate it with text the tool prints anyway -- that makes the control pass without the plant. See SKILL.md section 6."
         },
         "full_gate_cmd": {
           "type": "string",

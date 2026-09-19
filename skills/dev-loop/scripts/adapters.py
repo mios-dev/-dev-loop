@@ -165,6 +165,16 @@ def lane_prompt(lane: dict, wt: Path, skill: Path) -> str:
         f"- full_gate_cmd: {lane.get('full_gate_cmd') or '(none)'}\n"
         f"- budget: max_turns={lane['worker']['max_turns']} timeout_s={lane['worker']['timeout_s']}\n"
         "- Do NOT run git add/commit/push/rebase/reset, generators, or edit contract files; the host does that.\n"
+        "- RUN EVERY COMMAND SYNCHRONOUSLY IN THE FOREGROUND and wait for its exit code. Never background a "
+        "command, and never end a turn saying you will wait for one: your process ends when your turn ends and "
+        "the command dies with it, unfinished, while you report having started it. If a command is slow, wait "
+        "for it — that is what your timeout budget is for. (Antigravity's run_command auto-backgrounds anything "
+        "still running after WaitMsBeforeAsync, and MEASURED 2026-09-19 that parameter is CLAMPED to about "
+        "10000 ms -- raising it buys nothing, so it is NOT a way to run a long command. For anything that "
+        "can exceed ~10s, spawn a detached job whose receipt outlives your turn: job.py spawn --root "
+        "<run>/.devloop/jobs --id <id> -- <cmd>, then job.py wait --root <run>/.devloop/jobs --id <id>.) "
+        "Observed live: a lane worker launched three commands, said \"I will wait for the background command to "
+        "finish execution\" each time, then ended its single turn having measured nothing.\n"
         "- Run both controls yourself and report their real exit codes; status=done only if both held.\n"
         "- Finish your final message with a ```json code block containing a single object whose key is "
         "\"devloop_report\" (schema in SKILL.md §13). Nothing after that block.\n\n"
@@ -558,6 +568,20 @@ def cmd_gate(a):
     # uncommitted lane edits (e.g. a `git checkout -- <file>` trap restores from
     # the INDEX, i.e. the seed), and a post-control diff would park nothing.
     pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
+    # A sentinel control works by citing a path that does NOT exist. The lane can SEE its own
+    # negative_control_cmd (it is in the lane prompt, line 163), so a lane that creates that
+    # path -- deliberately, or by naming a fixture after a string it read in its own contract
+    # -- makes the citation resolve and the control PASS. Observed live 2026-09-19: a MiOS lane
+    # created automation/DEVLOOP-PLANTED-T1000-GATE04.sh, the exact path its control expected
+    # to be missing. The control would then have been vacuous and nothing downstream could tell.
+    # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.
+    for _sent in re.findall(r"\bDEVLOOP-PLANTED-[A-Z0-9-]+\b", lane["negative_control_cmd"]):
+        _hits = [str(q.relative_to(wt)) for q in wt.rglob(f"*{_sent}*")
+                 if ".git" not in q.parts and ".worktrees" not in q.parts]
+        if _hits:
+            die(f"negative control is VACUOUS BEFORE IT RAN: its sentinel {_sent} already exists "
+                f"in the worktree ({', '.join(_hits[:3])}), so the planted citation would resolve "
+                f"and the control would pass. Refusing to gate.", 2)
     code, out, _ = run_shell(lane["negative_control_cmd"], wt, t, prefer=a.shell)
     (run / f"neg-{lid}.log").write_text(out, "utf-8")
     after = tree_snapshot(wt)
