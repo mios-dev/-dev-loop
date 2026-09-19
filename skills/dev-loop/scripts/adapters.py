@@ -206,14 +206,17 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
     obj = prompt_file.read_text("utf-8")
     structured = w.get("structured_output", True)
     if h == "claude-code":
-        # --max-turns was removed from the claude CLI (gone by 2.1.276); the lane
-        # budget is the outer timeout plus optional --max-budget-usd.
+        # --max-turns is hidden from --help since ~2.1.276 but still parsed (2.1.278:
+        # `claude --max-turns 1 --version` exits 0), so it bounds the lane alongside the outer
+        # timeout and optional --max-budget-usd. --permission-prompts none makes an
+        # unattended lane deny, never wait, on anything outside its allowlist.
         # Defaults: 'opus' resolves to the newest Opus-line model on the account
         # (alias, so it tracks releases); effort xhigh. Operator policy 2026-09:
         # Opus by default, and the dev-loop manager may assign lower tiers
         # (sonnet/haiku) per lane via worker.model / worker.effort.
         argv = ["claude", "-p", obj, "--output-format", "json",
                 "--permission-mode", w.get("permission_mode", "dontAsk"),
+                "--permission-prompts", "none",
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
                 "--model", w.get("model", "opus"), "--effort", w.get("effort", "xhigh")]
         if w.get("max_turns"): argv += ["--max-turns", str(w["max_turns"])]

@@ -11,6 +11,7 @@ set -eu
 export CI=1 GIT_TERMINAL_PROMPT=0 GIT_PAGER=cat PAGER=cat NO_COLOR=1
 SKILL_DIR=$(cd "$(dirname "$0")/.." && pwd); AD="$SKILL_DIR/scripts/adapters.py"; PY=${PYTHON:-python3}
 JOB_PY="$SKILL_DIR/scripts/job.py"   # turn-durable work: setsid + a shell-written receipt
+LOCK_PY="$SKILL_DIR/scripts/git_lock.py" # one writer per worktree: kernel flock held by the lane tree
 command -v "$PY" >/dev/null 2>&1 || { echo "python3 required" >&2; exit 64; }
 
 if [ "${1:-}" = "--check" ]; then
@@ -53,6 +54,12 @@ launch() { # $1=id  — provision worktree + start worker per layout
   WT=$(field "$LJ" worktree); [ -n "$WT" ] || WT="$WT_ROOT/$ID"; WTA="$ROOT/$WT"; BR="lane/$ID"
   echo "== lane $ID [$(field "$LJ" worker.harness)] -> $WT ($BR from $BASE)"
   [ "$DRY" = 1 ] && return 0
+  if [ -d "$WTA" ] && ! "$PY" "$LOCK_PY" owner --wt "$WTA" >/dev/null 2>&1; then
+    # Cleaning below is checkout -f + reset --hard + clean -ffd: on a worktree another agent is
+    # still writing, that destroys its work. Refuse the lane instead of racing the owner.
+    echo "  $ID: REFUSED -- $("$PY" "$LOCK_PY" owner --wt "$WTA" 2>&1); not cleaning a live worktree" >&2
+    echo "75" > "$RUN/worker-$ID.exit"; return 0
+  fi
   if [ -d "$WTA" ]; then
     echo "  worktree exists; cleaning and reusing"
     git -C "$WTA" checkout -f "$BR" 2>/dev/null || git -C "$WTA" checkout -f -B "$BR" "$BASE"
@@ -60,7 +67,10 @@ launch() { # $1=id  — provision worktree + start worker per layout
     git -C "$WTA" clean -ffd
   elif git show-ref --verify --quiet "refs/heads/$BR"; then "$PY" "$AD" git --wt "$ROOT" -- worktree add --quiet "$WT" "$BR";
   else "$PY" "$AD" git --wt "$ROOT" -- worktree add --quiet "$WT" -b "$BR" "$BASE"; fi
-  CMD="$PY '$AD' run --lane '$LJ' --wt '$WTA' --report '$RUN/report-$ID.json' --log '$RUN/worker-$ID.log' --skill '$SKILL_DIR/SKILL.md'; echo \$? > '$RUN/worker-$ID.exit'"
+  # fd 9 on the worktree's owner lock is inherited by the whole lane tree (adapters.py, the
+  # agent, its tools), so the kernel holds the lock until the last of them exits.
+  LOCKF=$("$PY" "$LOCK_PY" path --wt "$WTA")
+  CMD="exec 9>>'$LOCKF'; $PY '$LOCK_PY' claim --wt '$WTA' --fd 9 --who 'devloop:$ID' --pid \$\$ || { echo 75 > '$RUN/worker-$ID.exit'; exit 75; }; $PY '$AD' run --lane '$LJ' --wt '$WTA' --report '$RUN/report-$ID.json' --log '$RUN/worker-$ID.log' --skill '$SKILL_DIR/SKILL.md'; echo \$? > '$RUN/worker-$ID.exit'; exec 9>&-"
   case "$LAYOUT" in
     headless)
       # SEQUENTIAL by design: one lane at a time, in the foreground. Kept for the case where
@@ -157,20 +167,28 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   [ -f "$REP" ] || { echo "  NO REPORT — parking diff"; git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
   RS=$(field "$REP" status); echo "  report status=$RS"
   "$PY" "$AD" owned --lane "$LJ" --wt "$WTA" || { git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
+  # Hold the owner lock for the whole gate: the negative control plants and restores a file,
+  # and a second writer in the tree turns that into "control is broken" (MiOS, 2026-09-19).
+  exec 8>>"$("$PY" "$LOCK_PY" path --wt "$WTA")"
+  if ! "$PY" "$LOCK_PY" claim --wt "$WTA" --fd 8 --who "devloop-gate:$ID" --pid $$; then
+    exec 8>&-; git -C "$WTA" diff > "$RUN/lane-$ID.patch"; [ "$STATUS" = 2 ] || STATUS=1; return
+  fi
+  # Under set -e a bare failing command exits the script before `rc=$?` runs, so one failing
+  # gate used to end the whole run and skip every later lane. Capture it instead.
   rc=0; "$PY" "$AD" gate --lane "$LJ" --wt "$WTA" --run "$RUN" --root "$ROOT" || rc=$?
-  [ $rc -eq 0 ] || { [ $rc -eq 2 ] && STATUS=2 || [ "$STATUS" = 2 ] || STATUS=1; return; }
-  [ "$RS" = done ] || { echo "  gates hold but the lane says '$RS' — not merging; read $REP"; [ "$STATUS" = 2 ] || STATUS=1; return; }
+  [ $rc -eq 0 ] || { [ $rc -eq 2 ] && STATUS=2 || [ "$STATUS" = 2 ] || STATUS=1; exec 8>&-; return; }
+  [ "$RS" = done ] || { echo "  gates hold but the lane says '$RS' — not merging; read $REP"; [ "$STATUS" = 2 ] || STATUS=1; exec 8>&-; return; }
   field "$LJ" owned_paths | "$PY" -c 'import json,sys; print("\n".join(json.load(sys.stdin)))' | while IFS= read -r p; do git -C "$WTA" add -- "$p" 2>/dev/null || true; done
-  [ -n "$(git -C "$WTA" diff --cached --name-only)" ] || { echo "  nothing staged — lane produced no change"; return; }
-  "$PY" "$AD" secrets --wt "$WTA" || { git -C "$WTA" reset -q; [ "$STATUS" = 2 ] || STATUS=1; return; }
-  "$PY" "$AD" deps --wt "$WTA" || { git -C "$WTA" reset -q; [ "$STATUS" = 2 ] || STATUS=1; return; }
+  [ -n "$(git -C "$WTA" diff --cached --name-only)" ] || { echo "  nothing staged — lane produced no change"; exec 8>&-; return; }
+  "$PY" "$AD" secrets --wt "$WTA" || { git -C "$WTA" reset -q; [ "$STATUS" = 2 ] || STATUS=1; exec 8>&-; return; }
+  "$PY" "$AD" deps --wt "$WTA" || { git -C "$WTA" reset -q; [ "$STATUS" = 2 ] || STATUS=1; exec 8>&-; return; }
   TID=$(field "$LJ" task_id); TRAILER=""; [ -n "$TID" ] && TRAILER="Task-Id: $TID"
   git -C "$WTA" commit --quiet -m "lane($ID): $(field "$LJ" objective | head -c 60)" -m "$(field "$REP" summary | head -c 600)" \
     -m "Verified: positive=$(field "$LJ" positive_cmd) ; negative=$(field "$LJ" negative_control_cmd) (named: $(field "$LJ" negative_expect))" ${TRAILER:+-m "$TRAILER"}
   if ! "$PY" "$AD" base-audit --root "$ROOT" --before "$BASE_SNAP" --lanes "$SPEC"; then
     echo "  BASE TREE LEAKAGE DETECTED before merge — halting" >&2
     [ "$STATUS" = 2 ] || STATUS=1
-    return
+    exec 8>&-; return
   fi
   if "$PY" "$AD" git --wt "$ROOT" -- merge --no-ff --no-edit "$BR" >/dev/null; then echo "  merged $BR"
     [ "$KEEP" = 1 ] || { git worktree remove --force "$WT"; git branch -D "$BR" >/dev/null; }
@@ -179,6 +197,7 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
         && "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks render --root "$ROOT" >/dev/null && git add -- .devloop/tasks.jsonl TASKS.md && git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" || echo "  (task ledger update skipped)"
     fi
   else git merge --abort 2>/dev/null || true; echo "  MERGE CONFLICT — aborted; worktree and branch kept for review" >&2; [ "$STATUS" = 2 ] || STATUS=1; fi
+  exec 8>&- 2>/dev/null || :
 }
 
 # Waves: every lane whose depends_on are all merged runs in parallel; then gate+merge; next wave.

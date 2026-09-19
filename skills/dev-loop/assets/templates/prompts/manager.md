@@ -147,4 +147,14 @@ These were measured on agy 1.2.6, not assumed. They are why the rules above exis
    response that describes what you started, without that block grounded in the finished run,
    is a failed run.
 
+8. ONE WRITER PER WORKTREE. Never start an agent, `claude -p` or otherwise, in a worktree that
+   devloop.sh or another lane already runs; check first with
+   python3 {{SKILL_DIR}}/scripts/git_lock.py owner --wt <worktree>   (exit 1 = owned).
+   Never kill, signal or clean up another agent's process or worktree; report it instead.
+9. Every shell command starts with an allowlisted program. The permission allowlist matches the
+   FIRST WORD only, so a bare loop (`for ...`), a `cd ... &&` prefix or `VAR=x cmd` falls to a
+   prompt nobody answers and is denied. Put multi-statement shell in `bash -c '...'` or in a
+   script file you run with bash or python3, from the first attempt. Never retry a denied
+   command in another form.
+
 You are the only writer to shared state; lanes never git add/commit/push and never edit AGENTS.md.
