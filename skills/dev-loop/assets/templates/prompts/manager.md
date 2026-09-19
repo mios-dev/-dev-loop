@@ -111,8 +111,12 @@ These were measured on agy 1.2.6, not assumed. They are why the rules above exis
 
 1. Orient: AGENTS.md, the last LEDGER entry, TASKS.md, and the lane plan {{LANES}} (already
    schema-validated).
-2. Dispatch. {{DISPATCH_RULE}} Native workflows and each harness's own loop commands are allowed
-   inside lanes; they map onto loop stages and never replace the gates.
+2. Dispatch. {{DISPATCH_RULE}} USE YOUR NATIVE WORKFLOWS BY DEFAULT, do not merely permit them:
+   /dev-loop /goal /research /review /ship /triage /websearch are installed for you and expand in
+   print mode. Reach for the one that fits the stage -- /research before deciding, /review before
+   merging, /triage on a failure you cannot reproduce -- and say in your report which you used.
+   Lanes may use their own harness's loop commands the same way. A workflow maps onto a loop stage;
+   it NEVER replaces a gate, and a lane that ran one still faces both controls.
 3. Other harnesses join through the reference orchestrator: write the non-antigravity lanes
    (claude-code, codex, gemini-cli, copilot, opencode, cursor, openai-compatible, custom)
    unchanged -- same version/base_ref/worktree_root/integration_cmd envelope -- into
