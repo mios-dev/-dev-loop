@@ -53,6 +53,7 @@ Exit codes: 0 ok · 1 usage/spawn error · 2 job failed or is not done · 3 lost
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import shlex
@@ -63,6 +64,20 @@ import time
 from pathlib import Path
 
 SCHEMA = 1
+
+_DETACHED_PROCS: list[subprocess.Popen] = []
+
+
+def poll_detached() -> None:
+    """Poll detached process handles to release zombie resources and silence ResourceWarnings."""
+    for p in _DETACHED_PROCS:
+        try:
+            p.poll()
+        except Exception:
+            pass
+
+
+atexit.register(poll_detached)
 
 # The wrapper is deliberately /bin/sh and deliberately tiny: it must not be able to fail in
 # interesting ways. It records its own pid and start-tick (for a pid-reuse guard), runs the
@@ -174,14 +189,20 @@ def spawn(root: Path, jid: str, argv: list[str], cwd: Path, budget_s: int = 3600
     # turn end can see it. Returning immediately is the point — this call must not be the
     # long-running thing.
     with open(os.devnull, "rb") as devnull:
-        subprocess.Popen(["setsid", "/bin/sh", str(w), str(d.resolve())],
-                         stdin=devnull, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+        proc = subprocess.Popen(["setsid", "/bin/sh", str(w), str(d.resolve())],
+                                stdin=devnull, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True)
+        try:
+            proc.wait(timeout=0.2)
+        except subprocess.TimeoutExpired:
+            proc.poll()
+        _DETACHED_PROCS.append(proc)
     return "spawned"
 
 
 def status(root: Path, jid: str, grace_s: int = 2) -> dict:
     """Derive state from the FILESYSTEM and /proc, never from anything an agent wrote."""
+    poll_detached()
     d = root / jid
     meta = {}
     try:
