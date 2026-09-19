@@ -181,6 +181,11 @@ case "$MODE" in
                --effort "${AGY_HOST_EFFORT:-high}" \
                --poll-max "${AGY_HOST_POLL_MAX:-8}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
+        # A run marker, so a monitor can tell "quiet because it is thinking" from "finished".
+        # Staleness alone calls a manager inside a long run_command dead (measured: 128s silent).
+        STATUS_FILE=$(dirname "$EVENTS_FILE")/session.status
+        printf '{"state":"running","pid":%s,"events":"%s"}\n' "$$" "$EVENTS_FILE" > "$STATUS_FILE"
+        trap 'printf "{\"state\":\"finished\"}\n" > "$STATUS_FILE"' EXIT INT TERM
         if [ "$USE_TMUX" = 1 ] && command -v tmux >/dev/null 2>&1; then
             # A manager with no panes is a manager you cannot watch. devloop.sh has had a tmux
             # grid since the beginning (devloop.sh:52); the AGY path never used it, so an
@@ -208,6 +213,17 @@ case "$MODE" in
             RC=$?
         fi
         rm -f "$PROMPT_FILE"
+        # DEFAULT, not opt-in: a run with a transcript gets a UI element for it. The stream is
+        # NDJSON in a scratch directory, which nothing will ever open; the rendered page is what
+        # an operator (or a client) actually shows for the task. Rendered from the same State
+        # the pane and the JSON report use, so the three cannot disagree.
+        TRANSCRIPT=$(dirname "$EVENTS_FILE")/transcript.html
+        REPORT_JSON=$(dirname "$EVENTS_FILE")/monitor-report.json
+        python3 "$SKILL_DIR/scripts/agy_monitor.py" "$EVENTS_FILE" --once \
+            --report-out "$REPORT_JSON" --html "$TRANSCRIPT" >/dev/null 2>&1
+        [ -s "$TRANSCRIPT" ] && echo "agy_host: transcript $TRANSCRIPT"
+        [ -s "$REPORT_JSON" ] && echo "agy_host: monitor report $REPORT_JSON"
+
         if [ -s "$ENV_FILE" ] && ! python3 "$SKILL_DIR/scripts/adapters.py" denials "$ENV_FILE"; then
             echo "agy_host: manager session rejected — see the denial lines above; envelope kept at $ENV_FILE" >&2
             [ "$SKIP_PERMS" = 1 ] || echo "agy_host: headless auto-denies tools it cannot prompt for; re-run with --yolo, or add the allow-rule the notice names to settings.json" >&2

@@ -203,11 +203,51 @@ def test_follow_renders_and_stops_when_idle() -> None:
     check("prints a verdict when it stops", "verdict=" in cp.stdout)
 
 
+def test_transcript_ui_element() -> None:
+    """The transcript page is the UI element a client shows for a run. It must be openable with
+    no network and no build step, and it must not disagree with the JSON report -- both come
+    from the same State, and a page that says something the report does not is a second,
+    unverified source of truth."""
+    print("transcript UI element:")
+    d = Path(tempfile.mkdtemp())
+    f = d / "e.ndjson"
+    f.write_text("\n".join([
+        init_evt(), tool_evt("view_file"), subagent_evt("child-7", "lane-a"),
+        'warning: ignoring unsupported stream input message event "z"',
+        result_evt(denied_actions=[{"action": "command", "target": "rm"}]),
+    ]) + "\n")
+    html, rep_out = d / "t.html", d / "r.json"
+    cp = subprocess.run([sys.executable, str(MON), str(f), "--once",
+                         "--html", str(html), "--report-out", str(rep_out)],
+                        capture_output=True, text=True, timeout=60)
+    check("page written", html.is_file())
+    if not html.is_file():
+        return
+    page = html.read_text()
+    rep = json.loads(rep_out.read_text())
+    check("self-contained: no external script or stylesheet",
+          'src="http' not in page and 'href="http' not in page,
+          "a transcript that needs the network is useless in a sandbox")
+    check("mobile viewport", "width=device-width" in page)
+    check("well-formed document", page.rstrip().endswith("</html>"))
+    # five events in the fixture: init, tool, subagent, the warning line, result.
+    check("renders every event as a row", page.count('class="row') == 5,
+          f"got {page.count(chr(39) + 'class=' + chr(34) + 'row')} rows for 5 events")
+    check("shows the derived verdict, not the harness's claim",
+          ">refused<" in page and rep["verdict"] == "refused")
+    check("surfaces the denial count", page.count("denials") >= 1 and len(rep["denials"]) == 1)
+    check("surfaces the unparsed warning line", "unsupported stream input" in page,
+          "the lines a json.loads monitor drops are exactly the ones worth showing")
+    check("names the subagent child id", "child-7" in page)
+    check("page and report agree on the verdict", f'>{rep["verdict"]}<' in page)
+
+
 def main() -> int:
     for t in (test_healthy_run, test_no_result_event, test_in_progress_is_not_a_failure,
               test_stalled_run_is_not_in_progress, test_vacuous_success,
               test_denials_outrank_success, test_absent_stream_is_not_a_clean_run,
-              test_report_out_matches_stdout, test_follow_renders_and_stops_when_idle):
+              test_report_out_matches_stdout, test_follow_renders_and_stops_when_idle,
+              test_transcript_ui_element):
         t()
     print()
     if FAILURES:

@@ -164,11 +164,113 @@ class State:
         }
 
 
-def read_all(path: Path, state: State, echo: bool) -> None:
+
+# --------------------------------------------------------------------- transcript UI element
+
+VERDICT_TONE = {"working": "ok", "in_progress": "live", "refused": "bad", "vacuous": "bad",
+                "no_result": "bad", "no_stream": "bad", "errored": "bad"}
+
+
+def render_html(state: "State", rep: dict, rows: list[tuple[str, str, str]]) -> str:
+    """A self-contained transcript page: no network, no build step, readable on a phone.
+
+    A run's transcript is the thing an operator actually wants to look at, and until now it
+    existed only as NDJSON in a scratch directory. Every value here comes from the same State
+    the pane and the JSON report use, so the page cannot disagree with them.
+    """
+    import html as _h
+
+    tone = VERDICT_TONE.get(rep.get("verdict"), "bad")
+    subs = "".join(
+        f'<li><code>{_h.escape(x["conversation_id"][:12])}</code> {_h.escape(x["type"])}</li>'
+        for x in rep.get("subagents", [])) or "<li class=muted>none</li>"
+    dens = "".join(f"<li>{_h.escape(json.dumps(d))}</li>" for d in rep.get("denials", [])) \
+        or "<li class=muted>none</li>"
+    unp = "".join(f"<li>{_h.escape(u)}</li>" for u in rep.get("unparsed_sample", [])) \
+        or "<li class=muted>none</li>"
+    body = "".join(
+        f'<div class="row {k}"><span class=k>{_h.escape(k)}</span>'
+        f'<span class=t>{_h.escape(t)}</span><span class=d>{_h.escape(d)}</span></div>'
+        for k, t, d in rows)
+
+    return f"""<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Run transcript</title><style>
+:root{{--bg:#fbfaf8;--fg:#1a1917;--mut:#75706a;--line:#e3ded6;--card:#fff;
+--ok:#1a7f4b;--live:#8a6a00;--bad:#b0342c;--acc:#3a5ccc}}
+@media(prefers-color-scheme:dark){{:root:not([data-theme=light]){{--bg:#16151a;--fg:#ece9e4;
+--mut:#9b958d;--line:#2e2b33;--card:#1e1d23;--ok:#4ec07f;--live:#d9ae3c;--bad:#f08579;--acc:#8fa8ff}}}}
+:root[data-theme=dark]{{--bg:#16151a;--fg:#ece9e4;--mut:#9b958d;--line:#2e2b33;--card:#1e1d23;
+--ok:#4ec07f;--live:#d9ae3c;--bad:#f08579;--acc:#8fa8ff}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;
+padding:16px;max-width:820px;margin-inline:auto}}
+h1{{font-size:1.1rem;margin:0 0 2px}}
+.sub{{color:var(--mut);font-size:.82rem;margin-bottom:14px;word-break:break-all}}
+.badge{{display:inline-block;padding:4px 11px;border-radius:999px;font-weight:650;font-size:.8rem;
+border:1px solid currentColor}}
+.ok{{color:var(--ok)}}.live{{color:var(--live)}}.bad{{color:var(--bad)}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px;margin:14px 0}}
+.cell{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}}
+.cell b{{display:block;font-size:1.25rem;line-height:1.2}}
+.cell span{{color:var(--mut);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}}
+details{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}}
+summary{{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}}
+ul{{margin:8px 0 0;padding-left:18px}}li{{margin:3px 0;word-break:break-all;font-size:.86rem}}
+.muted{{color:var(--mut)}}
+.row{{display:flex;gap:9px;align-items:baseline;padding:7px 10px;border-bottom:1px solid var(--line);
+font-size:.87rem}}
+.row:last-child{{border-bottom:0}}
+.k{{flex:0 0 66px;color:var(--mut);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}}
+.t{{flex:1;min-width:0;word-break:break-word}}
+.d{{flex:0 0 auto;color:var(--mut);font-size:.76rem}}
+.row.result .t{{font-weight:650}}
+.row.warn{{color:var(--bad)}}
+.log{{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px}}
+code{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.84em}}
+@media(max-width:480px){{.row{{flex-wrap:wrap}}.k{{flex-basis:100%}}.d{{margin-left:auto}}}}
+</style></head><body>
+<h1>Run transcript</h1>
+<div class=sub>{_h.escape(str(rep.get('conversation_id') or 'no session'))} &middot;
+{_h.escape(str(rep.get('cwd') or ''))}</div>
+<span class="badge {tone}">{_h.escape(str(rep.get('verdict')))}</span>
+<div class=grid>
+<div class=cell><b>{rep.get('turns', 0)}</b><span>turns</span></div>
+<div class=cell><b>{rep.get('tool_calls', 0)}</b><span>tool calls</span></div>
+<div class=cell><b>{len(rep.get('subagents', []))}</b><span>subagents</span></div>
+<div class=cell><b>{len(rep.get('denials', []))}</b><span>denials</span></div>
+<div class=cell><b>{rep.get('duration_s', 0)}s</b><span>elapsed</span></div>
+<div class=cell><b>{rep.get('unparsed_lines', 0)}</b><span>unparsed</span></div>
+</div>
+<details><summary>Run facts</summary><ul>
+<li>permission mode: <code>{_h.escape(str(rep.get('permission_mode')))}</code></li>
+<li>harness claimed: <code>{_h.escape(str(rep.get('harness_claimed_status')))}</code>
+ <span class=muted>(kept for audit; the verdict above is derived from the stream)</span></li>
+<li>stream complete: <code>{rep.get('stream_complete')}</code> via
+ <code>{_h.escape(str(rep.get('completeness_from', 'n/a')))}</code></li>
+<li>distinct tools: {_h.escape(', '.join(rep.get('distinct_tools', [])) or '-')}</li>
+</ul></details>
+<details><summary>Subagents ({len(rep.get('subagents', []))})</summary><ul>{subs}</ul></details>
+<details><summary>Denials ({len(rep.get('denials', []))})</summary><ul>{dens}</ul></details>
+<details><summary>Unparsed lines ({rep.get('unparsed_lines', 0)})</summary>
+<p class=muted>agy writes warnings and bare-text errors into the same stream. These are the
+lines a json.loads monitor drops silently.</p><ul>{unp}</ul></details>
+<h2 style="font-size:.95rem;margin:18px 0 4px">Transcript ({len(rows)} events)</h2>
+<div class=log>{body or '<div class="row"><span class=t muted>no events</span></div>'}</div>
+</body></html>"""
+
+def read_all(path: Path, state: State, echo: bool, rows: list | None = None) -> None:
     for line in path.read_text(errors="ignore").splitlines():
+        before = len(state.tool_calls), state.results, len(state.unparsed)
         out = state.feed(line)
         if echo and out:
             print(out, flush=True)
+        if rows is not None and out:
+            after = len(state.tool_calls), state.results, len(state.unparsed)
+            kind = ("warn" if after[2] > before[2] else
+                    "result" if after[1] > before[1] else
+                    "tool" if after[0] > before[0] else "init")
+            rows.append((kind, out.strip(), f"{state.duration_s:.1f}s" if kind == "result" else ""))
 
 
 def main() -> int:
@@ -178,6 +280,8 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true", help="human lines, for a tmux pane")
     ap.add_argument("--once", action="store_true", help="print a JSON status object and exit")
     ap.add_argument("--report-out", help="also write the JSON status here (for a monitor agent)")
+    ap.add_argument("--html", help="also render a self-contained transcript page here "
+                                   "(the UI element a client shows for the task)")
     ap.add_argument("--poll-s", type=float, default=1.0)
     ap.add_argument("--stale-after-s", type=float, default=90.0,
                     help="--once treats a stream untouched for this long as finished")
@@ -201,14 +305,36 @@ def main() -> int:
         # The threshold is stated in the report so a reader can judge it rather than trust it.
         import time as _t
         idle_for = _t.time() - path.stat().st_mtime
-        state._complete = idle_for >= a.stale_after_s
-        read_all(path, state, echo=False)
+        # Staleness is a POOR proxy for completion: a manager inside a long run_command emits
+        # no events for minutes and a purely time-based rule calls that a dead run. Measured on
+        # a real MiOS run -- 128s of silence while a gate executed, flipping the verdict to
+        # no_result on a perfectly healthy manager. Prefer the run marker agy_host.sh writes;
+        # fall back to staleness only when there is no marker to read.
+        marker = path.parent / "session.status"
+        marker_state = None
+        if marker.is_file():
+            try:
+                marker_state = json.loads(marker.read_text()).get("state")
+            except Exception:
+                marker_state = marker.read_text().strip() or None
+        if marker_state == "running":
+            state._complete = False
+        elif marker_state in ("finished", "failed"):
+            state._complete = True
+        else:
+            state._complete = idle_for >= a.stale_after_s
+        rows: list = []
+        read_all(path, state, echo=False, rows=rows)
         rep = state.report(str(path), done=state._complete)
         rep["stream_idle_s"] = round(idle_for, 1)
+        rep["completeness_from"] = f"marker:{marker_state}" if marker_state else f"staleness>={a.stale_after_s}s"
         rep["assumed_complete_after_s"] = a.stale_after_s
         print(json.dumps(rep, indent=2))
         if a.report_out:
             Path(a.report_out).write_text(json.dumps(rep, indent=2) + "\n")
+        if a.html:
+            Path(a.html).parent.mkdir(parents=True, exist_ok=True)
+            Path(a.html).write_text(render_html(state, rep, rows))
         return 2 if rep["verdict"] in ("vacuous", "no_result") else 0   # in_progress is NOT a failure
 
     # --follow: a pane view. Tolerate the file not existing yet; the session may still be starting.
