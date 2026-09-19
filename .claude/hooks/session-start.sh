@@ -15,4 +15,11 @@ else
     echo "antigravity setup incomplete (see errors above) — run manually: bash skills/dev-loop/scripts/env/setup-antigravity.sh"
 fi
 
+# Fedora userspace: install the wrapper only (sub-second). The image builds on
+# first `fedora …` use, so a session that never touches it pays nothing. This
+# path exists because a cloud environment's Setup script field is not always
+# offered in the environment dialog — the hook needs no environment config.
+bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/cloud-fedora-setup.sh" --wrapper-only ||
+    echo "fedora wrapper not installed — run manually: bash skills/dev-loop/scripts/env/cloud-fedora-setup.sh"
+
 exit 0

@@ -6,11 +6,15 @@
 ARG FEDORA_VERSION=44
 FROM registry.fedoraproject.org/fedora:${FEDORA_VERSION}
 
-RUN dnf -y install \
-        git tmux jq curl python3 python3-pip \
+# Same package set as the cloud environment's Fedora image
+# (skills/dev-loop/scripts/env/cloud-fedora-setup.sh), so a devcontainer and a
+# cloud session present the same Fedora. install_weak_deps=False keeps it lean.
+RUN dnf -y --setopt=install_weak_deps=False install \
+        git tmux jq curl wget ripgrep python3 python3-pip \
+        nodejs npm gcc gcc-c++ make \
         dbus-daemon dbus-tools gnome-keyring libsecret \
-        procps-ng util-linux shadow-utils sudo which hostname tar unzip \
-        nodejs npm \
+        procps-ng util-linux shadow-utils sudo which hostname \
+        tar gzip unzip zip findutils diffutils patch openssl \
     && dnf clean all
 
 # Claude Code CLI for claude-code manager/lanes (claude -p …)

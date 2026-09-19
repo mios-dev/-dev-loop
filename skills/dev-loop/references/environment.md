@@ -75,3 +75,112 @@ login once.
 
 POSIX-only for now; there is no PowerShell port of the env scripts
 (`install.ps1` installs the skill but Windows keyring caching is untested).
+
+## Fedora in a Claude Code *cloud environment*
+
+A cloud environment (claude.ai/code, `claude --cloud`, routines) is not a
+devcontainer: the VM is a fixed **Ubuntu 24.04 x86_64** image and, per
+`code.claude.com/docs/en/cloud-environments`, *"replacing the base image
+entirely isn't supported yet"*. There is no image, Dockerfile or devcontainer
+field anywhere in the environment dialog — only name, network access,
+environment variables and a setup script.
+
+`scripts/env/cloud-fedora-setup.sh` is that setup script. Docker **is**
+pre-installed on the VM, and the platform snapshots the filesystem once the
+setup script has run and reuses it for every later session, so a Fedora image
+built there is already on disk next time at no startup cost. The script builds
+`dev-loop-fedora:44` from `registry.fedoraproject.org/fedora:44` and installs
+`/usr/local/bin/fedora`:
+
+```sh
+fedora                  # interactive Fedora shell
+fedora dnf install -y … # Fedora package management
+fedora python3 -V       # anything, in Fedora
+```
+
+Host paths (`/home`, `/root`, `/workspace`, `/srv`) are bind-mounted at the
+**same absolute path** and `$PWD` is preserved, so a path means the same thing
+on both sides and no file is copied to cross the boundary.
+
+Three details the script exists to get right:
+
+- **The egress CA.** Cloud sessions leave through a TLS-terminating proxy. A
+  container that does not trust its CA fails every https fetch with
+  `self-signed certificate in certificate chain` — `dnf` first of all. The CA
+  is baked into the image's trust store (never `verify=off`), and because the
+  minimal Fedora image ships no `/etc/pki/tls/certs/ca-bundle.crt`, the script
+  creates that compat symlink too and points `SSL_CERT_FILE` and friends at
+  `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`, the file
+  `update-ca-trust` actually writes.
+- **`--network host`.** The proxy listens on the VM's `127.0.0.1`, which a
+  bridged container cannot reach. Both the build and the container use host
+  networking.
+- **No metalink.** The repos are pinned to `dl.fedoraproject.org` instead of
+  the default metalink, which hands `dnf` a different third-party mirror
+  hostname on every run — something no network allowlist can cover.
+  `gpgcheck` stays on.
+
+Everything is idempotent and failure-tolerant: a setup script that exits
+non-zero fails the whole session, so every step is guarded and the script ends
+in an unconditional `exit 0` — a failed provision degrades to a plain Ubuntu
+session with a log line. The wrapper is self-healing for the same reason the
+snapshot needs it to be: the cache restores *files*, never running processes,
+so `fedora` starts `dockerd` and re-creates the container itself on a cold
+session.
+
+**Measured (2026-09, Ubuntu 24.04 cloud VM, docker 29.3.1/overlayfs):** first
+run 60s wall clock, well inside the ~5-minute budget the cache needs; re-run
+0.25s; cold session, daemon down and container gone, `fedora <cmd>` back up in
+1.4s. Fedora 44 with git 2.55, Python 3.14, Node 22, gcc 16; `dnf`, `pip` and
+`curl` all verified through the proxy with TLS verification on.
+
+### When the dialog has no Setup script field
+
+Observed 2026-09: an environment dialog showing only **Name**, **Network
+access** and **Environment variables** — no Setup script box, though the docs
+describe one. Pasting a script into the variables box fails loudly, because
+that box validates `.env` format and reports every line of a shell script as
+invalid.
+
+For that case the script takes `--wrapper-only`: it installs
+`/usr/local/bin/fedora` and skips the pull and build, so the first `fedora …`
+call builds the image on demand instead. The repo's SessionStart hook
+(`.claude/hooks/session-start.sh`) runs it that way, which needs no
+environment configuration at all — at the cost of paying the ~60s build once
+per fresh container rather than once per environment, and only in sessions
+that check out this repo.
+
+Two hazards that path has to handle, both of them found by hitting them:
+
+- **A script must not rewrite itself while it runs.** The on-demand build
+  re-runs this script, which would reinstall the wrapper that is *currently
+  executing*; bash reads a script incrementally by byte offset, so truncating
+  and rewriting it makes the shell resume mid-line (`ome/*|/root|…`). The
+  wrapper is installed write-then-rename so the running shell keeps its open
+  inode, and an autobuild skips reinstalling it entirely.
+- **Build the image before reading container state.** The build's own
+  verification call goes through the wrapper and can create the container, so
+  any state read before the build is stale by the time it is used — which
+  surfaced as a `container name already in use` failure.
+
+`FEDORA_NO_AUTOBUILD=1` guards the recursion: the setup script verifies itself
+through the wrapper, and a failed build must not bounce the two off each other
+forever.
+
+**Measured:** `--wrapper-only` install 0.016s; cold first use with no image, no
+build cache and dockerd down, 60s; every call after that 0.18s.
+
+### Creating the environment
+
+The environment itself can only be created in the UI — there is no API for it,
+and no settings page either: at claude.ai/code, use the cloud icon in the row
+above the message box → **Add cloud environment**, paste the script into
+**Setup script**, **Create environment**. The selector is also where an
+environment is made the default: whichever one is ticked there is what new
+sessions on web, mobile and Desktop use. The CLI keeps its own pick — set it
+with `/remote-env` in a terminal session.
+
+Network access: `registry.fedoraproject.org` and `dl.fedoraproject.org` both
+resolved under this account's **Trusted** Default environment, though neither
+appears in the published default allowlist. Under a **Custom** policy, allow
+those two hosts explicitly (keeping the defaults on).
