@@ -164,12 +164,127 @@ def test_budget_expiry_does_not_read_as_success() -> None:
     job.kill(root, "slow", "KILL")
 
 
+# ---------------------------------------------------------------------------------------------
+# End-to-end controls for devloop.sh itself. Fault is injected at the PROCESS boundary via the
+# PYTHON env var (devloop.sh runs every helper as `$PY <script> …`), the same technique the poll
+# tests use for a fake `agy`: it exercises the real shell script rather than a re-implementation.
+# ---------------------------------------------------------------------------------------------
+
+LANES_JSON = """{"base_ref":"HEAD","lanes":[{"id":"l1",
+"objective":"a minimal lane used only to drive devloop.sh's dispatch and wait paths",
+"owned_paths":["a.txt"],"worker":{"harness":"claude-code"},
+"positive_cmd":"true","negative_control_cmd":"false","negative_expect":"boom",
+"full_gate_cmd":"true"}]}"""
+
+
+def _repo() -> Path:
+    """A clean one-commit git repo — devloop.sh refuses to run on a dirty tree, so lanes.json
+    and the shim live in the parent directory, OUTSIDE the worktree. (Keeping them inside made
+    every run refuse on a dirty tree, which still satisfied a bare `rc != 0` assertion: the
+    reason the message checks below assert WHICH failure happened.)"""
+    d = Path(tempfile.mkdtemp(prefix="devloop-repo-"))
+    repo = d / "repo"
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / "a.txt").write_text("seed\n")
+    subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "seed"], check=True, env=env)
+    (d / "lanes.json").write_text(LANES_JSON)
+    return repo
+
+
+def _shim(repo: Path, body: str) -> str:
+    """A `python3` stand-in that fails one helper subcommand and passes everything else."""
+    sh = repo.parent / "pyshim.sh"
+    sh.write_text("#!/bin/sh\n" + body + '\nexec python3 "$@"\n')
+    sh.chmod(0o755)
+    return str(sh)
+
+
+def _run_devloop(repo: Path, pyshim: str, timeout: int = 180):
+    lanes = repo.parent / "lanes.json"
+    env = {**os.environ, "PYTHON": pyshim, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+           "LANE_WAIT_BUDGET": "40"}
+    return subprocess.run(["sh", str(DEVLOOP), str(lanes), "--layout", "detached"],
+                          cwd=repo, capture_output=True, text=True, timeout=timeout, env=env)
+
+
+def test_zero_waves_is_not_success() -> None:
+    """EMPTY-SET PASS. The wave loop used to be `waves | while read`, so the body ran in a
+    subshell and zero iterations left `$RUN/status` unwritten — which the parent then read as
+    STATUS=0. A run in which NO LANE RAN AT ALL exited 0 and reported success.
+
+    Fault injection: make `adapters.py waves` print nothing and exit 0."""
+    print("a run that dispatches nothing:")
+    repo = _repo()
+    shim = _shim(repo, 'case "$1" in */adapters.py) case "$2" in waves) exit 0;; esac;; esac')
+    cp = _run_devloop(repo, shim)
+    check("exit is NOT 0", cp.returncode != 0,
+          f"rc={cp.returncode} — zero lanes dispatched must never read as a successful run")
+    check("and not for an unrelated reason", "base tree is dirty" not in (cp.stdout + cp.stderr))
+    check("it says no waves", "no waves" in (cp.stdout + cp.stderr).lower(),
+          (cp.stdout + cp.stderr)[-300:])
+    check("no lane job directory was created",
+          not list(repo.glob(".devloop/run-*/jobs/*")),
+          "a run that reported success would also have had to start something")
+
+
+def test_waves_crashing_is_not_success() -> None:
+    """The same pipeline also swallowed a NON-ZERO producer: a pipeline's status is its last
+    command's, so `waves` crashing left `set -e` unmoved and the run exited 0."""
+    print("the wave planner crashing:")
+    repo = _repo()
+    shim = _shim(repo, 'case "$1" in */adapters.py) case "$2" in waves) exit 9;; esac;; esac')
+    cp = _run_devloop(repo, shim)
+    check("exit is NOT 0", cp.returncode != 0, f"rc={cp.returncode}")
+    check("the failure is named", "waves failed" in (cp.stdout + cp.stderr),
+          (cp.stdout + cp.stderr)[-300:])
+
+
+def test_a_failed_spawn_is_not_swallowed() -> None:
+    """`job.py spawn … || true` hid a spawn that never started. With no job directory,
+    wait_lane fell through to the pre-job `while [ ! -f .exit ]; do sleep 20; done` — the
+    unbounded hang job.py exists to remove. The lane must fail loudly and promptly instead."""
+    print("a spawn that fails:")
+    repo = _repo()
+    shim = _shim(repo, 'case "$1" in */job.py) case "$2" in spawn) exit 1;; esac;; esac')
+    t0 = time.time()
+    cp = _run_devloop(repo, shim)
+    elapsed = time.time() - t0
+    out = cp.stdout + cp.stderr
+    check("SPAWN FAILED is reported", "SPAWN FAILED" in out, out[-400:])
+    check("exit is NOT 0", cp.returncode != 0, f"rc={cp.returncode}")
+    check("it did not fall into the unbounded wait", elapsed < 40,
+          f"{elapsed:.0f}s — the old path slept in 20s steps until LANE_WAIT_BUDGET")
+
+
+def test_budget_guard_fires_on_a_missing_timeout() -> None:
+    """The guard `$(field … || echo 1800)` could never fire: field() prints "" and exits 0 for a
+    missing key, so `--budget ""` would reach job.py, which rejects it — turning a missing field
+    into the swallowed spawn failure above. The guard must test the VALUE."""
+    print("budget guard:")
+    src = DEVLOOP.read_text()
+    check("the dead `|| echo 1800` guard is gone",
+          'field "$LJ" worker.timeout_s || echo 1800' not in src)
+    check("the budget is validated as a value", 'case "$BUDGET" in' in src)
+    cp = subprocess.run([sys.executable, str(JOB), "spawn", "--root", "/tmp", "--id", "x",
+                         "--budget", "", "--", "true"], capture_output=True, text=True)
+    check("an empty budget really is rejected by job.py", cp.returncode != 0,
+          "if job.py accepted it, the guard above would be theatre")
+
+
 def main() -> int:
     for t in (test_detached_lanes_are_jobs_not_background_children,
               test_jobs_run_concurrently,
               test_a_dead_lane_fails_instead_of_hanging,
               test_partial_completion_is_visible,
-              test_budget_expiry_does_not_read_as_success):
+              test_budget_expiry_does_not_read_as_success,
+              test_zero_waves_is_not_success,
+              test_waves_crashing_is_not_success,
+              test_a_failed_spawn_is_not_swallowed,
+              test_budget_guard_fires_on_a_missing_timeout):
         t()
     print()
     if FAILURES:

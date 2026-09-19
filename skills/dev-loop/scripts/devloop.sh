@@ -64,9 +64,16 @@ launch() { # $1=id  — provision worktree + start worker per layout
       # boundary that has killed lane trees here before. job.py spawns under setsid with stdin
       # closed, so the lane is an orphan by construction and its completion is a receipt the
       # SHELL writes, never a file the model is asked to create.
-      "$PY" "$JOB_PY" spawn --root "$JOBS" --id "$ID" --cwd "$WTA" \
-        --budget "$(field "$LJ" worker.timeout_s || echo 1800)" \
-        --label "lane $ID" -- sh -c "$CMD" >/dev/null || true;;
+      # field() prints "" and exits 0 for a missing key, so `$(field … || echo 1800)` could
+      # never fire -- it read as a default and was dead code. Guard on the VALUE instead.
+      BUDGET=$(field "$LJ" worker.timeout_s); case "$BUDGET" in ''|*[!0-9]*) BUDGET=1800;; esac
+      # A spawn that fails must not be swallowed: with no job directory, wait_lane silently
+      # falls back to the old unbounded `.exit` wait -- the exact hang job.py replaced.
+      if ! "$PY" "$JOB_PY" spawn --root "$JOBS" --id "$ID" --cwd "$WTA" \
+             --budget "$BUDGET" --label "lane $ID" -- sh -c "$CMD" >/dev/null; then
+        echo "  $ID: SPAWN FAILED -- lane never started" >&2
+        echo "125" > "$RUN/worker-$ID.exit"
+      fi;;
   esac
 }
 
@@ -129,7 +136,14 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
 }
 
 # Waves: every lane whose depends_on are all merged runs in parallel; then gate+merge; next wave.
-"$PY" "$AD" waves "$SPEC" | while IFS= read -r WAVE; do
+# Materialised to a file rather than piped. A pipeline put the loop body in a SUBSHELL (so
+# STATUS never reached the parent) and hid two failures: `waves` exiting non-zero, and `waves`
+# printing nothing. Both left the loop with zero iterations and the run exiting 0 -- an
+# Empty-Set Pass in which no lane ran at all. Reading from fd 3 keeps the body's stdin free,
+# so a foreground worker cannot eat the wave list.
+"$PY" "$AD" waves "$SPEC" > "$RUN/waves.txt" || { echo "waves failed" >&2; exit 64; }
+[ -s "$RUN/waves.txt" ] || { echo "no waves: $(basename "$LANES") yielded no runnable lane" >&2; exit 2; }
+while IFS= read -r WAVE <&3; do
   # Throttle the fan-out. Every agy lane shares ONE cached credential in the keyring, and the
   # references note that parallel lanes without a live keyring each re-ask for auth and hang
   # their budget away -- so an unbounded wave is not free. The cap is provisional: no
@@ -147,8 +161,7 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   for id in $WAVE; do wait_lane "$id"; done
   for id in $WAVE; do gate_merge "$id"; done
   echo "$STATUS" > "$RUN/status"
-done
-STATUS=$(cat "$RUN/status" 2>/dev/null || echo 0)
+done 3< "$RUN/waves.txt"
 [ "$DRY" = 1 ] && { echo "dry run complete"; exit 0; }
 [ -n "$INTEG" ] && [ "$STATUS" = 0 ] && { echo "== integration: $INTEG"; sh -c "$INTEG" || { echo "  integration FAILED on base"; STATUS=1; }; }
 git worktree prune

@@ -6,3 +6,10 @@
 - next: -
 - blockers: -
 - unverified: -
+
+## 2026-09-19 04:24 · 58d61dc · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
