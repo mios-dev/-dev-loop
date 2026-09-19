@@ -420,8 +420,16 @@ enforce the report schema natively (`claude --json-schema`, `codex --output-sche
 does; elsewhere the fenced `devloop_report` block is parsed.
 
 **Worktree laws.**
-- Worktrees live under `.worktrees/<id>` on branch `lane/<id>`; `.worktrees/` and `.devloop/` go in
-  `.git/info/exclude` (never a repo change).
+- Worktrees live under `.worktrees/<id>` on branch `lane/<id>`. Exclude **`.worktrees/` and
+  `.devloop/run-*/`** via `.git/info/exclude` (never a repo change) — the transient run
+  directories only. **Never exclude `.devloop/` wholesale.** A lane's deliverable usually lives
+  under `.devloop/findings/`, and the lane plan, ledger and tasks file are tracked; a blanket
+  exclude makes all of them invisible to `git status`, unstageable without `-f`, and — worse —
+  makes a lane that did real work indistinguishable from one that did nothing, because the
+  host's vacuity check reads an empty worktree diff as "produced nothing" (§6, §7 Measuring the
+  Wrong Property). `scripts/devloop.sh` and `DevLoop.ps1` already write the narrow form;
+  this line previously said `.devloop/`, and a manager that followed it broke exactly this way
+  (observed live 2026-09-19). Control: `tests/test_devloop_exclude.py`.
 - Check `git show-ref --verify refs/heads/lane/<id>` first; attach to an existing branch rather
   than `-b` blindly.
 - `.git` is a **file** in a linked worktree. Resolve with `git rev-parse`.
