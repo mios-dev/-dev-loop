@@ -70,9 +70,12 @@ EOF
     # Replace any half-alive daemons from earlier attempts, then start fresh.
     # -x -f = exact full-command-line match only, so a shell that merely
     # mentions these strings (a test, an agent's command) is never killed.
-    pkill -x -f "dbus-daemon --session --address=unix:path=$AGY_CLOUD_DIR/bus --fork" 2>/dev/null
-    pkill -x -f "gnome-keyring-daemon --start --daemonize --components=secrets" 2>/dev/null
-    pkill -x -f "gnome-keyring-daemon --unlock --replace --components=secrets" 2>/dev/null
+    # `|| :` is load-bearing: pkill exits 1 when NOTHING matches, which is the
+    # normal case on a fresh container, and under the caller's `set -e` that
+    # killed agy-login.sh silently before it ever reached tmux.
+    pkill -x -f "dbus-daemon --session --address=unix:path=$AGY_CLOUD_DIR/bus --fork" 2>/dev/null || :
+    pkill -x -f "gnome-keyring-daemon --start --daemonize --components=secrets" 2>/dev/null || :
+    pkill -x -f "gnome-keyring-daemon --unlock --replace --components=secrets" 2>/dev/null || :
     _bus="$AGY_CLOUD_DIR/bus"
     rm -f "$_bus"
     dbus-daemon --session --address="unix:path=$_bus" --fork >/dev/null 2>&1
