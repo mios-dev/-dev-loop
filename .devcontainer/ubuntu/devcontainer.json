@@ -1,0 +1,17 @@
+{
+  "name": "dev-loop (Ubuntu)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": { "UBUNTU_VERSION": "24.04" }
+  },
+  "remoteUser": "dev",
+  "postCreateCommand": "bash skills/dev-loop/scripts/env/setup-antigravity.sh",
+  "postStartCommand": "bash -c '. skills/dev-loop/scripts/env/agy-keyring.sh || true'",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
