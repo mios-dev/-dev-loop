@@ -113,6 +113,73 @@ class CriterionEvaluation(unittest.TestCase):
         got = self.evaluate(repo, [{"description": "artifacts", "type": "artifact"}])
         self.assertTrue(got["C-01"]["passed"])
 
+    def make_clean_repo(self):
+        """make_repo() leaves artifacts.py untracked; git_clean tests need a real clean tree.
+        A baseline that is dirty for its own unrelated reasons inverts every result (SKILL.md §6)."""
+        d = self.make_repo()
+        subprocess.run(["git", "-C", str(d), "add", "skills/dev-loop/scripts/artifacts.py"], check=True)
+        subprocess.run(["git", "-C", str(d), "commit", "-qm", "fixture"], check=True)
+        assert subprocess.run(["git", "-C", str(d), "status", "--porcelain"],
+                              capture_output=True, text=True).stdout.strip() == "", "fixture not clean"
+        return d
+
+    # --- the evaluator must not fail its own criterion ------------------------
+
+    def test_git_clean_is_idempotent_across_evaluations(self):
+        """evaluate() rewrites GOALS.md and goal_state.json with its own verdict. Counting
+        those made git_clean unsatisfiable after the first run: eval #1 saw a clean tree,
+        recorded "clean", and dirtied the tree doing so; eval #2 then failed on eval #1's
+        writes, so the goal could only ever be COMPLETE in a state that no longer existed.
+        Measured on this repo before the fix."""
+        repo = self.make_clean_repo()
+        crit = [{"description": "clean", "type": "git_clean"}]
+        engine = self.goal.GoalEngine(str(repo))
+        engine.init_goal("gate", "true", criteria=crit)
+
+        engine.evaluate()
+        first = {c.id: c for c in engine.goal.criteria}["C-01"]
+        self.assertTrue(first.passed, f"first evaluation should pass on a clean tree: {first.details}")
+
+        # Nothing changed except what evaluate() itself wrote.
+        engine2 = self.goal.GoalEngine(str(repo))
+        engine2.evaluate()
+        second = {c.id: c for c in engine2.goal.criteria}["C-01"]
+        self.assertTrue(
+            second.passed,
+            "second evaluation failed on the FIRST evaluation's own writes — "
+            f"the criterion is unsatisfiable by construction: {second.details}")
+
+    def test_git_clean_still_fails_on_a_real_dirty_file(self):
+        """NEGATIVE CONTROL for the exemption. Excusing the evaluator's own outputs must not
+        blind the criterion to everything else — otherwise the fix converts a broken check
+        into a check that cannot fail (SKILL.md §7)."""
+        repo = self.make_clean_repo()
+        crit = [{"description": "clean", "type": "git_clean"}]
+        engine = self.goal.GoalEngine(str(repo))
+        engine.init_goal("gate", "true", criteria=crit)
+        (repo / "PLANTED_DIRT.txt").write_text("uncommitted")
+
+        engine.evaluate()
+        c = {x.id: x for x in engine.goal.criteria}["C-01"]
+        self.assertFalse(c.passed, "a genuinely dirty tree must fail")
+        self.assertIn("PLANTED_DIRT.txt", c.details or "",
+                      f"the failure must NAME what is dirty, not just count it: {c.details}")
+
+    def test_git_clean_names_the_exemption_it_took(self):
+        """A check that silently ignores things over-claims its scope. The PASS line must say
+        what was excused so a reader is never told 'clean' about a tree that was not."""
+        repo = self.make_clean_repo()
+        crit = [{"description": "clean", "type": "git_clean"}]
+        engine = self.goal.GoalEngine(str(repo))
+        engine.init_goal("gate", "true", criteria=crit)
+        engine.evaluate()          # writes GOALS.md + goal_state.json
+        engine2 = self.goal.GoalEngine(str(repo))
+        engine2.evaluate()
+        c = {x.id: x for x in engine2.goal.criteria}["C-01"]
+        self.assertTrue(c.passed)
+        self.assertIn("excluding", (c.details or "").lower(),
+                      f"PASS must state the narrowed scope: {c.details}")
+
     def test_default_criteria_require_a_stopping_condition(self):
         """No --stop used to silently become `pytest`, gating the goal on a foreign runner."""
         repo = self.make_repo()
