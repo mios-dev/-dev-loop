@@ -109,6 +109,40 @@ def test_no_result_event() -> None:
           any("unsupported stream input" in s for s in r.get("unparsed_sample", [])))
 
 
+def test_in_progress_is_not_a_failure() -> None:
+    """A live run has not failed, it has not finished. The first version of this monitor
+    reported no_result + exit 2 on every healthy run it was watching -- found by pointing it at
+    a real MiOS run, not by reading. A monitor that cries wolf on working runs gets ignored,
+    which costs you the one time it is right."""
+    print("run still in progress:")
+    d = Path(tempfile.mkdtemp())
+    f = d / "e.ndjson"
+    f.write_text("\n".join([init_evt(), tool_evt("view_file"), tool_evt("run_command")]) + "\n")
+    cp = subprocess.run([sys.executable, str(MON), str(f), "--once", "--stale-after-s", "3600"],
+                        capture_output=True, text=True, timeout=60)
+    r = json.loads(cp.stdout)
+    check("verdict in_progress", r.get("verdict") == "in_progress", str(r.get("verdict")))
+    check("exit 0 — not a failure", cp.returncode == 0, f"rc={cp.returncode}")
+    check("stream_complete is false", r.get("stream_complete") is False)
+    check("the staleness assumption is stated, not hidden",
+          r.get("assumed_complete_after_s") == 3600 and "stream_idle_s" in r)
+
+
+def test_stalled_run_is_not_in_progress() -> None:
+    """NEGATIVE CONTROL for the above: a stream that stopped growing must NOT stay 'in_progress'
+    forever, or the monitor can never report a hung run."""
+    print("run stopped without ever producing a result:")
+    d = Path(tempfile.mkdtemp())
+    f = d / "e.ndjson"
+    f.write_text("\n".join([init_evt(), tool_evt("view_file")]) + "\n")
+    cp = subprocess.run([sys.executable, str(MON), str(f), "--once", "--stale-after-s", "0"],
+                        capture_output=True, text=True, timeout=60)
+    r = json.loads(cp.stdout)
+    check("verdict no_result once the stream is stale", r.get("verdict") == "no_result",
+          str(r.get("verdict")))
+    check("exit 2", cp.returncode == 2, f"rc={cp.returncode}")
+
+
 def test_vacuous_success() -> None:
     print("SUCCESS with nothing done:")
     rc, r = run_once([init_evt(), result_evt(response="")])
@@ -170,7 +204,8 @@ def test_follow_renders_and_stops_when_idle() -> None:
 
 
 def main() -> int:
-    for t in (test_healthy_run, test_no_result_event, test_vacuous_success,
+    for t in (test_healthy_run, test_no_result_event, test_in_progress_is_not_a_failure,
+              test_stalled_run_is_not_in_progress, test_vacuous_success,
               test_denials_outrank_success, test_absent_stream_is_not_a_clean_run,
               test_report_out_matches_stdout, test_follow_renders_and_stops_when_idle):
         t()

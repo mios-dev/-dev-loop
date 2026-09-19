@@ -120,6 +120,8 @@ class State:
                     f"{self.duration_s:.1f}s  denials={len(self.denials)}")
         return None
 
+    _complete: bool = False       # set by the caller when the stream is known to be finished
+
     def verdict(self) -> str:
         """Derived from evidence, never from the harness's own `status` (SKILL.md 6)."""
         if self.error:
@@ -127,6 +129,13 @@ class State:
         if self.denials:
             return "refused"
         if self.results == 0:
+            # A live run has not failed, it has not finished. Conflating "no result yet" with
+            # "produced no result" makes the monitor cry wolf on every healthy run it watches --
+            # found by watching a real MiOS run with it. `in_progress` is only claimed when the
+            # stream shows actual activity; a stream with neither results nor tool calls really
+            # has produced nothing.
+            if self.tool_calls and not self._complete:
+                return "in_progress"
             return "no_result"          # measured: an all-unknown stream emits none at all
         if not self.last_text and not self.tool_calls:
             return "vacuous"            # claimed a result, said nothing, did nothing
@@ -170,6 +179,8 @@ def main() -> int:
     ap.add_argument("--once", action="store_true", help="print a JSON status object and exit")
     ap.add_argument("--report-out", help="also write the JSON status here (for a monitor agent)")
     ap.add_argument("--poll-s", type=float, default=1.0)
+    ap.add_argument("--stale-after-s", type=float, default=90.0,
+                    help="--once treats a stream untouched for this long as finished")
     ap.add_argument("--max-idle-s", type=float, default=0,
                     help="stop following after this long with no new bytes (0 = never)")
     a = ap.parse_args()
@@ -186,12 +197,19 @@ def main() -> int:
             if a.report_out:
                 Path(a.report_out).write_text(json.dumps(rep, indent=2) + "\n")
             return 2
+        # --once cannot see the future: a growing stream is in progress, a stale one is done.
+        # The threshold is stated in the report so a reader can judge it rather than trust it.
+        import time as _t
+        idle_for = _t.time() - path.stat().st_mtime
+        state._complete = idle_for >= a.stale_after_s
         read_all(path, state, echo=False)
-        rep = state.report(str(path), done=True)
+        rep = state.report(str(path), done=state._complete)
+        rep["stream_idle_s"] = round(idle_for, 1)
+        rep["assumed_complete_after_s"] = a.stale_after_s
         print(json.dumps(rep, indent=2))
         if a.report_out:
             Path(a.report_out).write_text(json.dumps(rep, indent=2) + "\n")
-        return 2 if rep["verdict"] in ("vacuous", "no_result") else 0
+        return 2 if rep["verdict"] in ("vacuous", "no_result") else 0   # in_progress is NOT a failure
 
     # --follow: a pane view. Tolerate the file not existing yet; the session may still be starting.
     print(f"agy_monitor: following {path}", flush=True)
