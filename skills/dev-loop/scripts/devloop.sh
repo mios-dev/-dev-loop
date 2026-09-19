@@ -35,7 +35,8 @@ field() { "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d
 for k in sys.argv[2].split("."): v=v.get(k,"") if isinstance(v,dict) else ""
 print(v if not isinstance(v,(list,dict)) else json.dumps(v))' "$1" "$2"; }
 BASE=$(field "$SPEC" base_ref); WT_ROOT=$(field "$SPEC" worktree_root); INTEG=$(field "$SPEC" integration_cmd)
-[ "$LAYOUT" = auto ] && LAYOUT=$(field "$SPEC" terminal_layout); [ "$LAYOUT" = auto ] || [ -z "$LAYOUT" ] && LAYOUT=tmux_grid
+[ "$LAYOUT" = auto ] && LAYOUT=$(field "$SPEC" terminal_layout)
+[ "$LAYOUT" = auto ] || [ -z "$LAYOUT" ] && LAYOUT=detached
 [ "$LAYOUT" = tmux_grid ] && ! command -v tmux >/dev/null 2>&1 && { echo "tmux not found; using detached"; LAYOUT=detached; }
 [ "$LAYOUT" = wt_grid ] && LAYOUT=detached
 if [ -f .git/info/exclude ]; then
@@ -156,7 +157,7 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   [ -f "$REP" ] || { echo "  NO REPORT — parking diff"; git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
   RS=$(field "$REP" status); echo "  report status=$RS"
   "$PY" "$AD" owned --lane "$LJ" --wt "$WTA" || { git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
-  "$PY" "$AD" gate --lane "$LJ" --wt "$WTA" --run "$RUN" --root "$ROOT"; rc=$?
+  rc=0; "$PY" "$AD" gate --lane "$LJ" --wt "$WTA" --run "$RUN" --root "$ROOT" || rc=$?
   [ $rc -eq 0 ] || { [ $rc -eq 2 ] && STATUS=2 || [ "$STATUS" = 2 ] || STATUS=1; return; }
   [ "$RS" = done ] || { echo "  gates hold but the lane says '$RS' — not merging; read $REP"; [ "$STATUS" = 2 ] || STATUS=1; return; }
   field "$LJ" owned_paths | "$PY" -c 'import json,sys; print("\n".join(json.load(sys.stdin)))' | while IFS= read -r p; do git -C "$WTA" add -- "$p" 2>/dev/null || true; done

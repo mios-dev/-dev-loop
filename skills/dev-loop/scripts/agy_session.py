@@ -196,6 +196,20 @@ def poll_message(native_dir, outstanding: list[str], subagent_steps: set,
             "report file with write_file, then reply DONE when every listed lane has a file.")
 
 
+def session_lane_ids(lanes_path: Path) -> list[str]:
+    """All lane ids declared in the plan, regardless of harness, so polling covers
+    claude-code, antigravity, and external worker lanes (MON-003)."""
+    try:
+        doc = json.loads(lanes_path.read_text())
+    except Exception:
+        return []
+    out = []
+    for lane in doc.get("lanes", []):
+        if lane.get("id"):
+            out.append(lane["id"])
+    return out
+
+
 def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     try:
         doc = json.loads(lanes_path.read_text())
@@ -211,7 +225,7 @@ def antigravity_lane_ids(lanes_path: Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--prompt-file", required=True, help="file holding the manager prompt (turn 1)")
-    ap.add_argument("--lanes", help="lanes.json; its antigravity lane ids are what we poll for")
+    ap.add_argument("--lanes", help="lanes.json; all lane ids are what we poll for")
     ap.add_argument("--run-root", default=".", help="repo root holding .devloop/native/")
     ap.add_argument("--jobs-root", help="job.py root; when set, a lane is finished when its "
                                         "SHELL-written receipt says so, not when a report file appears")
@@ -236,7 +250,7 @@ def main() -> int:
 
     native_dir = Path(a.run_root) / ".devloop" / "native"
     jobs_dir = Path(a.jobs_root) if a.jobs_root else None
-    lane_ids = antigravity_lane_ids(Path(a.lanes)) if a.lanes else []
+    lane_ids = session_lane_ids(Path(a.lanes)) if a.lanes else []
 
     # Baseline BEFORE turn 1, so inherited dirt is never attributed to the manager.
     allowed = BASE_TREE_ALWAYS_ALLOWED + (

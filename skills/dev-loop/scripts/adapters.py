@@ -216,6 +216,7 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
                 "--permission-mode", w.get("permission_mode", "dontAsk"),
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
                 "--model", w.get("model", "opus"), "--effort", w.get("effort", "xhigh")]
+        if w.get("max_turns"): argv += ["--max-turns", str(w["max_turns"])]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":
