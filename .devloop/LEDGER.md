@@ -13,3 +13,10 @@
 - next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
 - blockers: -
 - unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-09-19 04:45 · 5f475f6 · 5f475f6
+- objective: wire job.py through the orchestrator and close its self-certification hole
+- done: devloop.sh wave dispatch + reap; agy_host --jobs-root; job.py liveness>receipt; 5 new control suites
+- next: run one real agent lane through the job dispatch; decide whether to reopen a PR for the 16 unmerged commits
+- blockers: -
+- unverified: -
