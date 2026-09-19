@@ -62,6 +62,12 @@ no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubun
   the Google auth URL; `--code '<code>'` finishes onboarding (telemetry consent OFF unless
   `--telemetry`; workspace trust YES unless `--no-trust`) and chains into the live probe.
 - `bash skills/dev-loop/scripts/env/agy-doctor.sh [--probe]` — health/auth verification.
+- `skills/dev-loop/scripts/env/cloud-fedora-setup.sh` — **cloud environments** (claude.ai/code,
+  `claude --cloud`, routines) are not devcontainers: the VM is a fixed Ubuntu 24.04 image and
+  replacing the base image is unsupported, so this is the setup script to paste into the
+  environment dialog. It builds `dev-loop-fedora:44` and installs `/usr/local/bin/fedora`
+  (same paths, same `$PWD`). Measured 60s first run, 1.4s cold-session self-heal.
+  Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
 - The keyring holds the AGY credential unencrypted-at-rest (empty-password keyring) — accepted
   for ephemeral single-user containers only. Never print or export the credential.
 
