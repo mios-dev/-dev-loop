@@ -166,6 +166,41 @@ class State:
 
 
 
+
+STALL_PHRASES = ("wait for the background command", "will wait for the background",
+                 "i have launched", "and will wait")
+
+
+def stall_signals(lines) -> list[str]:
+    """Worker self-reports of backgrounding — the failure --session and the lane foreground
+    rule both exist to prevent.
+
+    ONLY `agent_response` text counts. A prompt the manager echoed into a subagent is not the
+    worker speaking, and matching it is a Self-Certifying Predicate: this detector's first
+    version grepped the whole stream for a phrase that the LANE OBJECTIVE itself quoted as a
+    warning, and duly fired on its own warning while the run was healthy (2026-09-19). Scope a
+    detector to what the agent GENERATED, never to what it was handed.
+    """
+    out = []
+    for raw in lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            d = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        u = (d.get("step_update") or {}) if isinstance(d, dict) else {}
+        if u.get("step_type") != "agent_response":
+            continue
+        text = str(u.get("text_delta") or "").lower()
+        for ph in STALL_PHRASES:
+            if ph in text:
+                out.append(text.strip()[:160])
+                break
+    return out
+
+
 # --------------------------------------------------------------------- transcript UI element
 
 VERDICT_TONE = {"working": "ok", "in_progress": "live", "refused": "bad", "vacuous": "bad",

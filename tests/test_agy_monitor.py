@@ -31,6 +31,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MON = ROOT / "skills" / "dev-loop" / "scripts" / "agy_monitor.py"
+# every other case drives the monitor as a subprocess; the stall detector is imported
+sys.path.insert(0, str(MON.parent))
 
 FAILURES: list[str] = []
 
@@ -242,12 +244,46 @@ def test_transcript_ui_element() -> None:
     check("page and report agree on the verdict", f'>{rep["verdict"]}<' in page)
 
 
+def test_stall_detector_ignores_prompt_echoes() -> None:
+    """The detector that caught nothing, then caught itself.
+
+    Watching t1001 I grepped the whole event stream for "wait for the background command" --
+    a phrase the LANE OBJECTIVE quoted as a warning about attempt 2's failure. It matched the
+    warning, inside two invoke_subagent events carrying that objective, and reported a
+    regression while the run was perfectly healthy. A Self-Certifying Predicate: the subject's
+    own given text satisfied the test.
+
+    Verifying the fix returns 0 on a clean stream proves nothing on its own -- a detector that
+    never fires also returns 0. Both directions are required."""
+    print("stall detector (prompt echo vs genuine):")
+    from agy_monitor import stall_signals
+
+    phrase = "I will wait for the background command to finish execution."
+    echo = json.dumps({"event": "step_update", "step_update": {
+        "step_type": "subagent", "state": "DONE", "tool_name": "invoke_subagent",
+        "subagent_info": {"subagents": [
+            {"type_name": "lane", "initial_prompt": f"Do NOT do this: '{phrase}'"}]}}})
+    genuine = json.dumps({"event": "step_update", "step_update": {
+        "step_type": "agent_response", "state": "DONE",
+        "text_delta": "I have launched the drift check and will wait for the background "
+                      "command to finish execution."}})
+
+    check("a prompt echo does NOT fire", stall_signals([echo]) == [],
+          "matching text the agent was GIVEN is self-certifying")
+    check("a genuine worker stall DOES fire", len(stall_signals([genuine])) == 1,
+          "a detector that never fires also returns 0 on a clean stream")
+    check("a mixed stream reports only the genuine one",
+          stall_signals([echo, genuine]) == stall_signals([genuine]))
+    check("the reported text is the worker's own words",
+          "i have launched" in (stall_signals([genuine])[0] if stall_signals([genuine]) else ""))
+
+
 def main() -> int:
     for t in (test_healthy_run, test_no_result_event, test_in_progress_is_not_a_failure,
               test_stalled_run_is_not_in_progress, test_vacuous_success,
               test_denials_outrank_success, test_absent_stream_is_not_a_clean_run,
               test_report_out_matches_stdout, test_follow_renders_and_stops_when_idle,
-              test_transcript_ui_element):
+              test_transcript_ui_element, test_stall_detector_ignores_prompt_echoes):
         t()
     print()
     if FAILURES:

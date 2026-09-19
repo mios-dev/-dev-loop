@@ -307,7 +307,7 @@ everyone believes a rule is enforced when it is not.
 | **Unanchored Allowlist** | Substring match exempting more than intended. | Anchor (`^…$`) or match exact paths. |
 | **Count-Only / Raisable Ratchet** | Asserts a count, or a threshold that can be raised, so swapping one violation for another passes. | Itemised lists or SHA-256 hashes of accepted exceptions; ratchets only shrink. |
 | **Measuring the Wrong Property** | Tests a *proxy* (a keyword, a filename). | Test the property that matters — "does untrusted input reach a shell parser", not "does `eval` appear". |
-| **Self-Certifying Predicate** | The subject's own name or metadata satisfies the test. | Exclude the subject's identity from the evidence it is judged by. |
+| **Self-Certifying Predicate** | The subject's own name or metadata satisfies the test — including text the subject was *given*: citing a failure string in a prompt and then grepping the transcript for that string matches the warning, not a recurrence. | Exclude the subject's identity from the evidence it is judged by. Scope a detector to output the agent **generated** (its own response text), never to a prompt it was handed or a contract echoed back. |
 | **Mock-Only Coverage** | Every collaborator is mocked; the test asserts the mock. | One integration-shaped test per boundary; assert on observable output. |
 | **Assertion-Free Test** | Executes code, asserts nothing. | Lint for assertion-less tests. |
 | **Snapshot Rubber-Stamp** | Golden files updated wholesale (`-u`) unread. | Review every snapshot diff; never auto-update in the same commit as a behaviour change. |
