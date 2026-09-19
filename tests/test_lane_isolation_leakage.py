@@ -267,8 +267,8 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
         subprocess.run(["git", "-C", str(repo), "add", "calc.py", "util.py"], check=True)
         subprocess.run(["git", "-C", str(repo), "commit", "-qm", "seeded bugs"], check=True)
 
-        worker_calc = "sh -c \"printf 'def add(a, b): return a + b\\n' > '{wt}/calc.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix calc', 'changed_paths': ['calc.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
-        worker_util = "sh -c \"printf 'def shout(s): return s.upper()\\n' > '{wt}/util.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix util', 'changed_paths': ['util.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
+        worker_calc = "sh -c \"printf 'def add(a, b): return a + b\\n' > '{wt}/calc.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix calc.py addition bug', 'changed_paths': ['calc.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
+        worker_util = "sh -c \"printf 'def shout(s): return s.upper()\\n' > '{wt}/util.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix util.py casing bug', 'changed_paths': ['util.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
 
         lanes_dir = repo.parent
         lanes_doc = {
@@ -280,7 +280,7 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
                 {
                     "id": "lane-calc",
                     "owned_paths": ["calc.py"],
-                    "objective": "fix calc",
+                    "objective": "fix calc.py addition bug",
                     "worker": {"harness": "custom", "command": worker_calc},
                     "positive_cmd": "python3 -c 'import calc; assert calc.add(2,3) == 5'",
                     "negative_control_cmd": "cp calc.py .nc.bak; trap 'mv .nc.bak calc.py' EXIT; printf 'def add(a,b): return 0\\n' > calc.py; python3 -c 'import calc; assert calc.add(2,3) == 5'",
@@ -289,7 +289,7 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
                 {
                     "id": "lane-util",
                     "owned_paths": ["util.py"],
-                    "objective": "fix util",
+                    "objective": "fix util.py casing bug",
                     "worker": {"harness": "custom", "command": worker_util},
                     "positive_cmd": "python3 -c 'import util; assert util.shout(\"hi\") == \"HI\"'",
                     "negative_control_cmd": "cp util.py .nc.bak; trap 'mv .nc.bak util.py' EXIT; printf 'def shout(s): return \"bad\"\\n' > util.py; python3 -c 'import util; assert util.shout(\"hi\") == \"HI\"'",
