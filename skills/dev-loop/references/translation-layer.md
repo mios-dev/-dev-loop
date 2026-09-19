@@ -11,7 +11,13 @@ stamps are in §10. Nothing here is inferred from a vendor blog.
 ## 1. The reframe
 
 "Translate AGY's API to Claude Code's API" is unbuildable as stated, because **neither harness
-serves an API** (measured):
+serves an API that a translator could sit in front of**. Scope of the evidence, stated honestly
+after an audit flagged this as an overclaim: what was measured is that neither CLI exposes a
+documented listener -- no `/v1` route, and no serve verb in `agy --help` other than `mic-serve`.
+What was NOT measured is whether `agy remote-control`'s daemon or any undocumented flag serves
+something; that daemon registers with a remote service and was deliberately left unprobed (8.4).
+The design does not depend on the stronger claim: it needs only that there is no *documented,
+local, OpenAI- or Anthropic-shaped* endpoint to translate, which is what the table shows.
 
 | Harness | What it serves | What it consumes |
 |---|---|---|
@@ -67,8 +73,11 @@ One process. Serves three dialects of one loop; drives both CLIs as subprocesses
 
 `.claude-plugin/` ↔ AGY `.agents/` customization tree. Pure transform, no runtime. Google ships
 `agy plugin import` (two importers over a `common.Stager`: `StageAgents, StageCommands, StageHooks,
-StageMCPServers, StageSkills`) but it is **one-way, lossy, and has no import symbol for Claude's
-`settings.json` permission model** (measured). There is no export verb. `xlate` closes the return
+StageMCPServers, StageSkills`) but it is **one-way and lossy**, and the staged symbol list contains
+no counterpart for Claude's `settings.json` permission model. That last point is a *proxy*: the
+absence of a `StagePermissions`-shaped symbol is suggestive, not a functional test that permissions
+cannot be carried. Treat it as unverified until an import is run end to end and the resulting
+`settings.json` inspected. There is no export verb. `xlate` closes the return
 path and handles the permission gap the only safe way: **by refusing** (§5.3).
 
 ---
@@ -150,8 +159,12 @@ every budget.
 | `status` | **not** `status` — see §5.2 | **not** the exit code |
 
 Two things this table must never do: trust the harness's own `status` field, and trust exit 0.
-`denied_actions` is **undocumented but real** (measured), which is why `adapters.py.find_envelope()`
-locates the envelope by brace balance rather than `json.loads` on the whole stream.
+`denied_actions` is **undocumented but real** (measured). A separate point, previously and wrongly
+stated here as its consequence: `adapters.py.find_envelope()` locates the envelope by brace balance
+rather than `json.loads` because anything sharing the stream breaks a whole-text parse -- agy prints
+its auto-denial notice to stderr, so a caller merging the streams gets prose wrapped around the JSON
+(see the function's own docstring). An unknown KEY would not break `json.loads` at all; unknown
+*text* would. The two facts are unrelated.
 
 ### 5.1a The AGY session protocol (measured end to end)
 
@@ -382,10 +395,10 @@ Rationale: two isolation owners means two answers to "where is this lane's diff"
 | Phase | Deliverable | Positive control | Negative control (must fail, by name) |
 |---|---|---|---|
 | **P0** | `loop.v1` JSON Schema + the AGY/Claude mapping table | recorded real envelopes (incl. the stream-json result line in §5.1) normalise correctly | a mutated field fails naming **that field**, not a generic parse error |
-| **P1** | Held NDJSON sessions replace shell-out-and-die | a two-turn lane where turn 2 depends on turn 1's state completes | the same lane run through a single-shot adapter **must fail** |
+| **P1** | Held NDJSON sessions replace shell-out-and-die | a two-turn lane where turn 2 depends on turn 1's state completes | the same lane through a single-shot adapter must fail **at turn 2, with turn 1 having succeeded and the failure naming the lost state**. A crash before turn 1 (missing import, absent credential) does NOT satisfy this control and fails the suite as inconclusive |
 | **P2** | `vacuous` wired to diff-emptiness | a lane that edits a file returns `delivered` | a lane whose worker is `true` returns `vacuous` — asserting `delivered` fails the suite |
 | **P3** | Permission mapper, failing closed | a lane whose grants map `exact` validates | a fixture lane mapping `widens`/`none` is **rejected**, naming the pair; acceptance fails the suite |
-| **P4** | `/v1` façade | an AGY lane configured via `LocalOpenAIAgentConfig` completes a turn through `loopd` | façade with no backing lane returns an error, not an empty 200 |
+| **P4** | `/v1` façade | an AGY lane configured via `LocalOpenAIAgentConfig` completes a turn through `loopd` | with no backing lane the façade errors **while the same request against a live lane succeeds in the same test run** -- an unconditional error for every request fails the control, since it cannot distinguish absence from breakage |
 | **P5** | `xlate` | round-trip a plugin; structure preserved | the permission block is **refused**, not translated; a silent translation fails the suite |
 | **P6** | *(optional)* ACP transport | same lane passes over ACP | envelope/status/permissions unchanged across transports |
 

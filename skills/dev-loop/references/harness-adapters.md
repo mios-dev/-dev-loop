@@ -163,7 +163,13 @@ which is why the skill stays universal: the host changes, the lane contract does
   where turn 2 recalled turn 1's state. A caller holding this session does not need the
   synchronous-foreground workaround above, because nothing is backgrounded and nothing is killed.
   That is a property of the held session; it is **not** what makes subagents work, as (b) and (c)
-  above show. Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full
+  above show. **Status of the poll loop: UNEXERCISED.** In the first end-to-end `--session` run
+  (2026-09-19, two research lanes) the manager dispatched native subagents, gated both lanes and
+  merged both -- all inside ONE turn (`num_turns: 1`, zero polls). It announced "I am ending my
+  turn now so the host can provide follow-up turns" and then simply kept working. So that run
+  proves native fan-out and merge discipline under a headless manager; it does **not** prove the
+  poll loop, because the turn never ended. The mechanism that justifies `--session` over
+  `--headless` is still untested in the case it was built for: a subagent outliving its turn. Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full
   protocol, event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate

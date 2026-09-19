@@ -131,7 +131,7 @@ description of shipped checks:
 | The permission mapper never widens silently | fixture lane whose grants map to `widens`/`none` must be **rejected at validate time**, naming the pair; acceptance fails the suite |
 | The server owns isolation | a lane declaring harness-native worktree isolation while the server also isolates is rejected as a second source of truth |
 | Depth is not silently flattened | a headless AGY lane declaring `max_depth > 0` is rejected at validate |
-| No smuggled model gateway | `scripts/validate.sh` asserts `loopd` has no Anthropic-Messages route unless `[surfaces].messages` is explicitly enabled |
+| No smuggled model gateway | A gate that inspects `loopd`'s **registered route table at import time** and fails if an Anthropic-Messages path is bound while `[surfaces].messages` is off. Explicitly NOT a source grep: renaming the handler would defeat that, which is Measuring the Wrong Property. Its own negative control plants a bound route and must be caught |
 
 ### Consequences
 
@@ -155,6 +155,20 @@ description of shipped checks:
   status vocabulary, permission mapper and worktree ownership are transport-independent and
   survive; only the lane transport is swapped. That is why the transport is the *last* thing the
   design commits to and why P6 exists.
+
+### Audited
+
+An independent `design-audit` lane (research, read-only, run 2026-09-19) audited this ADR and its
+reference against SKILL.md section 7 and returned PARTLY_CONFIRMED, naming three claims labelled
+`(measured)` that were inferences, three gate promises loose enough to admit a lazy-but-passing
+implementation, and one refusal enforced only in prose. Every finding I checked was correct,
+including one I would have defended: the reference had asserted that `denied_actions` is *why*
+`find_envelope` parses by brace balance, when the real cause -- per that function's own docstring
+-- is stderr sharing the stream. An unknown JSON key breaks nothing.
+
+All six were fixed rather than argued with; the audit's own findings file is
+`.devloop/findings/DESIGN-AUDIT.md`, merged in 329fe4c. The audit states its limit: it did not
+exhaustively check every `(measured)` claim, so more may remain.
 
 ## Pros and Cons of the Options
 

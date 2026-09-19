@@ -24,7 +24,10 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   the reference orchestrator instead, because a subagent that has not finished when the turn
   ends dies with the process. This is a lifetime constraint, not an availability one --
   `invoke_subagent` itself works headlessly (measured 1.2.6, four probes, including one with
-  `settings.json` voided). Controls: `tests/test_agy_dispatch_rule.py`.
+  `settings.json` voided). Controls: `tests/test_agy_dispatch_rule.py`. The first `--session`
+  run dispatched, gated and merged two native lanes in ONE turn, so the poll loop that keeps a
+  session alive past a turn end is implemented but **not yet exercised** -- do not cite it as
+  proven.
 - **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
   concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
   through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's

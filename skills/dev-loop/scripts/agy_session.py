@@ -36,6 +36,13 @@ Wire protocol (all measured, see references/translation-layer.md 5.1a)
 
 Exit codes: 0 ok · 3 no terminal envelope / session produced nothing · 4 agy missing
             5 lane reports still missing when the poll budget ran out
+
+STATUS OF THE POLL LOOP: UNEXERCISED as of the first end-to-end run (2026-09-19). The manager
+dispatched both native lanes, gated them and merged them inside a SINGLE turn, so `missing_reports`
+was already empty at the first result event and no follow-up turn was ever sent. The loop's unit
+behaviour is covered by tests/test_agy_dispatch_rule.py, but its reason for existing -- keeping the
+process alive for a subagent that has NOT finished when the turn ends -- has not yet been observed.
+Do not describe it as proven.
 """
 from __future__ import annotations
 
