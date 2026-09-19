@@ -156,6 +156,46 @@ def worktree_root_of(lanes_path: Path) -> str:
     return (root.rstrip("/") or ".worktrees") + "/"
 
 
+def undispatched(subagent_steps: set, lane_ids: list[str]) -> int:
+    """Antigravity lanes that have never been handed to a subagent.
+
+    The dispatch prompt says to start every independent lane in the SAME turn, and
+    nothing measured it. agy_host.sh already records the failure from an earlier run:
+    the manager "provisioned all three worktrees, invoked the first native lane, and
+    ended its turn saying it was waiting for the lane to report" -- three worktrees
+    left at dirty=0. A serialised run is not a wrong answer, it is a run that spends
+    its whole poll budget doing one lane at a time.
+
+    Counted by distinct step_index, because a single subagent step reports ACTIVE and
+    then DONE and would otherwise count twice.
+    """
+    return max(0, len(lane_ids) - len(subagent_steps))
+
+
+def poll_message(native_dir, outstanding: list[str], subagent_steps: set,
+                 lane_ids: list[str]) -> str:
+    """What to say to a manager whose turn ended with lanes still unreported.
+
+    "Do NOT start new work" used to be unconditional here, which told a manager that
+    had dispatched one lane of four to sit and wait for it -- the run then serialises
+    through the poll budget one lane at a time, or spends it. Not re-dispatching a
+    RUNNING lane and not starting one that was never dispatched are opposite
+    instructions, and only the first is a rule.
+    """
+    short = undispatched(subagent_steps, lane_ids)
+    catch_up = (
+        f"You have dispatched only {len(subagent_steps)} subagent(s) for {len(lane_ids)} "
+        "antigravity lane(s), so at least one lane has never been started. Dispatch every "
+        "lane that is not already running NOW, in this turn, all of them at once. "
+    ) if short else "Do NOT start new work. "
+    return ("Your native lanes have not all written "
+            f"{native_dir}/report-<LANE_ID>.json yet. Still missing: {', '.join(outstanding)}. "
+            + catch_up +
+            "Never re-dispatch a lane that is already running. "
+            "Wait for the outstanding subagents, collect each one's devloop_report into its "
+            "report file with write_file, then reply DONE when every listed lane has a file.")
+
+
 def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     try:
         doc = json.loads(lanes_path.read_text())
@@ -209,6 +249,7 @@ def main() -> int:
               file=sys.stderr)
     strays: list[str] = []
     stray_warned: set[str] = set()
+    subagent_steps: set = set()
 
     events = None
     if a.events_out:
@@ -253,6 +294,8 @@ def main() -> int:
                 continue
             if kind == "step_update":
                 u = evt.get("step_update", {})
+                if u.get("step_type") == "subagent" and u.get("step_index") is not None:
+                    subagent_steps.add(u["step_index"])
                 if u.get("state") == "DONE" and u.get("step_type") in ("tool", "subagent"):
                     print(f"agy_session: {u.get('step_type')} {u.get('tool_name')}", file=sys.stderr)
                 continue
@@ -281,12 +324,12 @@ def main() -> int:
             # accepting a turn-end as the run's end.
             print(f"agy_session: turn {turns_sent} ended, {len(outstanding)} lane(s) "
                   f"unreported {outstanding} — polling", file=sys.stderr)
+            short = undispatched(subagent_steps, lane_ids)
+            if short:
+                print(f"agy_session: {len(subagent_steps)} subagent(s) dispatched for "
+                      f"{len(lane_ids)} lane(s) — {short} never started", file=sys.stderr)
             proc.stdin.write(ndjson_user(
-                "Your dispatched native lanes have not all written "
-                f"{native_dir}/report-<LANE_ID>.json yet. Still missing: {', '.join(outstanding)}. "
-                "Do NOT start new work and do NOT re-dispatch a lane that is already running. "
-                "Wait for the outstanding subagents, collect each one's devloop_report into its "
-                "report file with write_file, then reply DONE when every listed lane has a file."))
+                poll_message(native_dir, outstanding, subagent_steps, lane_ids)))
             proc.stdin.flush()
             turns_sent += 1
     finally:
