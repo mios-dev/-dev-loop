@@ -74,7 +74,7 @@ awk '{print $22}' /proc/$$/stat 2>/dev/null > "$d/pidstart" || :
 cmd=$(cat "$d/cmd"); cwd=$(cat "$d/cwd"); budget=$(cat "$d/budget")
 finish() {
   rc=$1
-  printf '{"rc":%s,"finished_at":%s}\n' "$rc" "$(date +%s)" > "$d/done.json.tmp"
+  printf '{"rc":%s,"finished_at":%s,"pid":%s}\n' "$rc" "$(date +%s)" "$$" > "$d/done.json.tmp"
   mv "$d/done.json.tmp" "$d/done.json"
   printf '%s\n' "$rc" > "$d/exit.tmp"
   mv "$d/exit.tmp" "$d/exit"
@@ -199,6 +199,16 @@ def status(root: Path, jid: str, grace_s: int = 2) -> dict:
     receipt = d / "exit"
 
     if receipt.is_file():
+        # A RECEIPT DOES NOT OUTRANK LIVENESS. status() used to trust `exit` before looking at
+        # the process, so a lane that wrote a consistent exit + done.json pair while STILL
+        # RUNNING read as `done` -- it could end its own wait and have its worktree gated and
+        # merged underneath it, which is precisely the self-certification this primitive exists
+        # to remove. The wrapper writes its receipt and exits within milliseconds, so a live
+        # process holding a receipt is premature, not finished: report it as running and keep
+        # waiting. This costs a poll interval in the honest case and forges nothing.
+        if _alive(pid, _read(d / "pidstart")):
+            out["state"] = "running"
+            return out
         rc_text = _read(receipt)
         done = {}
         try:
@@ -214,6 +224,12 @@ def status(root: Path, jid: str, grace_s: int = 2) -> dict:
             out["state"] = "forged"
             return out
         if done.get("rc") != out["rc"]:
+            out["state"] = "forged"
+            return out
+        # The wrapper stamps its own pid into done.json. A receipt whose pid disagrees with the
+        # pid file was not written by the process that ran the work. (Jobs spawned before this
+        # field existed have no pid key; those are not judged on it.)
+        if done.get("pid") is not None and pid and int(done["pid"]) != pid:
             out["state"] = "forged"
             return out
         out["state"] = "done"

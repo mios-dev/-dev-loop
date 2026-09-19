@@ -194,11 +194,72 @@ def test_absent_job_is_absent() -> None:
     check("no rc", s["rc"] is None)
 
 
+def test_a_receipt_does_not_outrank_liveness() -> None:
+    """THE self-certification hole, closed. status() checked `exit` BEFORE the process, so a
+    lane that wrote a consistent exit + done.json pair while still running read as `done` —
+    it could end its own wait, and devloop.sh would then audit, stage and merge a worktree the
+    agent was still writing to. Two files were all it took.
+
+    A live process holding a receipt is premature, not finished."""
+    print("a receipt planted while the job is still running:")
+    root = newroot()
+    job.spawn(root, "premature", ["sh", "-c", "sleep 60"], Path("."), budget_s=120)
+    end = time.time() + 15
+    s = job.status(root, "premature")
+    while s["pid"] is None and time.time() < end:
+        time.sleep(0.2)
+        s = job.status(root, "premature")
+    if not s["pid"]:
+        check("job started", False, "never got a pid")
+        return
+
+    d = root / "premature"
+    (d / "done.json").write_text(json.dumps({"rc": 0, "finished_at": job._now()}))
+    (d / "exit").write_text("0\n")
+    s = job.status(root, "premature")
+    check("still running, not done", s["state"] == "running",
+          f"got {s['state']} — a running lane must not be able to declare itself finished")
+    check("no rc is taken from the planted receipt", s["rc"] is None, str(s["rc"]))
+
+    # And the honest case must still resolve, or the check above is just a broken reader.
+    # Signal the SESSION, the way kill()/reap_lane do -- TERM to the wrapper alone fires its
+    # trap (which writes a receipt) but leaves `timeout` still waiting on the real command, so
+    # the wrapper stays alive holding a receipt. Under the new rule that reads `running`, which
+    # is the correct answer: the work has not stopped.
+    job.kill(root, "premature", "TERM")
+    s = wait_state(root, "premature", {"done", "lost", "forged"}, 30)
+    check("once the process is gone the receipt is read", s["state"] in ("done", "lost"),
+          str(s))
+    job.kill(root, "premature", "KILL")
+
+
+def test_the_wrapper_stamps_its_own_pid() -> None:
+    """Second term: the wrapper writes its pid into done.json, so a receipt left behind by
+    something other than the process that ran the work is detectable even after it exits."""
+    print("receipt provenance:")
+    root = newroot()
+    job.spawn(root, "stamped", ["sh", "-c", "exit 0"], Path("."), budget_s=30)
+    s = wait_state(root, "stamped", {"done", "lost", "forged"})
+    check("an honest job is done", s["state"] == "done", str(s))
+    d = root / "stamped"
+    done = json.loads((d / "done.json").read_text())
+    check("done.json carries a pid", isinstance(done.get("pid"), int), str(done))
+    check("it matches the pid file", str(done.get("pid")) == (d / "pid").read_text().strip(),
+          f"done.json pid={done.get('pid')} pid file={(d / 'pid').read_text().strip()}")
+
+    done["pid"] = done["pid"] + 1
+    (d / "done.json").write_text(json.dumps(done))
+    check("a mismatched pid is forged", job.status(root, "stamped")["state"] == "forged",
+          "a receipt from another process must not be accepted")
+
+
 def main() -> int:
     for t in (test_outlives_its_spawner, test_absence_of_receipt_is_lost_not_done,
               test_forged_receipt_is_detected, test_runaway_still_yields_a_receipt,
               test_failure_is_reported_as_failure, test_wait_blocks_until_terminal,
-              test_absent_job_is_absent):
+              test_absent_job_is_absent,
+              test_a_receipt_does_not_outrank_liveness,
+              test_the_wrapper_stamps_its_own_pid):
         t()
     print()
     if FAILURES:
