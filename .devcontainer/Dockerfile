@@ -3,8 +3,8 @@
 # Service keyring stack for Antigravity credential caching, Node.js + Claude
 # Code for claude-code lanes. The Antigravity CLI itself is installed per-user
 # at postCreate by setup-antigravity.sh (its installer targets ~/.local/bin).
-ARG FEDORA_VERSION=44
-FROM registry.fedoraproject.org/fedora:${FEDORA_VERSION}
+# Nothing pinned: the base floats on Fedora's latest release.
+FROM registry.fedoraproject.org/fedora:latest
 
 # Same package set as the cloud environment's Fedora image
 # (skills/dev-loop/scripts/env/cloud-fedora-setup.sh), so a devcontainer and a
