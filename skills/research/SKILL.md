@@ -4,7 +4,7 @@ description: Upstream research before deciding - vendor docs, changelogs, releas
 argument-hint: "TOPIC | diff BASE_REF UPSTREAM_REF | template spike|upstream-audit|tech-eval"
 context: fork
 agent: dev-loop:researcher
-allowed-tools: WebSearch, WebFetch, Read, Grep, Glob, Bash
+allowed-tools: WebSearch, WebFetch, Read, Write, Grep, Glob, Bash
 ---
 # /research — upstream truth before decisions (SKILL §4)
 

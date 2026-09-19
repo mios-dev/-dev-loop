@@ -192,12 +192,46 @@ class GoalEngine:
                 c.passed = (res.returncode == 0)
                 c.details = f"Exit code {res.returncode}"
             elif c.criterion_type == "git_clean":
-                res = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo_root, capture_output=True, text=True)
-                # Ignore worktrees directory
-                dirty_lines = [l for l in res.stdout.splitlines() if not l.endswith(".worktrees/")]
+                # -uall, not the default: porcelain COLLAPSES an untracked directory to a
+                # single "?? .devloop/" entry, and a per-file exemption cannot match that. The
+                # tempting shortcut is to excuse ".devloop/" wholesale -- which is precisely the
+                # blanket-exclusion bug this repo hit in .git/info/exclude, where hiding the
+                # directory also hid every lane deliverable inside it. Ask git for per-file
+                # granularity instead, so the exemption stays exactly as narrow as it claims.
+                res = subprocess.run(["git", "status", "--porcelain", "-uall"], cwd=self.repo_root, capture_output=True, text=True)
+                # The evaluator WRITES ITS OWN STATE as part of evaluating: save() rewrites
+                # GOALS.md and .devloop/goal_state.json with this very verdict. Counting those
+                # made the criterion unsatisfiable after the first run -- eval #1 observed a
+                # clean tree, recorded "clean", and dirtied the tree doing so; eval #2 then
+                # failed on eval #1's writes. The goal could only ever be COMPLETE in a state
+                # that no longer existed. Exclude the evaluator's own outputs and the lane
+                # worktrees, and SAY SO in the details rather than silently widening the check
+                # (SKILL.md 7: narrow the claim, do not widen the check).
+                self_written = {"GOALS.md"}
+                try:
+                    self_written.add(self.state_file.relative_to(self.repo_root).as_posix())
+                except ValueError:
+                    pass
+
+                def _path(line):  # porcelain: XY <path>, quoted when it contains oddities
+                    return line[3:].strip().strip('"') if len(line) > 3 else ""
+
+                dirty_lines, excused = [], []
+                for l in res.stdout.splitlines():
+                    pth = _path(l)
+                    if pth.rstrip("/") == ".worktrees" or pth.startswith(".worktrees/") or pth in self_written:
+                        excused.append(pth)
+                    else:
+                        dirty_lines.append(l)
                 clean = len(dirty_lines) == 0
                 c.passed = clean
-                c.details = "Working tree clean" if clean else f"Dirty files: {len(dirty_lines)} files"
+                if clean:
+                    c.details = "Working tree clean"
+                    if excused:
+                        c.details += f" (excluding {len(excused)} evaluator-written/worktree path(s): {', '.join(sorted(excused)[:4])})"
+                else:
+                    named = ", ".join(_path(l) for l in dirty_lines[:5])
+                    c.details = f"Dirty files: {len(dirty_lines)} files — {named}"
             elif c.criterion_type == "artifact":
                 art_py = self._artifacts_py()
                 tasks = self.artifacts_dir / "tasks.jsonl"

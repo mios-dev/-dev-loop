@@ -1,0 +1,59 @@
+{
+  "version": "2",
+  "objective": "Two read-only research lanes answering open questions that ADR 0001 (docs/decisions/0001-loop-translation-layer-*.md) left unanswered. Both lanes are RESEARCH: they measure and report, they implement nothing outside their own findings file. This run is also the first end-to-end exercise of agy_host.sh --session, so the manager dispatches both as NATIVE Antigravity subagents and polls until each writes .devloop/native/report-<id>.json. Launch: sh skills/dev-loop/scripts/agy_host.sh .devloop/lanes.research.json --session",
+  "base_ref": "HEAD",
+  "worktree_root": ".worktrees",
+  "terminal_layout": "headless",
+  "worker": {
+    "max_turns": 40,
+    "timeout_s": 2400
+  },
+  "lanes": [
+    {
+      "id": "acp-p6",
+      "domain": "research",
+      "objective": "ADR 0001 defers ACP (Agent Client Protocol) to phase P6 as a swappable lane transport, and its open question 6 asks whether jiridanek/agy-acp should be evaluated as an alternative to the NDJSON channel this repo now uses. ANSWER IT WITH EVIDENCE. Establish, from primary sources: (1) whether `agy` has since gained a native --acp mode -- google-antigravity/antigravity-cli issue #31 was open and unanswered as of 2026-05-20, so CHECK ITS CURRENT STATE rather than repeating the claim; (2) what an ACP transport would actually cost here, by naming the specific files in THIS repo that would change and what each would have to do differently -- skills/dev-loop/scripts/agy_session.py is the current transport, skills/dev-loop/scripts/adapters.py holds the envelope handling, skills/dev-loop/scripts/agy_host.sh selects the mode; (3) whether ACP can carry what the NDJSON channel already gives us, specifically the per-turn result envelope, the subagent step with its child conversation_id, and the denial surface. The honest answer may well be 'not worth it yet' -- a recommendation to adopt and a recommendation to wait are equally acceptable outcomes, but BOTH must be grounded. Do not recommend adopting something you could not verify exists. Write .devloop/findings/ACP-P6.md in the required section layout; cite repo evidence as path:line and upstream evidence as URLs with dates.",
+      "owned_paths": [
+        ".devloop/findings/ACP-P6.md"
+      ],
+      "read_paths": [
+        "skills/dev-loop/scripts/",
+        "skills/dev-loop/references/",
+        "docs/decisions/",
+        "tests/"
+      ],
+      "worker": {
+        "harness": "antigravity",
+        "model": "gemini-3.8-flash-high",
+        "timeout_s": 2400
+      },
+      "positive_cmd": "python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/ACP-P6.md",
+      "negative_control_cmd": "cp .devloop/findings/ACP-P6.md .nc-acp.bak; trap 'mv .nc-acp.bak .devloop/findings/ACP-P6.md' EXIT INT TERM; printf '\\nskills/dev-loop/scripts/DEVLOOP-PLANTED-ACP-P6.py:1\\n' >> .devloop/findings/ACP-P6.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/ACP-P6.md",
+      "negative_expect": "DEVLOOP-PLANTED-ACP-P6"
+    },
+    {
+      "id": "design-audit",
+      "domain": "research",
+      "role": "auditor",
+      "objective": "Adversarially audit the loop-translation-layer design against SKILL.md section 7's vacuous-check taxonomy. The design is skills/dev-loop/references/translation-layer.md plus docs/decisions/0001-loop-translation-layer-*.md, both written this week by an agent that was also measuring the tool it was designing against -- so assume motivated reasoning and look for it. Hunt three specific defect classes and report each by path:line. (a) CLAIMS ASSERTED AS MEASURED THAT WERE NOT: the documents mark things '(measured)'; for each such claim ask what command would have produced it and whether the document shows evidence, and list every one that is actually an inference wearing a measurement's label. (b) GATES THAT CANNOT FAIL: the ADR's Confirmation table and the reference's section 9 phase table each promise a control; for each, state what a lazy-but-passing implementation would look like, and whether the promise is specific enough to forbid it. (c) SCOPE REFUSALS THAT ARE STATED BUT NOT ENFORCED: section 2 refuses to build a model gateway and section 6.3 defers the Anthropic surface; say whether anything in the repo would actually detect a violation, or whether the refusal is only prose. You are an AUDITOR: you implement nothing and you fix nothing. A finding of 'the design is sound on these axes' is an acceptable verdict ONLY if you show what you checked and how it could have come out otherwise. Write .devloop/findings/DESIGN-AUDIT.md in the required section layout.",
+      "owned_paths": [
+        ".devloop/findings/DESIGN-AUDIT.md"
+      ],
+      "read_paths": [
+        "skills/dev-loop/references/",
+        "docs/decisions/",
+        "skills/dev-loop/scripts/",
+        "skills/dev-loop/SKILL.md",
+        "tests/"
+      ],
+      "worker": {
+        "harness": "antigravity",
+        "model": "gemini-3.8-flash-high",
+        "timeout_s": 2400
+      },
+      "positive_cmd": "python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/DESIGN-AUDIT.md",
+      "negative_control_cmd": "cp .devloop/findings/DESIGN-AUDIT.md .nc-audit.bak; trap 'mv .nc-audit.bak .devloop/findings/DESIGN-AUDIT.md' EXIT INT TERM; printf '\\ndocs/decisions/DEVLOOP-PLANTED-DESIGN-AUDIT.md:1\\n' >> .devloop/findings/DESIGN-AUDIT.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/DESIGN-AUDIT.md",
+      "negative_expect": "DEVLOOP-PLANTED-DESIGN-AUDIT"
+    }
+  ]
+}

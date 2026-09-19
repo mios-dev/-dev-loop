@@ -252,6 +252,18 @@ Never equate the absence of an error with correctness.
   kill ratio ≥ 0.8 on changed files, every survivor reviewed, reported as *which* assertion is
   vacuous (`lane.mutation_cmd` runs it in the merge gate). Use exact-string mutations so a stale
   mutation fails loudly instead of silently no-op'ing.
+- **Name the plant to a standard.** A negative control's `negative_expect` must name what you
+  planted. Prefer an **organic** expect — the tool's own genuine error for a real mutation
+  (`F401|unused import`, `test_.*backoff.*FAILED`) — because it proves the real check fired.
+  When the deliverable is a document with no natural mutation, plant a **sentinel** named
+  exactly `DEVLOOP-PLANTED-<LANE_ID>` (lane id uppercased, non-alphanumerics to `-`). The
+  sentinel must appear in the `negative_control_cmd` that plants it, must be the whole
+  `negative_expect`, and must not already exist anywhere in the tree. One sentinel per lane, never
+  shared: two lanes with the same token means either lane's output can satisfy the other's gate.
+  Never alternate the sentinel with something the tool prints anyway — `planted-vacuous|VACUOUS`
+  matched the fixture's own filename, so it passed whether or not the plant landed (a
+  Self-Certifying Predicate, §7, which shipped in this skill's own examples until it was caught).
+  Control: `tests/test_planted_naming.py`.
 - **Assert your harness did work.** A negative control producing no output is vacuous. Count what
   it rendered, ran, or compared before trusting the verdict. *A harness reporting "0 problems"
   because it silently did nothing is the same defect class you are hunting — committed by you.*
@@ -420,8 +432,16 @@ enforce the report schema natively (`claude --json-schema`, `codex --output-sche
 does; elsewhere the fenced `devloop_report` block is parsed.
 
 **Worktree laws.**
-- Worktrees live under `.worktrees/<id>` on branch `lane/<id>`; `.worktrees/` and `.devloop/` go in
-  `.git/info/exclude` (never a repo change).
+- Worktrees live under `.worktrees/<id>` on branch `lane/<id>`. Exclude **`.worktrees/` and
+  `.devloop/run-*/`** via `.git/info/exclude` (never a repo change) — the transient run
+  directories only. **Never exclude `.devloop/` wholesale.** A lane's deliverable usually lives
+  under `.devloop/findings/`, and the lane plan, ledger and tasks file are tracked; a blanket
+  exclude makes all of them invisible to `git status`, unstageable without `-f`, and — worse —
+  makes a lane that did real work indistinguishable from one that did nothing, because the
+  host's vacuity check reads an empty worktree diff as "produced nothing" (§6, §7 Measuring the
+  Wrong Property). `scripts/devloop.sh` and `DevLoop.ps1` already write the narrow form;
+  this line previously said `.devloop/`, and a manager that followed it broke exactly this way
+  (observed live 2026-09-19). Control: `tests/test_devloop_exclude.py`.
 - Check `git show-ref --verify refs/heads/lane/<id>` first; attach to an existing branch rather
   than `-b` blindly.
 - `.git` is a **file** in a linked worktree. Resolve with `git rev-parse`.

@@ -1,0 +1,33 @@
+{
+  "objective": "Every mechanism the dev-loop claims is exercised by a control that can fail \u2014 starting with agy_session.py's poll loop, which is implemented, shipped, and never once observed doing its job.",
+  "stopping_condition": "sh skills/dev-loop/scripts/validate.sh && python3 tests/test_agy_session_poll.py",
+  "status": "IN_PROGRESS",
+  "created_at": "2026-09-19T02:34:54.072290",
+  "completed_at": "2026-09-19T02:37:30.644115",
+  "criteria": [
+    {
+      "id": "C-01",
+      "description": "Stopping condition: sh skills/dev-loop/scripts/validate.sh && python3 tests/test_agy_session_poll.py",
+      "criterion_type": "test",
+      "command": "sh skills/dev-loop/scripts/validate.sh && python3 tests/test_agy_session_poll.py",
+      "target_path": null,
+      "passed": true,
+      "details": "Exit code 0"
+    },
+    {
+      "id": "C-02",
+      "description": "Working tree clean of uncommitted residue",
+      "criterion_type": "git_clean",
+      "command": null,
+      "target_path": null,
+      "passed": false,
+      "details": "Dirty files: 1 files \u2014 skills/dev-loop/scripts/goal.py"
+    }
+  ],
+  "non_goals": [
+    "Do not refactor unassigned modules or out-of-scope files.",
+    "Do not introduce regressions to passing baseline tests.",
+    "Do not bypass security checks, linters, or suppressions."
+  ],
+  "ratchet_history": []
+}

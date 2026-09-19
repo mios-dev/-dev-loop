@@ -13,9 +13,11 @@ Then run one (or both) of the printed commands:
 
 - **A — direct orchestrator** (any host drives `devloop.sh`): validates lane
   plumbing, adapters, gates, merge.
-- **B — AGY as L0 manager** (`agy_host.sh … --headless --yolo`): the full
+- **B — AGY as L0 manager** (`agy_host.sh … --session`): the full
   topology-A test — Antigravity manages all sub-agents and dispatches the same
-  lane file itself.
+  lane file itself. `--session` and not `--headless`: single-turn print mode forbids
+  native subagents, because the process exits when the turn ends and takes any
+  unfinished subagent with it.
 
 Success criteria (both modes): exit 0; `git -C .sandbox-e2e log --oneline`
 shows both `lane(...)` merges; `.devloop/run-*/report-*.json` has

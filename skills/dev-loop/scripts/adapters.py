@@ -558,6 +558,20 @@ def cmd_gate(a):
     # uncommitted lane edits (e.g. a `git checkout -- <file>` trap restores from
     # the INDEX, i.e. the seed), and a post-control diff would park nothing.
     pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
+    # A sentinel control works by citing a path that does NOT exist. The lane can SEE its own
+    # negative_control_cmd (it is in the lane prompt, line 163), so a lane that creates that
+    # path -- deliberately, or by naming a fixture after a string it read in its own contract
+    # -- makes the citation resolve and the control PASS. Observed live 2026-09-19: a MiOS lane
+    # created automation/DEVLOOP-PLANTED-T1000-GATE04.sh, the exact path its control expected
+    # to be missing. The control would then have been vacuous and nothing downstream could tell.
+    # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.
+    for _sent in re.findall(r"\bDEVLOOP-PLANTED-[A-Z0-9-]+\b", lane["negative_control_cmd"]):
+        _hits = [str(q.relative_to(wt)) for q in wt.rglob(f"*{_sent}*")
+                 if ".git" not in q.parts and ".worktrees" not in q.parts]
+        if _hits:
+            die(f"negative control is VACUOUS BEFORE IT RAN: its sentinel {_sent} already exists "
+                f"in the worktree ({', '.join(_hits[:3])}), so the planted citation would resolve "
+                f"and the control would pass. Refusing to gate.", 2)
     code, out, _ = run_shell(lane["negative_control_cmd"], wt, t, prefer=a.shell)
     (run / f"neg-{lid}.log").write_text(out, "utf-8")
     after = tree_snapshot(wt)
