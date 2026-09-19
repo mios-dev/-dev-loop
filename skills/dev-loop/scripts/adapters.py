@@ -20,7 +20,9 @@ adapters.py — the one code path every host uses (stdlib only, Linux/macOS/Wind
                                                     without a stderr notice sharing the stream) and report auto-denied
                                                     tool calls. exit 0 clean, 3 denied/failed/no-envelope.
   ledger    --status S --objective O [--done --next --blockers --unverified]   append a handoff note to .devloop/LEDGER.md
-  git       --wt DIR -- <git args>                  git with index.lock retry (≤5 × 500 ms backoff)
+  base-snapshot --root DIR --out SNAPSHOT_FILE          snapshot git status --porcelain for base-tree auditing
+  base-audit    --root DIR --before SNAP [--lanes L]    audit base tree immutability against baseline snapshot; exit 0 ok, 6 stray
+  git       --wt DIR -- <git args>                  git with index.lock retry (exponential backoff)
 """
 from __future__ import annotations
 
@@ -34,6 +36,16 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+try:
+    from git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
+except ImportError:
+    try:
+        from scripts.git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
+    except ImportError:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
 
 HERE = Path(__file__).resolve().parent
 SKILL_DEFAULT = HERE.parent / "SKILL.md"  # scripts/ -> skill dir
@@ -147,6 +159,7 @@ def merged_lane(spec: dict, lane_id: str) -> dict:
     w.update(spec.get("worker", {})); w.update(l.get("worker", {}))
     l["worker"] = w
     l["_base_ref"] = spec["base_ref"]
+    l["worktree_root"] = spec.get("worktree_root", ".worktrees")
     return l
 
 
@@ -427,23 +440,56 @@ def run_shell(cmd: str, cwd: Path, timeout: int, env: dict | None = None, prefer
         return 124, out + f"\nTIMEOUT after {timeout}s", True
 
 
-def git(wt: Path, *args: str, retries: int = 5) -> subprocess.CompletedProcess:
-    for attempt in range(1, retries + 1):
-        cp = subprocess.run(["git", "-C", str(wt), *args], capture_output=True, text=True, env={**os.environ, **NONINTERACTIVE})
-        if cp.returncode == 0 or "index.lock" not in cp.stderr or attempt == retries:
-            return cp
-        # A crashed lane leaves index.lock behind forever; pure retry then deadlocks
-        # every later git call. Clear only a lock older than 45s (git_lock.py's
-        # threshold) — a live process refreshes its lock well within that.
-        try:
-            gd = subprocess.run(["git", "-C", str(wt), "rev-parse", "--git-dir"], capture_output=True, text=True)
-            lock = (Path(wt) / gd.stdout.strip() / "index.lock") if gd.returncode == 0 else None
-            if lock and lock.exists() and time.time() - lock.stat().st_mtime > 45:
-                lock.unlink(missing_ok=True)
-        except OSError:
-            pass
-        time.sleep(0.5 * attempt)
-    return cp
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md")
+
+
+def base_tree_state(root: Path) -> dict[str, str] | None:
+    """`git status --porcelain` as {path: XY}, or None when git cannot answer."""
+    try:
+        p = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                           capture_output=True, text=True, env={**os.environ, **NONINTERACTIVE})
+    except OSError:
+        return None
+    if p.returncode != 0:
+        return None
+    out: dict[str, str] = {}
+    for ln in p.stdout.splitlines():
+        if len(ln) < 4:
+            continue
+        path = ln[3:]
+        # `R  old -> new` names two paths; the destination is the one that appeared.
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        out[path.strip().strip('"')] = ln[:2]
+    return out
+
+
+def stray_base_edits(before: dict[str, str], now: dict[str, str] | None,
+                     allowed: tuple[str, ...]) -> list[str]:
+    """Paths whose base-tree status CHANGED since `before` and that no lane may own."""
+    if now is None:
+        return []
+    return sorted(path for path, st in now.items()
+                  if before.get(path) != st
+                  and not any(path == a or (a.endswith("/") and path.startswith(a)) for a in allowed))
+
+
+def resolve_base_root(wt: Path) -> Path:
+    try:
+        p = subprocess.run(["git", "-C", str(wt), "rev-parse", "--git-common-dir"],
+                           capture_output=True, text=True, env={**os.environ, **NONINTERACTIVE})
+        if p.returncode == 0:
+            cd = Path(p.stdout.strip())
+            if not cd.is_absolute():
+                cd = (wt / cd).resolve()
+            return cd.parent if cd.name == ".git" else cd
+    except Exception:
+        pass
+    return wt
+
+
+def git(wt: Path, *args: str, retries: int = 8) -> subprocess.CompletedProcess:
+    return run_git_safe(list(args), max_retries=retries, cwd=wt)
 
 
 def tree_snapshot(wt: Path) -> str:
@@ -531,8 +577,15 @@ def cmd_run(a):
         out = ex.stdout if isinstance(ex.stdout, str) else (ex.stdout or b"").decode("utf-8", "replace")
         err = ex.stderr if isinstance(ex.stderr, str) else (ex.stderr or b"").decode("utf-8", "replace")
     log.write_text(f"$ {' '.join(argv[:2])} …\n--- stdout\n{out}\n--- stderr\n{err}\n--- exit {code} in {time.time()-t0:.0f}s\n", "utf-8")
-    if h == "openai-compatible" and report.exists() and not timed_out:
-        rep = json.loads(report.read_text("utf-8"))  # the worker wrote the canonical report itself
+    if h in ("openai-compatible", "custom") and report.exists() and not timed_out:
+        try:
+            rep_raw = json.loads(report.read_text("utf-8"))
+            rep = rep_raw.get("devloop_report", rep_raw) if isinstance(rep_raw, dict) else None
+        except Exception:
+            rep = None
+        if rep is None:
+            rep = normalize_report(lane, h, out, code, timed_out, None)
+            report.write_text(json.dumps(rep, indent=2), "utf-8")
     else:
         last = report.with_name(f"last-{lane['id']}.txt")
         if h == "codex" and last.exists():
@@ -559,6 +612,13 @@ def cmd_owned(a):
 def cmd_gate(a):
     lane = json.loads(Path(a.lane).read_text("utf-8")); wt = Path(a.wt).resolve(); run = Path(a.run); lid = lane["id"]
     t = int(lane.get("worker", {}).get("timeout_s", 1800))
+    base_root = Path(a.root).resolve() if getattr(a, "root", None) and a.root else resolve_base_root(wt)
+    wt_root_dir = lane.get("worktree_root", ".worktrees")
+    wt_prefix = str(wt_root_dir).strip().lstrip("./").rstrip("/") + "/"
+    allowed = BASE_TREE_ALWAYS_ALLOWED + (wt_prefix,)
+    base_before = base_tree_state(base_root)
+    pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
+
     code, out, _ = run_shell(lane["positive_cmd"], wt, t, prefer=a.shell)
     (run / f"pos-{lid}.log").write_text(out, "utf-8")
     if code != 0: die(f"positive: FAIL (exit {code}, see pos-{lid}.log)", 1)
@@ -577,7 +637,7 @@ def cmd_gate(a):
     # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.
     for _sent in re.findall(r"\bDEVLOOP-PLANTED-[A-Z0-9-]+\b", lane["negative_control_cmd"]):
         _hits = [str(q.relative_to(wt)) for q in wt.rglob(f"*{_sent}*")
-                 if ".git" not in q.parts and ".worktrees" not in q.parts]
+                 if ".git" not in q.relative_to(wt).parts and ".worktrees" not in q.relative_to(wt).parts]
         if _hits:
             die(f"negative control is VACUOUS BEFORE IT RAN: its sentinel {_sent} already exists "
                 f"in the worktree ({', '.join(_hits[:3])}), so the planted citation would resolve "
@@ -588,6 +648,13 @@ def cmd_gate(a):
     if before != after:
         (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
         die("negative control did not restore the tree — control is broken (SKILL §6); pre-control diff parked", 2)
+    if base_before is not None:
+        strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
+        if strays:
+            (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+            stray_list = ", ".join(strays)
+            print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
+            die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
     if code == 0: die("negative control PASSED => VACUOUS LANE. Refusing to merge.", 2)
     if lane["negative_expect"] and not re.search(lane["negative_expect"], out):
         die(f"negative failed but did NOT name the planted violation (/{lane['negative_expect']}/). Refusing.", 2)
@@ -596,11 +663,25 @@ def cmd_gate(a):
         code, out, _ = run_shell(lane["mutation_cmd"], wt, t, prefer=a.shell)
         (run / f"mut-{lid}.log").write_text(out, "utf-8")
         if code != 0: die(f"mutation gate: FAIL (exit {code}) — surviving mutants mean the tests cannot fail (SKILL §7)", 2)
+        if base_before is not None:
+            strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
+            if strays:
+                (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+                stray_list = ", ".join(strays)
+                print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
+                die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
         print("mutation gate: PASS")
     if lane.get("full_gate_cmd"):
         code, out, _ = run_shell(lane["full_gate_cmd"], wt, t, prefer=a.shell)
         (run / f"full-{lid}.log").write_text(out, "utf-8")
         if code != 0: die(f"full gate: FAIL (exit {code})", 1)
+        if base_before is not None:
+            strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
+            if strays:
+                (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+                stray_list = ", ".join(strays)
+                print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
+                die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
         print("full gate: PASS")
 
 
@@ -698,6 +779,52 @@ def cmd_git(a):
     sys.stdout.write(cp.stdout); sys.stderr.write(cp.stderr); sys.exit(cp.returncode)
 
 
+def cmd_base_snapshot(a):
+    root = Path(a.root).resolve()
+    st = base_tree_state(root)
+    Path(a.out).write_text(json.dumps(st or {}), "utf-8")
+    print(f"base snapshot saved: {a.out}")
+
+
+def cmd_base_audit(a):
+    root = Path(a.root).resolve()
+    if getattr(a, "save", None) and a.save:
+        st = base_tree_state(root)
+        Path(a.save).write_text(json.dumps(st or {}), "utf-8")
+        print(f"base snapshot saved: {a.save}")
+        return
+    if not getattr(a, "before", None) or not a.before:
+        die("base-audit requires either --before <snapshot_file> or --save <snapshot_file>", 64)
+    snap_path = Path(a.before)
+    if not snap_path.exists():
+        die(f"snapshot file not found: {a.before}", 64)
+    try:
+        before = json.loads(snap_path.read_text("utf-8"))
+    except Exception as e:
+        die(f"failed to read snapshot {a.before}: {e}", 64)
+    wt_root = ".worktrees/"
+    if getattr(a, "lanes", None) and a.lanes and Path(a.lanes).exists():
+        try:
+            ld = json.loads(Path(a.lanes).read_text("utf-8"))
+            r = str(ld.get("worktree_root") or ".worktrees").strip().lstrip("./").rstrip("/")
+            wt_root = (r or ".worktrees") + "/"
+        except Exception:
+            pass
+    allowed = BASE_TREE_ALWAYS_ALLOWED + (wt_root,)
+    try:
+        rel_snap = str(snap_path.resolve().relative_to(root.resolve())).replace("\\", "/")
+        allowed = allowed + (rel_snap,)
+    except ValueError:
+        pass
+    now = base_tree_state(root)
+    strays = stray_base_edits(before, now, allowed)
+    if strays:
+        for s in strays:
+            print(s, file=sys.stderr)
+        die("BASE TREE LEAKAGE DETECTED: " + ", ".join(strays), 6)
+    print("base tree audit ok: no stray modifications")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -711,7 +838,10 @@ def main():
         p.add_argument("--shell", choices=["sh", "pwsh"]); p.set_defaults(f=f)
     p = sp.add_parser("owned"); p.add_argument("--lane", required=True); p.add_argument("--wt", required=True); p.set_defaults(f=cmd_owned)
     p = sp.add_parser("gate"); p.add_argument("--lane", required=True); p.add_argument("--wt", required=True)
-    p.add_argument("--run", required=True); p.add_argument("--shell", choices=["sh", "pwsh"]); p.set_defaults(f=cmd_gate)
+    p.add_argument("--run", required=True); p.add_argument("--root"); p.add_argument("--shell", choices=["sh", "pwsh"]); p.set_defaults(f=cmd_gate)
+    p = sp.add_parser("base-audit"); p.add_argument("--root", default="."); p.add_argument("--before")
+    p.add_argument("--save"); p.add_argument("--lanes"); p.set_defaults(f=cmd_base_audit)
+    p = sp.add_parser("base-snapshot"); p.add_argument("--root", default="."); p.add_argument("--out", required=True); p.set_defaults(f=cmd_base_snapshot)
     p = sp.add_parser("denials"); p.add_argument("envelope"); p.set_defaults(f=cmd_denials)
     p = sp.add_parser("secrets"); p.add_argument("--wt", required=True); p.set_defaults(f=cmd_secrets)
     p = sp.add_parser("deps"); p.add_argument("--wt", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_deps)

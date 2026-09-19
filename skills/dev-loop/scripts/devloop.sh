@@ -18,9 +18,10 @@ if [ "${1:-}" = "--check" ]; then
   "$PY" -c 'import jsonschema' 2>/dev/null && echo "jsonschema ok" || echo "jsonschema missing (structural validation only)"; exit 0
 fi
 LANES=${1:?usage: devloop.sh <lanes.json> [--layout L] [--dry-run] [--keep] [--check]}; shift
-DRY=0; KEEP=0; LAYOUT=auto
+DRY=0; KEEP=0; LAYOUT=auto; CONCURRENT=0
 while [ $# -gt 0 ]; do case "$1" in
   --dry-run) DRY=1;; --keep) KEEP=1;; --layout) LAYOUT=$2; shift;; --no-tmux) LAYOUT=detached;;
+  --concurrent) CONCURRENT=1;;
   *) echo "unknown flag $1" >&2; exit 64;; esac; shift; done
 
 ROOT=$(git rev-parse --show-toplevel) || { echo "not in a git repo" >&2; exit 64; }
@@ -37,8 +38,13 @@ BASE=$(field "$SPEC" base_ref); WT_ROOT=$(field "$SPEC" worktree_root); INTEG=$(
 [ "$LAYOUT" = auto ] && LAYOUT=$(field "$SPEC" terminal_layout); [ "$LAYOUT" = auto ] || [ -z "$LAYOUT" ] && LAYOUT=tmux_grid
 [ "$LAYOUT" = tmux_grid ] && ! command -v tmux >/dev/null 2>&1 && { echo "tmux not found; using detached"; LAYOUT=detached; }
 [ "$LAYOUT" = wt_grid ] && LAYOUT=detached
+if [ -f .git/info/exclude ]; then
+  sed -i '/^\.devloop\/\?$/d' .git/info/exclude 2>/dev/null || true
+fi
 for e in ".devloop/run-*/" "$WT_ROOT/"; do grep -qxF "$e" .git/info/exclude 2>/dev/null || echo "$e" >> .git/info/exclude; done
 [ -z "$(git status --porcelain)" ] || { echo "refusing: base tree is dirty" >&2; exit 64; }
+BASE_SNAP="$RUN/base-tree-before.json"
+"$PY" "$AD" base-audit --root "$ROOT" --save "$BASE_SNAP"
 SESSION="devloop-$(basename "$RUN")"; STATUS=0
 
 launch() { # $1=id  — provision worktree + start worker per layout
@@ -46,7 +52,11 @@ launch() { # $1=id  — provision worktree + start worker per layout
   WT=$(field "$LJ" worktree); [ -n "$WT" ] || WT="$WT_ROOT/$ID"; WTA="$ROOT/$WT"; BR="lane/$ID"
   echo "== lane $ID [$(field "$LJ" worker.harness)] -> $WT ($BR from $BASE)"
   [ "$DRY" = 1 ] && return 0
-  if [ -d "$WTA" ]; then echo "  worktree exists; reusing";
+  if [ -d "$WTA" ]; then
+    echo "  worktree exists; cleaning and reusing"
+    git -C "$WTA" checkout -f "$BR" 2>/dev/null || git -C "$WTA" checkout -f -B "$BR" "$BASE"
+    git -C "$WTA" reset --hard "$BR" 2>/dev/null || git -C "$WTA" reset --hard "$BASE" 2>/dev/null || true
+    git -C "$WTA" clean -ffd
   elif git show-ref --verify --quiet "refs/heads/$BR"; then "$PY" "$AD" git --wt "$ROOT" -- worktree add --quiet "$WT" "$BR";
   else "$PY" "$AD" git --wt "$ROOT" -- worktree add --quiet "$WT" -b "$BR" "$BASE"; fi
   CMD="$PY '$AD' run --lane '$LJ' --wt '$WTA' --report '$RUN/report-$ID.json' --log '$RUN/worker-$ID.log' --skill '$SKILL_DIR/SKILL.md'; echo \$? > '$RUN/worker-$ID.exit'"
@@ -54,7 +64,16 @@ launch() { # $1=id  — provision worktree + start worker per layout
     headless)
       # SEQUENTIAL by design: one lane at a time, in the foreground. Kept for the case where
       # you want deterministic ordering or a single lane; everything else should fan out.
-      sh -c "$CMD" || true;;
+      if [ "${CONCURRENT:-0}" = 1 ] || [ "${DEVLOOP_CONCURRENT:-0}" = 1 ]; then
+        BUDGET=$(field "$LJ" worker.timeout_s); case "$BUDGET" in ''|*[!0-9]*) BUDGET=1800;; esac
+        if ! "$PY" "$JOB_PY" spawn --root "$JOBS" --id "$ID" --cwd "$WTA" \
+               --budget "$BUDGET" --label "lane $ID" -- sh -c "$CMD" >/dev/null; then
+          echo "  $ID: SPAWN FAILED -- lane never started" >&2
+          echo "125" > "$RUN/worker-$ID.exit"
+        fi
+      else
+        sh -c "$CMD" || true
+      fi;;
     tmux_grid)
       if tmux has-session -t "$SESSION" 2>/dev/null; then tmux split-window -t "$SESSION:0" -c "$WTA" "$CMD; exec sh"; tmux select-layout -t "$SESSION:0" tiled
       else tmux new-session -d -s "$SESSION" -c "$WTA" "$CMD; exec sh"; fi;;
@@ -93,7 +112,7 @@ wait_wave() {
   for ID in "$@"; do [ -d "$JOBS/$ID" ] && IDS="$IDS --id $ID"; done
   [ -n "$IDS" ] || return 0
   # shellcheck disable=SC2086
-  "$PY" "$JOB_PY" wait --root "$JOBS" $IDS --budget "${LANE_WAIT_BUDGET:-5400}" --interval 20 || :
+  "$PY" "$JOB_PY" wait --root "$JOBS" $IDS --budget "${LANE_WAIT_BUDGET:-5400}" --interval "${LANE_WAIT_INTERVAL:-2}" || :
 }
 
 # Turn a lane's terminal state into the exit file the gate reads. The `.exit` fallback covers
@@ -137,7 +156,7 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   [ -f "$REP" ] || { echo "  NO REPORT — parking diff"; git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
   RS=$(field "$REP" status); echo "  report status=$RS"
   "$PY" "$AD" owned --lane "$LJ" --wt "$WTA" || { git -C "$WTA" diff > "$RUN/lane-$ID.patch"; STATUS=1; return; }
-  "$PY" "$AD" gate --lane "$LJ" --wt "$WTA" --run "$RUN"; rc=$?
+  "$PY" "$AD" gate --lane "$LJ" --wt "$WTA" --run "$RUN" --root "$ROOT"; rc=$?
   [ $rc -eq 0 ] || { [ $rc -eq 2 ] && STATUS=2 || [ "$STATUS" = 2 ] || STATUS=1; return; }
   [ "$RS" = done ] || { echo "  gates hold but the lane says '$RS' — not merging; read $REP"; [ "$STATUS" = 2 ] || STATUS=1; return; }
   field "$LJ" owned_paths | "$PY" -c 'import json,sys; print("\n".join(json.load(sys.stdin)))' | while IFS= read -r p; do git -C "$WTA" add -- "$p" 2>/dev/null || true; done
@@ -147,14 +166,18 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   TID=$(field "$LJ" task_id); TRAILER=""; [ -n "$TID" ] && TRAILER="Task-Id: $TID"
   git -C "$WTA" commit --quiet -m "lane($ID): $(field "$LJ" objective | head -c 60)" -m "$(field "$REP" summary | head -c 600)" \
     -m "Verified: positive=$(field "$LJ" positive_cmd) ; negative=$(field "$LJ" negative_control_cmd) (named: $(field "$LJ" negative_expect))" ${TRAILER:+-m "$TRAILER"}
-  [ -z "$(git status --porcelain)" ] || { echo "  base tree dirty before merge — halting"; STATUS=1; return; }
+  if ! "$PY" "$AD" base-audit --root "$ROOT" --before "$BASE_SNAP" --lanes "$SPEC"; then
+    echo "  BASE TREE LEAKAGE DETECTED before merge — halting" >&2
+    [ "$STATUS" = 2 ] || STATUS=1
+    return
+  fi
   if "$PY" "$AD" git --wt "$ROOT" -- merge --no-ff --no-edit "$BR" >/dev/null; then echo "  merged $BR"
     [ "$KEEP" = 1 ] || { git worktree remove --force "$WT"; git branch -D "$BR" >/dev/null; }
     if [ -n "$TID" ] && [ -f "$ROOT/.devloop/tasks.jsonl" ]; then
       "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks set "$TID" done --evidence "lane $ID merged $(git rev-parse --short HEAD); see $RUN/report-$ID.json" --root "$ROOT" >/dev/null \
         && "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks render --root "$ROOT" >/dev/null && git add -- .devloop/tasks.jsonl TASKS.md && git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" || echo "  (task ledger update skipped)"
     fi
-  else git merge --abort; echo "  MERGE CONFLICT — aborted; worktree and branch kept for review"; [ "$STATUS" = 2 ] || STATUS=1; fi
+  else git merge --abort 2>/dev/null || true; echo "  MERGE CONFLICT — aborted; worktree and branch kept for review" >&2; [ "$STATUS" = 2 ] || STATUS=1; fi
 }
 
 # Waves: every lane whose depends_on are all merged runs in parallel; then gate+merge; next wave.

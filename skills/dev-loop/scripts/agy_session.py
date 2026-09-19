@@ -143,7 +143,7 @@ def stray_base_edits(before: dict[str, str], now: dict[str, str] | None,
         return []
     return sorted(path for path, st in now.items()
                   if before.get(path) != st
-                  and not any(path == a or path.startswith(a) for a in allowed))
+                  and not any(path == a or (a.endswith("/") and path.startswith(a)) for a in allowed))
 
 
 def worktree_root_of(lanes_path: Path) -> str:
@@ -264,22 +264,16 @@ def main() -> int:
                 strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)
             fresh = [x for x in strays if x not in stray_warned]
             outstanding = missing_reports(native_dir, lane_ids, jobs_dir)
-            if fresh and turns_sent <= a.poll_max:
-                # Say it once per path, in the turn after it appears, while the session is
-                # still alive and the manager can still undo it.
+            if fresh:
                 stray_warned.update(fresh)
-                print("agy_session: BASE TREE EDITED outside any lane worktree: %s"
+                print("agy_session: BASE TREE EDITED outside any lane worktree: %s -- failing closed"
                       % ", ".join(fresh), file=sys.stderr)
-                proc.stdin.write(ndjson_user(
-                    "STOP. You changed the BASE TREE, not a lane worktree: "
-                    + ", ".join(fresh) + ". Lane work belongs in the lane's own worktree or "
-                    "branch workspace; the base tree is yours only for .devloop/, AGENTS.md "
-                    "and TASKS.md. Revert those paths now (git checkout -- <path>, or delete "
-                    "the file if you created it), then continue the run in the correct "
-                    "workspace. Do not merge anything until the base tree is clean again."))
-                proc.stdin.flush()
-                turns_sent += 1
-                continue
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except Exception:
+                    proc.kill()
+                return 6
             if not outstanding or turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
