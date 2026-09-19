@@ -145,9 +145,17 @@ which is why the skill stays universal: the host changes, the lane contract does
   `subagent` step is emitted carrying each child's own `conversation_id`. The paragraph above is
   retained because the fallback it describes is sound, but its premise is not: native AGY fan-out
   IS reachable headlessly, so `agy_host.sh`'s rule forbidding it under `--headless` is
-  over-restrictive. The earlier live failure was real but its cause is **unexplained**; the
-  leading unproven candidate is that the settings file was voided at the time by an invalid
-  `toolPermission` value, which silently discards `permissions.allow` wholesale.
+  over-restrictive **as an availability claim**. Its *lifetime* rationale still holds: every
+  subagent in those probes finished INSIDE the dispatching turn, and a single-shot `-p`
+  process still exits when the turn ends, taking an unfinished subagent with it. The leading
+  suspect for the original failure -- a settings file voided by an invalid `toolPermission`
+  -- was tested and **eliminated**: with the file voided and `permission_mode` degraded to
+  `request-review`, `invoke_subagent` still succeeded. The cause remains unexplained.
+  **Resolution:** the rule is now keyed on process lifetime, not on being unattended.
+  `agy_host.sh --session` holds a stream-json session open across turns
+  (`scripts/agy_session.py`), so native lanes survive their dispatch and the host polls
+  until each writes `.devloop/native/report-<id>.json`; `--headless` keeps the
+  orchestrator-only rule. Controls: `tests/test_agy_dispatch_rule.py`.
   **Separately, `-p` single-shot is not the only headless mode.**
   `agy --input-format stream-json --output-format stream-json --print-timeout 0 -p=''` holds a
   **stateful multi-turn session** on stdin: one NDJSON `{"event":"user","message":{...}}` per line,

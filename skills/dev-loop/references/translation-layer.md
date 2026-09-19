@@ -441,10 +441,16 @@ New, raised by this design:
    container restart. `scripts/env/agy-keyring.sh` plus sourcing `~/.config/agy-cloud/keyring.env`
    restored it, and P1's transport was then verified end to end (§5.1a). Standing requirement,
    not a question: `loopd` must do this itself at startup.
-5. **Unexplained, carried as a known-unknown:** why `invoke_subagent` failed when observed live
-   earlier, given three probes now show it working. Leading unproven candidate is a voided settings
-   file. Until it is explained, `agy_host.sh`'s dispatch rule should be *relaxed with a control*
-   rather than simply deleted — a constraint whose cause you cannot name may recur.
+5. **Partly settled.** The leading candidate for the original `invoke_subagent` failure — a
+   settings file voided by an invalid `toolPermission` — was tested and **eliminated**: with the
+   file voided and `permission_mode` degraded to `request-review`, `invoke_subagent` still
+   succeeded. It is ungated by construction (not one of the five permission actions), so no
+   permission state explains the failure. **The cause is still unknown**, but the *rule* no longer
+   depends on knowing it: the constraint was re-keyed onto process lifetime, which the original
+   comment had argued correctly all along and which the probes never refuted — every subagent they
+   invoked finished inside its dispatching turn. `--session` (held stream-json, `agy_session.py`)
+   permits native lanes because the process outlives a turn; `--headless` still does not.
+   Controls: `tests/test_agy_dispatch_rule.py`.
 6. **Build vs adopt on transport** — this design takes ACP's lesson but not its dependency. Want
    `jiridanek/agy-acp` evaluated as an alternative lane transport at P6, or is the NDJSON channel
    sufficient?

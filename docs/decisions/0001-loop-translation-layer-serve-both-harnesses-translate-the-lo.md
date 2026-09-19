@@ -102,10 +102,14 @@ session channel is not merely documented, it was exercised here across two state
   SUCCESS with `denied_actions` absent: inside a held session; in single-shot `agy -p=` (the
   negative control, which *refuted* the hypothesis that the held session was the enabling factor);
   and single-shot with no prior `define_subagent` (refuting "define before invoke" too). A
-  `subagent` step carries each child's own `conversation_id`. Consequence: AGY native fan-out is
-  reachable in automation, so the native topology AGENTS.md prescribes is available to a headless
-  manager, and `loopd` treats a child `conversation_id` as a first-class lane handle. **The cause
-  of the originally-observed failure is unexplained and is recorded as an open item, not asserted.**
+  `subagent` step carries each child's own `conversation_id`. A fourth probe **eliminated** the
+  leading suspect for the original failure: with `settings.json` deliberately voided by an invalid
+  `toolPermission` and `permission_mode` degraded to `request-review`, `invoke_subagent` still
+  succeeded — it is ungated by construction, being none of the five permission actions. The cause
+  remains unknown, but the constraint no longer rests on it: it was re-keyed onto **process
+  lifetime**, which the probes never refuted. Consequence: `loopd` treats a child
+  `conversation_id` as a first-class lane handle, and native fan-out is reachable in automation
+  through a held session but not through single-shot print mode.
 - **Full tool-call and subagent visibility in the stream:** `tool` steps carry `tool_name` and
   `tool_info{parameters,output}`; `subagent` steps carry `subagent_info.subagents[]`. Measured
   `step_type` set: `user_input`, `agent_response`, `tool`, `subagent`, `system_message`. The layer
