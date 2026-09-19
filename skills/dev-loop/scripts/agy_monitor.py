@@ -41,6 +41,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from pathlib import Path as pathlib_Path
 
 TOOL_STEPS = ("tool", "subagent")
 
@@ -259,6 +260,84 @@ lines a json.loads monitor drops silently.</p><ul>{unp}</ul></details>
 <div class=log>{body or '<div class="row"><span class=t muted>no events</span></div>'}</div>
 </body></html>"""
 
+
+def task_records(rep: dict, lanes_path: Path | None, stream: Path) -> list[dict]:
+    """One task record per lane, shaped for a host to mirror into its NATIVE task list.
+
+    The point is not another bespoke UI. A run already has a native place to live in whatever
+    client is driving it -- Claude Code's task list, an issue tracker, a board -- and what was
+    missing was the transcript travelling WITH the task instead of sitting in a scratch
+    directory nothing opens. Each record therefore carries the stream path, the rendered page,
+    the tmux session, and the monitor's derived verdict, so the task itself is openable.
+
+    Status maps from the RUN's evidence, never from the harness's claim:
+      in_progress -> in_progress ; working -> completed ; anything else -> in_progress with
+      the verdict named, because refused/vacuous/no_result are states a human must look at and
+      silently completing them is the failure this whole skill is about.
+    """
+    verdict = rep.get("verdict")
+    marker = stream.parent / "session.status"
+    run_started = 0.0
+    try:
+        run_started = float(json.loads(marker.read_text()).get("started_at") or 0)
+    except Exception:
+        run_started = 0.0
+    if not run_started and stream.is_file():
+        run_started = stream.stat().st_mtime - 6 * 3600   # unknown start: accept a wide window
+    lanes = []
+    if lanes_path and lanes_path.is_file():
+        try:
+            lanes = json.loads(lanes_path.read_text()).get("lanes", [])
+        except Exception:
+            lanes = []
+    if not lanes:
+        lanes = [{"id": "run", "objective": "AGY-managed run (no lane plan supplied)"}]
+
+    out = []
+    for l in lanes:
+        lid = l.get("id")
+        # A lane's status comes from ITS OWN evidence, never from the run-level verdict. The
+        # first version mapped verdict "working" -> every lane completed, and a real run proved
+        # it wrong within minutes: one lane had delivered and merged while the other had not
+        # started, and both were reported completed. That is the over-claim this whole skill
+        # exists to catch, committed by the monitor meant to catch it.
+        # Scoped to THIS run: a report file left by a PREVIOUS run makes a lane that has not
+        # started look delivered. Caught by comparing the records against a real re-run where
+        # one lane's report was 11 minutes stale. started_at comes from the run marker; with no
+        # marker we fall back to the stream's own mtime, which is never older than the run.
+        # A REPORT IS A CLAIM, NOT AN ARTIFACT. Measured on a real re-run: the manager wrote
+        # report-t1001-gate05.json at 03:11 for a lane whose owned deliverable was last touched
+        # at 02:59, before this run even started. Trusting the report marked a lane that did
+        # nothing as completed -- SKILL.md 11, never trust a lane's own claim over the tree.
+        # Delivery requires the lane's OWNED PATH to have changed during THIS run.
+        report = stream.parent / f"report-{lid}.json"
+        has_report = report.is_file() and report.stat().st_mtime >= run_started
+        owned = [pathlib_Path(stream.parent.parent.parent / o) for o in (l.get("owned_paths") or [])]
+        touched = [o for o in owned if o.is_file() and o.stat().st_mtime >= run_started]
+        delivered = bool(has_report and touched)
+        out.append({
+            "lane": lid,
+            "subject": f"{lid}: {(l.get('objective') or '')[:80]}",
+            "status": "completed" if delivered else "in_progress",
+            "evidence": ("report + owned path changed this run" if delivered
+                         else "REPORT WITHOUT WORK: the lane reported but its owned path is "
+                              "unchanged since this run started" if has_report and not touched
+                         else "no per-lane report from this run yet"),
+            "owned_paths_touched": [str(o) for o in touched],
+            "lane_report": str(report) if delivered else None,
+            "verdict": verdict,
+            "harness_claimed_status": rep.get("harness_claimed_status"),
+            "transcript_stream": str(stream),
+            "transcript_html": str(stream.parent / "transcript.html"),
+            "monitor_report": str(stream.parent / "monitor-report.json"),
+            "tool_calls": rep.get("tool_calls"),
+            "subagents": rep.get("subagents"),
+            "denials": rep.get("denials"),
+            "needs_attention": verdict not in ("working", "in_progress") or not delivered,
+        })
+    return out
+
+
 def read_all(path: Path, state: State, echo: bool, rows: list | None = None) -> None:
     for line in path.read_text(errors="ignore").splitlines():
         before = len(state.tool_calls), state.results, len(state.unparsed)
@@ -282,6 +361,9 @@ def main() -> int:
     ap.add_argument("--report-out", help="also write the JSON status here (for a monitor agent)")
     ap.add_argument("--html", help="also render a self-contained transcript page here "
                                    "(the UI element a client shows for the task)")
+    ap.add_argument("--tasks-out", help="emit per-lane task records for a host to mirror "
+                                        "into its NATIVE task list, transcript paths included")
+    ap.add_argument("--lanes", help="lane plan, so task records carry one entry per lane")
     ap.add_argument("--poll-s", type=float, default=1.0)
     ap.add_argument("--stale-after-s", type=float, default=90.0,
                     help="--once treats a stream untouched for this long as finished")
@@ -335,6 +417,9 @@ def main() -> int:
         if a.html:
             Path(a.html).parent.mkdir(parents=True, exist_ok=True)
             Path(a.html).write_text(render_html(state, rep, rows))
+        if a.tasks_out:
+            recs = task_records(rep, Path(a.lanes) if a.lanes else None, path)
+            Path(a.tasks_out).write_text(json.dumps(recs, indent=2) + "\n")
         return 2 if rep["verdict"] in ("vacuous", "no_result") else 0   # in_progress is NOT a failure
 
     # --follow: a pane view. Tolerate the file not existing yet; the session may still be starting.

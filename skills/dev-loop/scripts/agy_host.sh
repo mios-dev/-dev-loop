@@ -184,7 +184,7 @@ case "$MODE" in
         # A run marker, so a monitor can tell "quiet because it is thinking" from "finished".
         # Staleness alone calls a manager inside a long run_command dead (measured: 128s silent).
         STATUS_FILE=$(dirname "$EVENTS_FILE")/session.status
-        printf '{"state":"running","pid":%s,"events":"%s"}\n' "$$" "$EVENTS_FILE" > "$STATUS_FILE"
+        printf '{"state":"running","pid":%s,"events":"%s","started_at":%s}\n' "$$" "$EVENTS_FILE" "$(date +%s)" > "$STATUS_FILE"
         trap 'printf "{\"state\":\"finished\"}\n" > "$STATUS_FILE"' EXIT INT TERM
         if [ "$USE_TMUX" = 1 ] && command -v tmux >/dev/null 2>&1; then
             # A manager with no panes is a manager you cannot watch. devloop.sh has had a tmux
@@ -219,8 +219,11 @@ case "$MODE" in
         # the pane and the JSON report use, so the three cannot disagree.
         TRANSCRIPT=$(dirname "$EVENTS_FILE")/transcript.html
         REPORT_JSON=$(dirname "$EVENTS_FILE")/monitor-report.json
+        TASKS_JSON=$(dirname "$EVENTS_FILE")/tasks.json
         python3 "$SKILL_DIR/scripts/agy_monitor.py" "$EVENTS_FILE" --once \
-            --report-out "$REPORT_JSON" --html "$TRANSCRIPT" >/dev/null 2>&1
+            --report-out "$REPORT_JSON" --html "$TRANSCRIPT" \
+            --tasks-out "$TASKS_JSON" --lanes "$LANES" >/dev/null 2>&1
+        [ -s "$TASKS_JSON" ] && echo "agy_host: task records $TASKS_JSON (mirror into the host's native task list)"
         [ -s "$TRANSCRIPT" ] && echo "agy_host: transcript $TRANSCRIPT"
         [ -s "$REPORT_JSON" ] && echo "agy_host: monitor report $REPORT_JSON"
 
