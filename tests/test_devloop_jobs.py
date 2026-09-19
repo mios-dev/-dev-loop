@@ -316,8 +316,12 @@ def test_the_wave_waits_on_one_deadline_not_n() -> None:
     src = DEVLOOP.read_text()
     check("the per-lane wait loop is gone", "for id in $WAVE; do wait_lane" not in src)
     check("the wave is waited on as a set", "wait_wave $WAVE" in src)
+    # The property is the trailing `|| :` on the wave wait, not its interval: matching the
+    # literal '--interval 20 || :' went red when the interval became configurable, with the
+    # swallow itself untouched.
+    wave_wait = [l for l in src.splitlines() if '"$JOB_PY" wait ' in l]
     check("the wait's non-zero exit is swallowed deliberately",
-          '--interval 20 || :' in src,
+          len(wave_wait) == 1 and wave_wait[0].rstrip().endswith("|| :"),
           "a non-zero wait is this code's normal reporting channel, not an error")
     root = Path(tempfile.mkdtemp(prefix="jobs-deadline-"))
     for i in range(3):
