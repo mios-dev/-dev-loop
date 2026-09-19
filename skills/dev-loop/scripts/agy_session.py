@@ -206,4 +206,16 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    # Record the real exit status beside the stream. Under --tmux this process is a pane and
+    # its exit code is not observable by the launching shell, which previously fabricated one.
+    try:
+        import argparse as _a
+        _p = _a.ArgumentParser(add_help=False)
+        _p.add_argument("--events-out")
+        _known, _ = _p.parse_known_args()
+        if _known.events_out:
+            Path(_known.events_out).parent.joinpath("session.rc").write_text(f"{rc}\n")
+    except Exception:
+        pass
+    sys.exit(rc)

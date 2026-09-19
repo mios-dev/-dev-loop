@@ -165,10 +165,15 @@ Scripts available to you, with exact invocations (SKILL_DIR=$SKILL_DIR):
 - Never 'rm'. Never clean up. Leave every artifact in place so the run can be audited after it
   ends.
 - run_command sends anything still running after WaitMsBeforeAsync milliseconds TO THE
-  BACKGROUND, and background tasks DIE when your turn ends. For devloop.sh and any command that
-  can take minutes you MUST set WaitMsBeforeAsync to 1800000 so it finishes in the foreground.
-  Never accept an async handoff for devloop.sh. A lane worker that ignored this announced three
-  times that it would wait for a background command, ended its turn, and measured nothing.
+  BACKGROUND, and background tasks DIE when your turn ends. MEASURED 2026-09-19: the runtime
+  CLAMPS that parameter to about 10000 ms, so you cannot buy more than ~10s of foreground by
+  raising it -- a large value is silently ignored. Setting it high is therefore NOT a way to
+  run a long command safely. For anything that can exceed ~10s, do not rely on the parameter:
+  spawn it as a detached JOB and wait on its receipt, which survives your turn ending:
+    python3 $SKILL_DIR/scripts/job.py spawn --root $RUN_ROOT/.devloop/jobs --id <id> -- <cmd>
+    python3 $SKILL_DIR/scripts/job.py wait  --root $RUN_ROOT/.devloop/jobs --id <id>
+  A lane worker that trusted the parameter announced three times that it would wait for a
+  background command, ended its turn, and measured nothing.
 - Work in STRICT SEQUENCE, no concurrency: dispatch, let it finish, then gates, then merges,
   then the report. Never report on a lane whose report file you have not read.
 
@@ -287,8 +292,17 @@ case "$MODE" in
                 [ -s "$ENV_FILE" ] && break
                 sleep 5
             done
-            RC=0
-            [ -s "$ENV_FILE" ] || RC=3
+            # agy_session.py writes its exit code here before returning, because under tmux
+            # its real status is otherwise unrecoverable: this branch used to set RC=0 and
+            # downgrade only on a missing envelope, which silently turned exit 5 (poll budget
+            # spent, lanes still unreported) into success -- the envelope is written BEFORE
+            # that return. Measured 2026-09-19.
+            RC_FILE=$(dirname "$EVENTS_FILE")/session.rc
+            if [ -s "$RC_FILE" ]; then
+                RC=$(cat "$RC_FILE")
+            else
+                RC=3   # no recorded status at all: the session did not reach its own exit
+            fi
         else
             [ "$USE_TMUX" = 1 ] && echo "agy_host: tmux not found; running without panes" >&2
             timeout "${AGY_HOST_TIMEOUT:-4h}" python3 "$SKILL_DIR/scripts/agy_session.py" "$@"

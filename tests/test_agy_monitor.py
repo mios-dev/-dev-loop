@@ -278,12 +278,36 @@ def test_stall_detector_ignores_prompt_echoes() -> None:
           "i have launched" in (stall_signals([genuine])[0] if stall_signals([genuine]) else ""))
 
 
+def test_stall_reaches_the_verdict() -> None:
+    """stall_signals() existed, was tested, and had ZERO call sites outside its own test.
+    Detection that is never invoked is not detection. These assert the whole path: a worker
+    announcing a background wait must change the verdict, appear in the report, and set a
+    non-zero exit so a caller can gate on it."""
+    print("a stall reaches the verdict (not just the helper):")
+    stall = json.dumps({"event": "step_update", "step_update": {
+        "step_type": "agent_response", "state": "DONE",
+        "text_delta": "I have launched the drift check and will wait for the background "
+                      "command to finish execution."}})
+    rc, r = run_once([init_evt(), stall, result_evt()])
+    check("verdict is stalled", r.get("verdict") == "stalled", str(r.get("verdict")))
+    check("exit 2 so a caller can gate", rc == 2, f"rc={rc}")
+    check("the stall text is in the report", len(r.get("stalls", [])) == 1)
+    check("it outranks the harness's SUCCESS",
+          r.get("harness_claimed_status") == "SUCCESS" and r.get("verdict") != "working")
+
+    # NEGATIVE: a clean run must not be called stalled, or the signal is useless noise.
+    rc2, r2 = run_once([init_evt(), tool_evt("view_file"), result_evt()])
+    check("a clean run is NOT stalled", r2.get("verdict") == "working" and rc2 == 0,
+          f"verdict={r2.get('verdict')} rc={rc2}")
+
+
 def main() -> int:
     for t in (test_healthy_run, test_no_result_event, test_in_progress_is_not_a_failure,
               test_stalled_run_is_not_in_progress, test_vacuous_success,
               test_denials_outrank_success, test_absent_stream_is_not_a_clean_run,
               test_report_out_matches_stdout, test_follow_renders_and_stops_when_idle,
-              test_transcript_ui_element, test_stall_detector_ignores_prompt_echoes):
+              test_transcript_ui_element, test_stall_detector_ignores_prompt_echoes,
+              test_stall_reaches_the_verdict):
         t()
     print()
     if FAILURES:

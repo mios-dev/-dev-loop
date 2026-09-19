@@ -45,6 +45,10 @@ from pathlib import Path as pathlib_Path
 
 TOOL_STEPS = ("tool", "subagent")
 
+# Worker self-reports of backgrounding. Kept next to the parser that uses them.
+STALL_PHRASES = ("wait for the background command", "will wait for the background",
+                 "i have launched", "and will wait")
+
 
 class State:
     """Everything the monitor knows, derived from the stream alone."""
@@ -65,6 +69,7 @@ class State:
         self.results: int = 0
         self.unparsed: list[str] = []
         self.last_text: str = ""
+        self.stalls: list[str] = []
 
     def feed(self, raw: str) -> str | None:
         """Consume one stream line. Returns a human line to print, or None."""
@@ -91,6 +96,14 @@ class State:
 
         if kind == "step_update":
             u = evt.get("step_update", {})
+            # A worker announcing it will wait for a background command is the turn-boundary
+            # failure itself. stall_signals() existed and was never called -- detection that is
+            # never invoked is not detection (found by audit 2026-09-19).
+            if u.get("step_type") == "agent_response":
+                txt = str(u.get("text_delta") or "").lower()
+                if any(ph in txt for ph in STALL_PHRASES):
+                    self.stalls.append(txt.strip()[:160])
+                    return f"  ! STALL: {txt.strip()[:120]}"
             if u.get("state") != "DONE" or u.get("step_type") not in TOOL_STEPS:
                 return None
             name = u.get("tool_name") or u.get("step_type")
@@ -129,6 +142,8 @@ class State:
             return "errored"
         if self.denials:
             return "refused"
+        if self.stalls:
+            return "stalled"    # the agent announced a background wait: work died with the turn
         if self.results == 0:
             # A live run has not failed, it has not finished. Conflating "no result yet" with
             # "produced no result" makes the monitor cry wolf on every healthy run it watches --
@@ -158,6 +173,7 @@ class State:
             "subagents": [{"conversation_id": k, "type": v} for k, v in self.subagents.items()],
             "denials": self.denials,
             "error": self.error,
+            "stalls": self.stalls,
             "unparsed_lines": len(self.unparsed),
             "unparsed_sample": self.unparsed[:3],
             "usage": self.usage,
@@ -165,10 +181,6 @@ class State:
         }
 
 
-
-
-STALL_PHRASES = ("wait for the background command", "will wait for the background",
-                 "i have launched", "and will wait")
 
 
 def stall_signals(lines) -> list[str]:
@@ -471,7 +483,7 @@ def main() -> int:
         if a.tasks_out:
             recs = task_records(rep, Path(a.lanes) if a.lanes else None, path)
             Path(a.tasks_out).write_text(json.dumps(recs, indent=2) + "\n")
-        return 2 if rep["verdict"] in ("vacuous", "no_result") else 0   # in_progress is NOT a failure
+        return 2 if rep["verdict"] in ("vacuous", "no_result", "stalled") else 0   # in_progress is NOT a failure
 
     # --follow: a pane view. Tolerate the file not existing yet; the session may still be starting.
     print(f"agy_monitor: following {path}", flush=True)
