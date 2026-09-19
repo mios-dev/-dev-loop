@@ -10,6 +10,7 @@
 set -eu
 export CI=1 GIT_TERMINAL_PROMPT=0 GIT_PAGER=cat PAGER=cat NO_COLOR=1
 SKILL_DIR=$(cd "$(dirname "$0")/.." && pwd); AD="$SKILL_DIR/scripts/adapters.py"; PY=${PYTHON:-python3}
+JOB_PY="$SKILL_DIR/scripts/job.py"   # turn-durable work: setsid + a shell-written receipt
 command -v "$PY" >/dev/null 2>&1 || { echo "python3 required" >&2; exit 64; }
 
 if [ "${1:-}" = "--check" ]; then
@@ -25,6 +26,8 @@ while [ $# -gt 0 ]; do case "$1" in
 ROOT=$(git rev-parse --show-toplevel) || { echo "not in a git repo" >&2; exit 64; }
 cd "$ROOT"
 RUN="$ROOT/.devloop/run-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$RUN"
+# Job state lives under the run dir, so it is excluded with it and audited with it.
+JOBS="$RUN/jobs"; mkdir -p "$JOBS"
 SPEC="$RUN/lanes.normalized.json"
 "$PY" "$AD" validate "$LANES" --out "$SPEC" || exit 64
 field() { "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d
@@ -48,14 +51,56 @@ launch() { # $1=id  — provision worktree + start worker per layout
   else "$PY" "$AD" git --wt "$ROOT" -- worktree add --quiet "$WT" -b "$BR" "$BASE"; fi
   CMD="$PY '$AD' run --lane '$LJ' --wt '$WTA' --report '$RUN/report-$ID.json' --log '$RUN/worker-$ID.log' --skill '$SKILL_DIR/SKILL.md'; echo \$? > '$RUN/worker-$ID.exit'"
   case "$LAYOUT" in
-    headless) sh -c "$CMD" || true;;
+    headless)
+      # SEQUENTIAL by design: one lane at a time, in the foreground. Kept for the case where
+      # you want deterministic ordering or a single lane; everything else should fan out.
+      sh -c "$CMD" || true;;
     tmux_grid)
       if tmux has-session -t "$SESSION" 2>/dev/null; then tmux split-window -t "$SESSION:0" -c "$WTA" "$CMD; exec sh"; tmux select-layout -t "$SESSION:0" tiled
       else tmux new-session -d -s "$SESSION" -c "$WTA" "$CMD; exec sh"; fi;;
-    *) ( cd "$WTA" && sh -c "$CMD" ) >/dev/null 2>&1 & ;;
+    *)
+      # DETACHED lanes are spawned as JOBS, not as `( ... ) &`. A plain background child is
+      # still a child: it dies when the shell's session ends, which is precisely the turn
+      # boundary that has killed lane trees here before. job.py spawns under setsid with stdin
+      # closed, so the lane is an orphan by construction and its completion is a receipt the
+      # SHELL writes, never a file the model is asked to create.
+      "$PY" "$JOB_PY" spawn --root "$JOBS" --id "$ID" --cwd "$WTA" \
+        --budget "$(field "$LJ" worker.timeout_s || echo 1800)" \
+        --label "lane $ID" -- sh -c "$CMD" >/dev/null || true;;
   esac
 }
-wait_lane() { ID=$1; while [ ! -f "$RUN/worker-$ID.exit" ]; do sleep 20; echo "  … waiting on $ID ($(date +%T))"; done; echo "  $ID worker exit=$(cat "$RUN/worker-$ID.exit")"; }
+
+# Block until the lane reaches a terminal state. The old loop was `while [ ! -f .exit ]; do
+# sleep 20; done` -- no budget and no liveness check, so a lane that died hard hung the
+# orchestrator forever waiting for a receipt that would never come. job.py distinguishes
+# running from lost; the .exit fallback covers tmux and headless lanes, which are children of
+# a shell that is still alive by construction.
+wait_lane() {
+  ID=$1
+  if [ -d "$JOBS/$ID" ]; then
+    "$PY" "$JOB_PY" wait --root "$JOBS" --id "$ID" --budget "${LANE_WAIT_BUDGET:-5400}" --interval 20
+    ST=$("$PY" "$JOB_PY" status --root "$JOBS" --id "$ID" --json 2>/dev/null | sed -n 's/.*"state": *"\([a-z]*\)".*/\1/p' | head -1)
+    case "$ST" in
+      lost|forged)
+        echo "  $ID job $ST -- no receipt; treating as failed (worker died without reporting)"
+        echo "125" > "$RUN/worker-$ID.exit";;
+      *) [ -f "$JOBS/$ID/exit" ] && cp "$JOBS/$ID/exit" "$RUN/worker-$ID.exit";;
+    esac
+    [ -f "$JOBS/$ID/out" ] && cat "$JOBS/$ID/out" >> "$RUN/worker-$ID.log" 2>/dev/null
+    [ -f "$JOBS/$ID/err" ] && cat "$JOBS/$ID/err" >> "$RUN/worker-$ID.log" 2>/dev/null
+  else
+    WAITED=0
+    while [ ! -f "$RUN/worker-$ID.exit" ]; do
+      sleep 20; WAITED=$((WAITED+20))
+      echo "  … waiting on $ID ($(date +%T))"
+      if [ "$WAITED" -ge "${LANE_WAIT_BUDGET:-5400}" ]; then
+        echo "  $ID: wait budget spent with no receipt -- treating as failed"
+        echo "124" > "$RUN/worker-$ID.exit"; break
+      fi
+    done
+  fi
+  echo "  $ID worker exit=$(cat "$RUN/worker-$ID.exit" 2>/dev/null || echo '?')"
+}
 
 gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
   ID=$1; LJ="$RUN/lane-$ID.json"; WT=$(field "$LJ" worktree); [ -n "$WT" ] || WT="$WT_ROOT/$ID"; WTA="$ROOT/$WT"; BR="lane/$ID"; REP="$RUN/report-$ID.json"
@@ -85,7 +130,19 @@ gate_merge() { # $1=id — audit, gate, commit, merge. Sets STATUS.
 
 # Waves: every lane whose depends_on are all merged runs in parallel; then gate+merge; next wave.
 "$PY" "$AD" waves "$SPEC" | while IFS= read -r WAVE; do
-  for id in $WAVE; do launch "$id"; done
+  # Throttle the fan-out. Every agy lane shares ONE cached credential in the keyring, and the
+  # references note that parallel lanes without a live keyring each re-ask for auth and hang
+  # their budget away -- so an unbounded wave is not free. The cap is provisional: no
+  # measurement here establishes the right number, so it is conservative and overridable
+  # rather than tuned. MAX_CONCURRENT=0 disables the throttle.
+  for id in $WAVE; do
+    if [ "${MAX_CONCURRENT:-4}" -gt 0 ]; then
+      while [ "$("$PY" "$JOB_PY" status --root "$JOBS" 2>/dev/null | grep -c ' running ')" -ge "${MAX_CONCURRENT:-4}" ]; do
+        sleep 5
+      done
+    fi
+    launch "$id"
+  done
   [ "$DRY" = 1 ] && continue
   for id in $WAVE; do wait_lane "$id"; done
   for id in $WAVE; do gate_merge "$id"; done

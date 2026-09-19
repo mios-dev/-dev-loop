@@ -29,6 +29,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -178,6 +179,50 @@ def test_no_result_event_is_an_error() -> None:
               "writing an envelope here would hand the caller a success-shaped object for a run that did nothing")
 
 
+def test_poll_predicate_prefers_the_shell_receipt() -> None:
+    """The predicate, not the loop. missing_reports() was is_file() over a report the poll
+    prompt ASKS THE POLLED AGENT TO CREATE — the measured thing wrote the measurement. With a
+    jobs root present the shell's receipt decides instead, and an agent-written report file no
+    longer ends the wait for a lane that is still running."""
+    print("poll predicate:")
+    sys.path.insert(0, str(SESSION.parent))
+    import agy_session as S
+    import job
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        native = tmp / ".devloop" / "native"; native.mkdir(parents=True)
+        jobs = tmp / "jobs"; jobs.mkdir()
+
+        # A lane that is genuinely still running, with a report file an agent could have written.
+        job.spawn(jobs, "lane1", ["sh", "-c", "sleep 20"], Path("."), budget_s=60)
+        (native / "report-lane1.json").write_text('{"devloop_report": {"status": "done"}}')
+
+        end = time.time() + 15
+        while job.status(jobs, "lane1")["pid"] is None and time.time() < end:
+            time.sleep(0.2)
+
+        without = S.missing_reports(native, ["lane1"])
+        withjobs = S.missing_reports(native, ["lane1"], jobs)
+        check("the OLD predicate is satisfied by the agent's own file", without == [],
+              f"got {without} — this is the self-certifying behaviour being replaced")
+        check("the receipt-backed predicate still reports it outstanding", withjobs == ["lane1"],
+              f"got {withjobs} — a running lane must not be ended by a file the agent wrote")
+
+        job.kill(jobs, "lane1", "KILL")
+        end = time.time() + 15
+        while job.status(jobs, "lane1")["state"] == "running" and time.time() < end:
+            time.sleep(0.3)
+        check("a lost lane is terminal, so the wait ends rather than hanging",
+              S.missing_reports(native, ["lane1"], jobs) == [],
+              "lost is an outcome, not a reason to keep polling forever")
+
+        # A lane with no job at all falls back to the report file, and that is stated, not hidden.
+        (native / "report-native1.json").write_text("{}")
+        check("a lane with no job falls back to the report file",
+              S.missing_reports(native, ["native1"], jobs) == [])
+
+
 def main() -> int:
     if not SESSION.is_file():
         print(f"FAIL: {SESSION} missing")
@@ -185,7 +230,8 @@ def main() -> int:
     for t in (test_poll_fires_when_a_lane_is_unfinished,
               test_no_poll_when_lanes_already_reported,
               test_poll_budget_is_enforced_and_failure_is_loud,
-              test_no_result_event_is_an_error):
+              test_no_result_event_is_an_error,
+              test_poll_predicate_prefers_the_shell_receipt):
         t()
     print()
     if FAILURES:

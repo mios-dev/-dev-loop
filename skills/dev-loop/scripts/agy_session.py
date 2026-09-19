@@ -53,6 +53,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # for job.py
+
 USER_EVENT = "user"
 
 
@@ -62,9 +64,35 @@ def ndjson_user(text: str) -> str:
     return json.dumps({"event": USER_EVENT, "message": {"role": "user", "content": text}}) + "\n"
 
 
-def missing_reports(native_dir: Path, lane_ids: list[str]) -> list[str]:
-    """Lane ids with no report file yet. Empty lane_ids means nothing to wait for."""
-    return [lid for lid in lane_ids if not (native_dir / f"report-{lid}.json").is_file()]
+def missing_reports(native_dir: Path, lane_ids: list[str], jobs_dir: Path | None = None) -> list[str]:
+    """Lane ids that have not finished. Empty lane_ids means nothing to wait for.
+
+    THE PREDICATE MATTERS MORE THAN THE LOOP. This was `is_file()` over
+    report-<id>.json -- a file the poll prompt explicitly asks the polled agent to create
+    (see the prompt below). The thing being measured wrote the measurement, so an agent that
+    wrote the file and did nothing else ended the wait. That is a self-certifying predicate
+    (SKILL.md 7) sitting inside the one mitigation that was actually enforced in code.
+
+    When a jobs directory is present the SHELL's receipt decides: a lane is finished only when
+    job.py reports it terminal (done/lost/forged), which the agent cannot fabricate because the
+    wrapper writes done.json before the receipt and status() cross-checks the pair. The report
+    file remains the FALLBACK for native subagent lanes, which have no job of their own -- and
+    that fallback is still agent-writable, which is stated here rather than hidden.
+    """
+    out = []
+    for lid in lane_ids:
+        if jobs_dir is not None and (jobs_dir / lid).is_dir():
+            try:
+                import job as _job
+                if _job.status(jobs_dir, lid)["state"] in ("done", "lost", "forged"):
+                    continue
+                out.append(lid)
+                continue
+            except Exception:
+                pass  # fall through to the report-file fallback
+        if not (native_dir / f"report-{lid}.json").is_file():
+            out.append(lid)
+    return out
 
 
 def antigravity_lane_ids(lanes_path: Path) -> list[str]:
@@ -84,6 +112,8 @@ def main() -> int:
     ap.add_argument("--prompt-file", required=True, help="file holding the manager prompt (turn 1)")
     ap.add_argument("--lanes", help="lanes.json; its antigravity lane ids are what we poll for")
     ap.add_argument("--run-root", default=".", help="repo root holding .devloop/native/")
+    ap.add_argument("--jobs-root", help="job.py root; when set, a lane is finished when its "
+                                        "SHELL-written receipt says so, not when a report file appears")
     ap.add_argument("--model")
     ap.add_argument("--effort")
     ap.add_argument("--poll-max", type=int, default=8, help="follow-up turns allowed after turn 1")
@@ -104,6 +134,7 @@ def main() -> int:
     argv.append("-p=")  # MUST be the attached-empty form; a bare -p eats the next flag
 
     native_dir = Path(a.run_root) / ".devloop" / "native"
+    jobs_dir = Path(a.jobs_root) if a.jobs_root else None
     lane_ids = antigravity_lane_ids(Path(a.lanes)) if a.lanes else []
 
     events = None
@@ -156,7 +187,7 @@ def main() -> int:
                 continue
 
             last_result = evt.get("result", {})
-            outstanding = missing_reports(native_dir, lane_ids)
+            outstanding = missing_reports(native_dir, lane_ids, jobs_dir)
             if not outstanding or turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
@@ -198,7 +229,7 @@ def main() -> int:
         Path(a.envelope_out).write_text(text + "\n")
     print(text)
 
-    still = missing_reports(native_dir, lane_ids)
+    still = missing_reports(native_dir, lane_ids, jobs_dir)
     if still:
         print(f"agy_session: poll budget spent; still unreported: {', '.join(still)}", file=sys.stderr)
         return 5
