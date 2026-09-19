@@ -28,8 +28,8 @@
         "timeout_s": 2400
       },
       "positive_cmd": "python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/ACP-P6.md",
-      "negative_control_cmd": "cp .devloop/findings/ACP-P6.md .nc-acp.bak; trap 'mv .nc-acp.bak .devloop/findings/ACP-P6.md' EXIT INT TERM; printf '\\nskills/dev-loop/scripts/PLANTED-ACP-NOPE.py:1\\n' >> .devloop/findings/ACP-P6.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/ACP-P6.md",
-      "negative_expect": "PLANTED-ACP-NOPE"
+      "negative_control_cmd": "cp .devloop/findings/ACP-P6.md .nc-acp.bak; trap 'mv .nc-acp.bak .devloop/findings/ACP-P6.md' EXIT INT TERM; printf '\\nskills/dev-loop/scripts/DEVLOOP-PLANTED-ACP-P6.py:1\\n' >> .devloop/findings/ACP-P6.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/ACP-P6.md",
+      "negative_expect": "DEVLOOP-PLANTED-ACP-P6"
     },
     {
       "id": "design-audit",
@@ -52,8 +52,8 @@
         "timeout_s": 2400
       },
       "positive_cmd": "python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/DESIGN-AUDIT.md",
-      "negative_control_cmd": "cp .devloop/findings/DESIGN-AUDIT.md .nc-audit.bak; trap 'mv .nc-audit.bak .devloop/findings/DESIGN-AUDIT.md' EXIT INT TERM; printf '\\ndocs/decisions/PLANTED-AUDIT-NOPE.md:1\\n' >> .devloop/findings/DESIGN-AUDIT.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/DESIGN-AUDIT.md",
-      "negative_expect": "PLANTED-AUDIT-NOPE"
+      "negative_control_cmd": "cp .devloop/findings/DESIGN-AUDIT.md .nc-audit.bak; trap 'mv .nc-audit.bak .devloop/findings/DESIGN-AUDIT.md' EXIT INT TERM; printf '\\ndocs/decisions/DEVLOOP-PLANTED-DESIGN-AUDIT.md:1\\n' >> .devloop/findings/DESIGN-AUDIT.md; python3 skills/dev-loop/scripts/check_finding.py . .devloop/findings/DESIGN-AUDIT.md",
+      "negative_expect": "DEVLOOP-PLANTED-DESIGN-AUDIT"
     }
   ]
 }

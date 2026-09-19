@@ -252,6 +252,18 @@ Never equate the absence of an error with correctness.
   kill ratio ≥ 0.8 on changed files, every survivor reviewed, reported as *which* assertion is
   vacuous (`lane.mutation_cmd` runs it in the merge gate). Use exact-string mutations so a stale
   mutation fails loudly instead of silently no-op'ing.
+- **Name the plant to a standard.** A negative control's `negative_expect` must name what you
+  planted. Prefer an **organic** expect — the tool's own genuine error for a real mutation
+  (`F401|unused import`, `test_.*backoff.*FAILED`) — because it proves the real check fired.
+  When the deliverable is a document with no natural mutation, plant a **sentinel** named
+  exactly `DEVLOOP-PLANTED-<LANE_ID>` (lane id uppercased, non-alphanumerics to `-`). The
+  sentinel must appear in the `negative_control_cmd` that plants it, must be the whole
+  `negative_expect`, and must not already exist anywhere in the tree. One sentinel per lane, never
+  shared: two lanes with the same token means either lane's output can satisfy the other's gate.
+  Never alternate the sentinel with something the tool prints anyway — `planted-vacuous|VACUOUS`
+  matched the fixture's own filename, so it passed whether or not the plant landed (a
+  Self-Certifying Predicate, §7, which shipped in this skill's own examples until it was caught).
+  Control: `tests/test_planted_naming.py`.
 - **Assert your harness did work.** A negative control producing no output is vacuous. Count what
   it rendered, ran, or compared before trusting the verdict. *A harness reporting "0 problems"
   because it silently did nothing is the same defect class you are hunting — committed by you.*
