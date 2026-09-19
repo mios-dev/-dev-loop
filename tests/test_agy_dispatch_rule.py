@@ -82,6 +82,12 @@ def test_rules() -> None:
           "session must say more than interactive: it promises the host will poll")
     check("session tells the manager a turn end is not the run end",
           "Ending a turn does NOT end the run" in session)
+    # The first --session run dropped lane-<id>.json into tracked .devloop/ space because the
+    # rule never said where scratch goes; devloop.sh has always put it under the run dir.
+    check("session pins per-lane scratch to .devloop/native/",
+          ".devloop/native/ next to the reports" in session)
+    check("session forbids scratch in tracked .devloop/ top level",
+          "Do NOT write scratch at" in session and "tracked space" in session)
 
 
 def test_print_only_is_sticky() -> None:
