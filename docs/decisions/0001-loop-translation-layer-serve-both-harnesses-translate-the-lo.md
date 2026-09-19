@@ -167,7 +167,9 @@ including one I would have defended: the reference had asserted that `denied_act
 -- is stderr sharing the stream. An unknown JSON key breaks nothing.
 
 All six were fixed rather than argued with; the audit's own findings file is
-`.devloop/findings/DESIGN-AUDIT.md`, merged in 329fe4c. The audit states its limit: it did not
+`.devloop/findings/DESIGN-AUDIT.md`. (It was merged as 329fe4c before this repo's history
+was squashed; cite the findings file, not the SHA -- a citation that cannot be resolved is
+exactly the defect this ADR's audit was looking for.) The audit states its limit: it did not
 exhaustively check every `(measured)` claim, so more may remain.
 
 ## Pros and Cons of the Options

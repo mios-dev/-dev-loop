@@ -310,18 +310,34 @@ def task_records(rep: dict, lanes_path: Path | None, stream: Path) -> list[dict]
         # at 02:59, before this run even started. Trusting the report marked a lane that did
         # nothing as completed -- SKILL.md 11, never trust a lane's own claim over the tree.
         # Delivery requires the lane's OWNED PATH to have changed during THIS run.
+        # READ the report, do not merely count it. adapters.py synthesises an HONEST fallback
+        # for a lane that emitted no devloop_report: status partial, changed_paths empty,
+        # full_gate exit -1. Treating that as a delivery claim was my error, not the
+        # orchestrator's -- it had already said the lane produced nothing. Measured on
+        # t1001-gate05, whose worker looped on "I will wait for the background command" and
+        # exited after one turn.
         report = stream.parent / f"report-{lid}.json"
         has_report = report.is_file() and report.stat().st_mtime >= run_started
+        claimed_done = False
+        if has_report:
+            try:
+                rj = json.loads(report.read_text())
+                rj = rj.get("devloop_report", rj)
+                claimed_done = rj.get("status") == "done" and bool(rj.get("changed_paths"))
+            except Exception:
+                claimed_done = False
         owned = [pathlib_Path(stream.parent.parent.parent / o) for o in (l.get("owned_paths") or [])]
         touched = [o for o in owned if o.is_file() and o.stat().st_mtime >= run_started]
-        delivered = bool(has_report and touched)
+        delivered = bool(has_report and claimed_done and touched)
         out.append({
             "lane": lid,
             "subject": f"{lid}: {(l.get('objective') or '')[:80]}",
             "status": "completed" if delivered else "in_progress",
-            "evidence": ("report + owned path changed this run" if delivered
-                         else "REPORT WITHOUT WORK: the lane reported but its owned path is "
-                              "unchanged since this run started" if has_report and not touched
+            "evidence": ("report says done + owned path changed this run" if delivered
+                         else "lane reported PARTIAL/empty — the orchestrator recorded that it "
+                              "produced nothing" if has_report and not claimed_done
+                         else "report claims done but the owned path is unchanged since this "
+                              "run started" if has_report and not touched
                          else "no per-lane report from this run yet"),
             "owned_paths_touched": [str(o) for o in touched],
             "lane_report": str(report) if delivered else None,
