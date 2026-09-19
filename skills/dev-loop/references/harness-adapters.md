@@ -171,6 +171,29 @@ which is why the skill stays universal: the host changes, the lane contract does
   poll loop, because the turn never ended. The mechanism that justifies `--session` over
   `--headless` is still untested in the case it was built for: a subagent outliving its turn. Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full
   protocol, event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
+  **Watching an AGY-managed run (`--tmux`).** `devloop.sh` has had a tmux grid since the
+  beginning (`devloop.sh:52`), but the AGY path never used it: the manager ran as one opaque
+  process whose only signal was the envelope, at the end. `agy_host.sh … --session --tmux` now
+  opens a tmux session with the manager in pane 0 and `scripts/agy_monitor.py --follow` in pane 1,
+  both reading the SAME NDJSON stream that `agy_session.py --events-out` tees (default
+  `.devloop/native/session-events.ndjson`). Attach with `tmux attach -t <session>`; without
+  `--tmux` the stream is still written, so a monitor can be started later or from elsewhere.
+  Degrades to a plain run when tmux is absent, and says so.
+
+  **Monitoring/reporting task (surfacing a run in a Claude client).** `agy_monitor.py <stream>
+  --once --report-out <file>` emits one JSON status from the same state the pane renders — so the
+  operator's pane and the reporting agent can never disagree. Its `verdict` is derived from the
+  stream, never from the harness's own `status`: `working`, `refused` (denials present),
+  `vacuous` (a result claiming success with no text and no tool calls), `no_result` (a stream
+  that produced no result event at all — measured, an all-unknown-event stream does exactly
+  this), `no_stream` (the file does not exist, which is NOT a quiet healthy run), `errored`.
+  Exit 2 on `vacuous`/`no_result`/`no_stream` so a caller can gate on it. It also counts and
+  surfaces non-JSON lines rather than dropping them: agy writes its warnings and bare-text
+  errors into the same stream, and those are precisely the lines saying a run is doing nothing.
+  Spawn a Claude Code subagent that polls `--once` on an interval and reports the verdict, and a
+  run being denied or idling becomes visible in the client while it happens instead of at the end.
+  Controls: `tests/test_agy_monitor.py`.
+
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple

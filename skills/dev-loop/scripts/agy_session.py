@@ -88,6 +88,8 @@ def main() -> int:
     ap.add_argument("--effort")
     ap.add_argument("--poll-max", type=int, default=8, help="follow-up turns allowed after turn 1")
     ap.add_argument("--envelope-out", help="write the final result object here")
+    ap.add_argument("--events-out", help="tee every raw NDJSON event here for monitors "
+                                        "(agy_monitor.py tails this; a tmux pane watches it)")
     ap.add_argument("--yolo", action="store_true")
     a = ap.parse_args()
 
@@ -103,6 +105,12 @@ def main() -> int:
 
     native_dir = Path(a.run_root) / ".devloop" / "native"
     lane_ids = antigravity_lane_ids(Path(a.lanes)) if a.lanes else []
+
+    events = None
+    if a.events_out:
+        Path(a.events_out).parent.mkdir(parents=True, exist_ok=True)
+        # line-buffered: a monitor tailing this must see each event as it happens, not at exit
+        events = open(a.events_out, "w", buffering=1)
 
     try:
         proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -122,6 +130,10 @@ def main() -> int:
             line = line.strip()
             if not line:
                 continue
+            if events:
+                # tee BEFORE parsing: a monitor must see the warnings and bare-text errors
+                # too, which are exactly the lines json.loads throws away
+                events.write(line + "\n")
             try:
                 evt = json.loads(line)
             except json.JSONDecodeError:
@@ -161,6 +173,11 @@ def main() -> int:
             proc.stdin.flush()
             turns_sent += 1
     finally:
+        if events:
+            try:
+                events.close()
+            except Exception:
+                pass
         try:
             proc.stdin.close()
         except Exception:

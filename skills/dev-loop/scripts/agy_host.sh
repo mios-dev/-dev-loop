@@ -25,10 +25,10 @@ set -eu
 
 SKILL_DIR=$(cd "$(dirname "$0")/.." && pwd)
 LANES=${1:-}
-[ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo]] [--print-prompt]" >&2; exit 64; }
+[ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo]] [--tmux] [--print-prompt]" >&2; exit 64; }
 LANES=$(cd "$(dirname "$LANES")" && pwd)/$(basename "$LANES")
 shift
-MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0
+MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0
 # Three axes, tracked separately on purpose, because folding them together makes the
 # behaviour depend on the ORDER the flags were typed in:
 #   MODE       - which executor runs the prompt (interactive / headless / session)
@@ -42,6 +42,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --headless) MODE=headless; HEADLESS=1;;
         --session) MODE=session; HEADLESS=1; SESSION=1;;
+        --tmux) USE_TMUX=1;;
         --yolo) SKIP_PERMS=1;;
         --print-prompt) PRINT_ONLY=1;;
         *) echo "unknown flag: $1" >&2; exit 64;;
@@ -172,14 +173,40 @@ case "$MODE" in
         PROMPT_FILE=$(mktemp)
         printf '%s\n' "$PROMPT" > "$PROMPT_FILE"
         ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
+        EVENTS_FILE=${AGY_HOST_EVENTS:-$RUN_ROOT/.devloop/native/session-events.ndjson}
+        mkdir -p "$(dirname "$EVENTS_FILE")"
         set -- --prompt-file "$PROMPT_FILE" --lanes "$LANES" --run-root "$RUN_ROOT" \
-               --envelope-out "$ENV_FILE" \
+               --envelope-out "$ENV_FILE" --events-out "$EVENTS_FILE" \
                --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" \
                --effort "${AGY_HOST_EFFORT:-high}" \
                --poll-max "${AGY_HOST_POLL_MAX:-8}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
-        timeout "${AGY_HOST_TIMEOUT:-4h}" python3 "$SKILL_DIR/scripts/agy_session.py" "$@"
-        RC=$?
+        if [ "$USE_TMUX" = 1 ] && command -v tmux >/dev/null 2>&1; then
+            # A manager with no panes is a manager you cannot watch. devloop.sh has had a tmux
+            # grid since the beginning (devloop.sh:52); the AGY path never used it, so an
+            # operator's only signal was the envelope, at the end. Pane 0 runs the manager,
+            # pane 1 tails the SAME event stream through agy_monitor.py.
+            TSESS=${AGY_HOST_TMUX_SESSION:-devloop-agy-$$}
+            tmux new-session -d -s "$TSESS" -c "$RUN_ROOT" \
+                "timeout ${AGY_HOST_TIMEOUT:-4h} python3 '$SKILL_DIR/scripts/agy_session.py' $(for x in "$@"; do printf "'%s' " "$x"; done); echo; echo '[manager exited rc='\$?']'; exec sh"
+            tmux split-window -t "$TSESS:0" -c "$RUN_ROOT" \
+                "python3 '$SKILL_DIR/scripts/agy_monitor.py' '$EVENTS_FILE' --follow; exec sh"
+            tmux select-layout -t "$TSESS:0" even-horizontal >/dev/null 2>&1 || true
+            echo "agy_host: manager running in tmux session '$TSESS' (attach: tmux attach -t $TSESS)"
+            echo "agy_host: event stream $EVENTS_FILE"
+            echo "agy_host: status snapshot: python3 $SKILL_DIR/scripts/agy_monitor.py $EVENTS_FILE --once"
+            # Wait for the manager pane so this script's exit still means what it meant before.
+            while tmux has-session -t "$TSESS" 2>/dev/null && [ "$(tmux list-panes -t "$TSESS:0" -F 1 2>/dev/null | wc -l)" -gt 0 ]; do
+                [ -s "$ENV_FILE" ] && break
+                sleep 5
+            done
+            RC=0
+            [ -s "$ENV_FILE" ] || RC=3
+        else
+            [ "$USE_TMUX" = 1 ] && echo "agy_host: tmux not found; running without panes" >&2
+            timeout "${AGY_HOST_TIMEOUT:-4h}" python3 "$SKILL_DIR/scripts/agy_session.py" "$@"
+            RC=$?
+        fi
         rm -f "$PROMPT_FILE"
         if [ -s "$ENV_FILE" ] && ! python3 "$SKILL_DIR/scripts/adapters.py" denials "$ENV_FILE"; then
             echo "agy_host: manager session rejected — see the denial lines above; envelope kept at $ENV_FILE" >&2
