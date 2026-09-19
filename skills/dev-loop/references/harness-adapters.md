@@ -135,18 +135,28 @@ which is why the skill stays universal: the host changes, the lane contract does
   `agy_host.sh` bakes this instruction into the manager prompt). Two more print-mode facts,
   both observed live: `run_command` auto-backgrounds anything still running after its
   `WaitMsBeforeAsync` parameter (the prompt pins it to 30 min for the dispatch), and
-  **`invoke_subagent` fails under headless `agy -p`** — the manager attempts it first and takes
+  **`invoke_subagent` fails under headless `agy -p`** *(STALE as of 1.2.6 -- see the correction below)* — the manager attempts it first and takes
   the documented fallback (full plan through `devloop.sh`), which carried a verified green run
   (gates, merges, integration, truthful report). The native subagent path needs an interactive
   Antigravity session (IDE or `agy` TUI).
-  **However, `-p` single-shot is not the only headless mode (measured, 1.2.6).**
+  **CORRECTION (measured, 1.2.6): `invoke_subagent` does NOT fail headlessly.** Three probes,
+  all `status: SUCCESS`, no `denied_actions`: (a) inside a held stream-json session, and (b) in
+  plain single-shot `agy -p=`, and (c) single-shot with no prior `define_subagent` at all. A
+  `subagent` step is emitted carrying each child's own `conversation_id`. The paragraph above is
+  retained because the fallback it describes is sound, but its premise is not: native AGY fan-out
+  IS reachable headlessly, so `agy_host.sh`'s rule forbidding it under `--headless` is
+  over-restrictive. The earlier live failure was real but its cause is **unexplained**; the
+  leading unproven candidate is that the settings file was voided at the time by an invalid
+  `toolPermission` value, which silently discards `permissions.allow` wholesale.
+  **Separately, `-p` single-shot is not the only headless mode.**
   `agy --input-format stream-json --output-format stream-json --print-timeout 0 -p=''` holds a
   **stateful multi-turn session** on stdin: one NDJSON `{"event":"user","message":{...}}` per line,
   one `result` event per turn, one `conversation_id` throughout -- verified by a two-turn session
-  where turn 2 recalled turn 1's state. A caller that holds this session does not need the
+  where turn 2 recalled turn 1's state. A caller holding this session does not need the
   synchronous-foreground workaround above, because nothing is backgrounded and nothing is killed.
-  Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full protocol,
-  event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
+  That is a property of the held session; it is **not** what makes subagents work, as (b) and (c)
+  above show. Flag order is load-bearing: bare `-p` swallows the next token as its prompt. Full
+  protocol, event shapes and failure asymmetries: `references/translation-layer.md` 5.1a.
   `scripts/agy_host.sh <lanes.json> [--headless]` launches `agy` pre-loaded as this manager.
   Multiple **Antigravity lanes** beyond `invoke_subagent`'s Gemini-only limit run as separate
   `agy -p` processes (`harness: antigravity` in `lanes.json`) side by side with multiple

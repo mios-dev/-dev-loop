@@ -183,8 +183,12 @@ names it is *"stream input \"user\" message is missing the \"message\" field"*.
 | event | Payload | Use |
 |---|---|---|
 | `init` | `conversation_id`, `cwd`, `tools[]` (**57** measured), `permission_mode` | **capability discovery** — read the real tool inventory and effective permission mode at session start instead of assuming them |
-| `step_update` | `step_index`, `state` (`ACTIVE`/`DONE`), `step_type` (`user_input`, `agent_response`, …), `text_delta`, per-step `duration_seconds`/`usage` | incremental streaming; `step_type` is the same vocabulary AGY's hook matchers use |
+| `step_update` | `step_index`, `state` (`ACTIVE`/`DONE`), `step_type`, `text_delta`, per-step `duration_seconds`/`usage`; **tool** steps add `tool_name` + `tool_info{parameters,output}`; **subagent** steps add `subagent_info.subagents[]{type_name,role,initial_prompt,conversation_id}` | incremental streaming **with full tool-call and subagent visibility** — everything the layer needs for observability, without scraping prose. `step_type` is the same vocabulary AGY's hook matchers use |
 | `result` | the §5.1 object | **one per turn**, not only at session end |
+
+**`step_type` vocabulary, measured:** `user_input`, `agent_response`, `tool`, `subagent`,
+`system_message`. A `subagent` step carries each child's own `conversation_id`, which is the
+handle `loopd` uses to attribute a child's work to a lane.
 
 **Two failure asymmetries the layer must encode:**
 
@@ -267,8 +271,31 @@ it just wrote. `xlate` must validate the enum against the binary's accepted set,
 |---|---|---|
 | Claude Code | nesting depth 3 (plugin-shipped agents) | 20 concurrent subagents |
 | AGY interactive | `invoke_subagent`, `workspace: branch`, ≤ 10 | native |
-| AGY headless `-p` | `invoke_subagent` **fails** (measured) | via `devloop.sh` dispatch |
+| AGY headless `-p` **and** held stream-json | `invoke_subagent` **works** (measured, 1.2.6) | **native fan-out is reachable headlessly** |
 | AGY Python SDK | `max_subagent_depth` default **1** | flat delegation |
+
+**Correction, with its controls.** An earlier live observation recorded `invoke_subagent` failing
+under headless `agy -p`, and both `agy_host.sh` and `harness-adapters.md` are built on it. Three
+probes refute it — each one an attempt to falsify the previous conclusion, and each one succeeding
+at refuting *me* rather than the tool:
+
+| # | Probe | Result |
+|---|---|---|
+| a | held stream-json session: `define_subagent` then `invoke_subagent` | SUCCESS — `subagent` step emitted, child `conversation_id`, `manage_subagents` lists 1 active |
+| b | **negative control** — identical prompt in single-shot `agy -p=` | SUCCESS, so the held session is *not* the enabling factor (hypothesis refuted) |
+| c | single-shot, `invoke_subagent` with **no** prior `define_subagent` | SUCCESS, so "define before invoke" is *not* the rule either (hypothesis refuted) |
+
+All three: `status: SUCCESS`, `denied_actions` absent. The honest conclusion is narrow — in 1.2.6
+under `permission_mode: always-proceed`, `invoke_subagent` works headlessly, and the repo's
+constraint is stale. **The cause of the original failure remains unexplained.** The leading
+candidate, unproven, is that the settings file was voided at the time by an invalid
+`toolPermission` value (§5.3), which discards `permissions.allow` wholesale and silently. Recorded
+as an open item rather than asserted.
+
+Design consequence: AGY native fan-out is available to a headless manager, so `agy_host.sh`'s
+mode-dependent rule forbidding `invoke_subagent` under `--headless` is over-restrictive and the
+native topology AGENTS.md prescribes is reachable in automation. `loopd` should therefore treat a
+subagent's child `conversation_id` as a first-class lane handle.
 
 `loopd` normalises by declaring `max_depth` in the lane contract and **refusing** a lane whose
 declared depth exceeds what the target harness *and mode* can serve — rather than letting it
@@ -414,6 +441,10 @@ New, raised by this design:
    container restart. `scripts/env/agy-keyring.sh` plus sourcing `~/.config/agy-cloud/keyring.env`
    restored it, and P1's transport was then verified end to end (§5.1a). Standing requirement,
    not a question: `loopd` must do this itself at startup.
-5. **Build vs adopt on transport** — this design takes ACP's lesson but not its dependency. Want
+5. **Unexplained, carried as a known-unknown:** why `invoke_subagent` failed when observed live
+   earlier, given three probes now show it working. Leading unproven candidate is a voided settings
+   file. Until it is explained, `agy_host.sh`'s dispatch rule should be *relaxed with a control*
+   rather than simply deleted — a constraint whose cause you cannot name may recur.
+6. **Build vs adopt on transport** — this design takes ACP's lesson but not its dependency. Want
    `jiridanek/agy-acp` evaluated as an alternative lane transport at P6, or is the NDJSON channel
    sufficient?

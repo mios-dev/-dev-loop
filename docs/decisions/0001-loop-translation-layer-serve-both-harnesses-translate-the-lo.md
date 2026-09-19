@@ -98,6 +98,18 @@ session channel is not merely documented, it was exercised here across two state
 - **Operational prerequisite:** the credential survives a container restart but the keyring daemon
   and `DBUS_SESSION_BUS_ADDRESS` do not; without them `agy` falls back to interactive login and
   times out. `loopd` must start the keyring itself rather than inherit it.
+- **`invoke_subagent` works headlessly — the repo's constraint is stale.** Three probes, all
+  SUCCESS with `denied_actions` absent: inside a held session; in single-shot `agy -p=` (the
+  negative control, which *refuted* the hypothesis that the held session was the enabling factor);
+  and single-shot with no prior `define_subagent` (refuting "define before invoke" too). A
+  `subagent` step carries each child's own `conversation_id`. Consequence: AGY native fan-out is
+  reachable in automation, so the native topology AGENTS.md prescribes is available to a headless
+  manager, and `loopd` treats a child `conversation_id` as a first-class lane handle. **The cause
+  of the originally-observed failure is unexplained and is recorded as an open item, not asserted.**
+- **Full tool-call and subagent visibility in the stream:** `tool` steps carry `tool_name` and
+  `tool_info{parameters,output}`; `subagent` steps carry `subagent_info.subagents[]`. Measured
+  `step_type` set: `user_input`, `agent_response`, `tool`, `subagent`, `system_message`. The layer
+  reads structured events rather than scraping prose.
 - `agy remote-control {start,status,stop}` exists (a background daemon). **Not adopted** — see
   Consequences.
 
