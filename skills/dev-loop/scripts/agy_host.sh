@@ -174,8 +174,16 @@ Scripts available to you, with exact invocations (SKILL_DIR=$SKILL_DIR):
     python3 $SKILL_DIR/scripts/job.py wait  --root $RUN_ROOT/.devloop/jobs --id <id>
   A lane worker that trusted the parameter announced three times that it would wait for a
   background command, ended its turn, and measured nothing.
-- Work in STRICT SEQUENCE, no concurrency: dispatch, let it finish, then gates, then merges,
-  then the report. Never report on a lane whose report file you have not read.
+- CONCURRENCY IS ALLOWED, but only through jobs. Dispatch every independent lane at once --
+  native subagents, and shell lanes as job.py spawns. What you must never do is background work
+  in your own shell (a trailing '&', or letting run_command fall past WaitMsBeforeAsync): those
+  children die with your turn. A job does not. The earlier rule here banned concurrency
+  outright, because every attempt at it had been shell backgrounding; with job.py that reason
+  is gone, and serialising independent lanes only wastes the run.
+- What IS strictly sequential is everything that touches the BASE tree: gate, then commit, then
+  merge, one lane at a time. Two merges in flight corrupt the tree you are merging into.
+- Never report on a lane whose report file you have not read. A job receipt says the process
+  ended; it does not say the work is right.
 
 # MEASURED FACTS ABOUT YOUR OWN HARNESS
 
@@ -262,8 +270,14 @@ case "$MODE" in
         ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
         EVENTS_FILE=${AGY_HOST_EVENTS:-$RUN_ROOT/.devloop/native/session-events.ndjson}
         mkdir -p "$(dirname "$EVENTS_FILE")"
+        # The poll predicate is receipt-backed only when it is GIVEN a jobs root. --jobs-root
+        # existed on agy_session.py from the day it was added and no caller ever passed it, so
+        # every AGY run kept using the agent-writable report-<id>.json it was built to replace.
+        JOBS_ROOT=${AGY_HOST_JOBS_ROOT:-$RUN_ROOT/.devloop/jobs}
+        mkdir -p "$JOBS_ROOT"
         set -- --prompt-file "$PROMPT_FILE" --lanes "$LANES" --run-root "$RUN_ROOT" \
                --envelope-out "$ENV_FILE" --events-out "$EVENTS_FILE" \
+               --jobs-root "$JOBS_ROOT" \
                --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" \
                --effort "${AGY_HOST_EFFORT:-high}" \
                --poll-max "${AGY_HOST_POLL_MAX:-8}"

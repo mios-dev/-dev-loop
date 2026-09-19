@@ -177,7 +177,7 @@ LANES_JSON = """{"base_ref":"HEAD","lanes":[{"id":"l1",
 "full_gate_cmd":"true"}]}"""
 
 
-def _repo() -> Path:
+def _repo(lanes_json: str = "") -> Path:
     """A clean one-commit git repo — devloop.sh refuses to run on a dirty tree, so lanes.json
     and the shim live in the parent directory, OUTSIDE the worktree. (Keeping them inside made
     every run refuse on a dirty tree, which still satisfied a bare `rc != 0` assertion: the
@@ -190,7 +190,7 @@ def _repo() -> Path:
     (repo / "a.txt").write_text("seed\n")
     subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "seed"], check=True, env=env)
-    (d / "lanes.json").write_text(LANES_JSON)
+    (d / "lanes.json").write_text(lanes_json or LANES_JSON)
     return repo
 
 
@@ -275,6 +275,62 @@ def test_budget_guard_fires_on_a_missing_timeout() -> None:
           "if job.py accepted it, the guard above would be theatre")
 
 
+# A lane whose own job budget (worker.timeout_s, floor 30) is far shorter than its worker.
+SLOW_LANE_JSON = """{"base_ref":"HEAD","lanes":[{"id":"l1",
+"objective":"a lane whose worker outruns its own job budget, reaching job.py wait's exit 2",
+"owned_paths":["a.txt"],"worker":{"harness":"claude-code","timeout_s":30},
+"positive_cmd":"true","negative_control_cmd":"false","negative_expect":"boom",
+"full_gate_cmd":"true"}]}"""
+
+
+def test_a_lane_that_outruns_its_budget_does_not_kill_the_orchestrator() -> None:
+    """THE fatal one. `job.py wait` was called unguarded under `set -eu`, and wait exits 2 when
+    a lane is not done-rc-0 (3 when lost). A lane that hit its own job timeout therefore killed
+    devloop.sh AT THE WAIT: no gate ran, no $RUN/status was written, no ledger entry, and the
+    process exited 2 -- which in this script's contract means 'VACUOUS lane', so the one run
+    that most needed an honest report produced a misleading one.
+
+    Measured against the pre-fix file: output stopped after the job status line and rc was 2.
+
+    The lane here sleeps 300s with a 30s job budget, so the wrapper's `timeout` fires and the
+    receipt is rc=124 -- a real receipt, not an invented code."""
+    print("a lane that outruns its job budget:")
+    repo = _repo(SLOW_LANE_JSON)
+    shim = _shim(repo, 'case "$1" in */adapters.py) case "$2" in run) sleep 300; exit 0;; esac;; esac')
+    cp = _run_devloop(repo, shim, timeout=300)
+    out = cp.stdout + cp.stderr
+    check("the wait did not abort the run", "== gate l1" in out,
+          "the orchestrator never reached the gate — set -e killed it at the wait")
+    check("the lane's real receipt is reported", "worker exit=124" in out, out[-400:])
+    check("run artefacts were still written", "run artefacts:" in out)
+    check("exit is 1 (lane failed), not 2 (vacuous)", cp.returncode == 1,
+          f"rc={cp.returncode} — exit 2 here would misreport an orchestrator abort as a vacuous lane")
+    check("the status file exists", list(repo.glob(".devloop/run-*/status")),
+          "written only if the wave loop completed")
+
+
+def test_the_wave_waits_on_one_deadline_not_n() -> None:
+    """Waiting lane-by-lane started each wait only after the previous returned, so N lanes could
+    consume N x LANE_WAIT_BUDGET. job.py wait already takes repeated --id under one deadline."""
+    print("wave budget:")
+    src = DEVLOOP.read_text()
+    check("the per-lane wait loop is gone", "for id in $WAVE; do wait_lane" not in src)
+    check("the wave is waited on as a set", "wait_wave $WAVE" in src)
+    check("the wait's non-zero exit is swallowed deliberately",
+          '--interval 20 || :' in src,
+          "a non-zero wait is this code's normal reporting channel, not an error")
+    root = Path(tempfile.mkdtemp(prefix="jobs-deadline-"))
+    for i in range(3):
+        job.spawn(root, f"w{i}", ["sh", "-c", "sleep 30"], Path("."), budget_s=60)
+    t0 = time.time()
+    job.wait(root, [f"w{i}" for i in range(3)], budget_s=4, interval_s=1)
+    elapsed = time.time() - t0
+    check("one budget covers the whole set", elapsed < 8,
+          f"{elapsed:.1f}s for a 4s budget over 3 lanes — per-lane budgets would take ~12s")
+    for i in range(3):
+        job.kill(root, f"w{i}", "KILL")
+
+
 def main() -> int:
     for t in (test_detached_lanes_are_jobs_not_background_children,
               test_jobs_run_concurrently,
@@ -284,7 +340,9 @@ def main() -> int:
               test_zero_waves_is_not_success,
               test_waves_crashing_is_not_success,
               test_a_failed_spawn_is_not_swallowed,
-              test_budget_guard_fires_on_a_missing_timeout):
+              test_budget_guard_fires_on_a_missing_timeout,
+              test_a_lane_that_outruns_its_budget_does_not_kill_the_orchestrator,
+              test_the_wave_waits_on_one_deadline_not_n):
         t()
     print()
     if FAILURES:

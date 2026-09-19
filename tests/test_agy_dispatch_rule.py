@@ -23,6 +23,7 @@ Run: python3 tests/test_agy_dispatch_rule.py
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -158,8 +159,68 @@ def test_report_tracking() -> None:
               S.antigravity_lane_ids(bad) == [])
 
 
+SESSION = ROOT / "skills" / "dev-loop" / "scripts" / "agy_session.py"
+
+# --jobs-root's whole purpose is to replace the agent-written report file as the thing that ends
+# a wait. It is meaningless unless a caller passes it. --input-format is the one flag the host
+# legitimately never passes: agy_session.py owns the wire format and hardcodes it.
+FLAGS_THE_HOST_NEED_NOT_PASS = {"--input-format"}
+
+
+def test_no_dead_flags_on_the_session_driver() -> None:
+    """DEAD-FLAG GUARD, and the specific regression it was written for.
+
+    `--jobs-root` was added to agy_session.py and NO caller ever passed it, so every AGY run
+    kept ending its waits on `report-<id>.json` -- a file the polled agent is asked to create.
+    The fix was built, tested, committed and never reached production, and nothing was red.
+
+    Asserting the general property rather than the one flag means the next such flag is caught
+    too: a flag the driver declares but the host never passes is dead unless excused here."""
+    print("session driver flags:")
+    declared = set(re.findall(r'"(--[a-z][a-z-]*)"', SESSION.read_text()))
+    passed = set(re.findall(r'(--[a-z][a-z-]{2,})', HOST.read_text()))
+    check("the driver declares flags at all", len(declared) > 5, f"found {len(declared)}")
+    dead = sorted(declared - passed - FLAGS_THE_HOST_NEED_NOT_PASS)
+    check("no declared flag is unreachable from the host", not dead,
+          f"never passed by agy_host.sh: {dead}")
+    check("--jobs-root specifically is passed", "--jobs-root" in passed,
+          "without it the poll predicate falls back to the file the agent writes")
+    check("the excuse list is not a blanket", len(FLAGS_THE_HOST_NEED_NOT_PASS) <= 2,
+          "excusing flags wholesale turns this control into a no-op")
+
+
+def test_the_prompt_permits_concurrency_but_not_shell_backgrounding() -> None:
+    """The manager prompt said 'Work in STRICT SEQUENCE, no concurrency'. That was written when
+    every attempt at concurrency had been shell backgrounding, which dies at the turn boundary.
+    job.py removed that reason, so the blanket ban now contradicts the point of fanning out.
+
+    The replacement must hold BOTH halves: concurrency through jobs is allowed, shell
+    backgrounding is still forbidden, and base-tree work (gate/commit/merge) is still serial.
+    A rewrite that drops either half fails here."""
+    print("concurrency rule:")
+    cp = subprocess.run(["sh", str(HOST), str(LANES), "--print-prompt"],
+                        capture_output=True, text=True, timeout=60)
+    body = cp.stdout
+    check("the prompt renders", cp.returncode == 0 and len(body) > 2000,
+          f"rc={cp.returncode} len={len(body)}")
+    check("the blanket ban is gone", "no concurrency" not in body.lower(),
+          "a manager told not to run lanes concurrently will not")
+    check("concurrency is explicitly permitted", "CONCURRENCY IS ALLOWED" in body)
+    check("shell backgrounding is still forbidden",
+          "background work in your own shell" in body or "die with your turn" in body,
+          "dropping this half re-opens the failure job.py exists to prevent")
+    check("base-tree work is still serial",
+          "strictly sequential" in body.lower() and "merge" in body.lower(),
+          "two merges in flight corrupt the base tree")
+    check("no unexpanded shell variables survive", "$SKILL_DIR/scripts/job.py" not in body
+          or "$RUN_ROOT" not in body.split("job.py spawn")[-1][:200],
+          "a literal $VAR in the prompt is an instruction the manager cannot follow")
+
+
 def main() -> int:
-    for t in (test_rules, test_print_only_is_sticky, test_session_wire_shape, test_report_tracking):
+    for t in (test_rules, test_print_only_is_sticky, test_session_wire_shape, test_report_tracking,
+              test_no_dead_flags_on_the_session_driver,
+              test_the_prompt_permits_concurrency_but_not_shell_backgrounding):
         t()
     print()
     if FAILURES:

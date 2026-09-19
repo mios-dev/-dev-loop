@@ -67,7 +67,7 @@ launch() { # $1=id  — provision worktree + start worker per layout
       # field() prints "" and exits 0 for a missing key, so `$(field … || echo 1800)` could
       # never fire -- it read as a default and was dead code. Guard on the VALUE instead.
       BUDGET=$(field "$LJ" worker.timeout_s); case "$BUDGET" in ''|*[!0-9]*) BUDGET=1800;; esac
-      # A spawn that fails must not be swallowed: with no job directory, wait_lane silently
+      # A spawn that fails must not be swallowed: with no job directory, reap_lane silently
       # falls back to the old unbounded `.exit` wait -- the exact hang job.py replaced.
       if ! "$PY" "$JOB_PY" spawn --root "$JOBS" --id "$ID" --cwd "$WTA" \
              --budget "$BUDGET" --label "lane $ID" -- sh -c "$CMD" >/dev/null; then
@@ -77,34 +77,56 @@ launch() { # $1=id  — provision worktree + start worker per layout
   esac
 }
 
-# Block until the lane reaches a terminal state. The old loop was `while [ ! -f .exit ]; do
-# sleep 20; done` -- no budget and no liveness check, so a lane that died hard hung the
-# orchestrator forever waiting for a receipt that would never come. job.py distinguishes
-# running from lost; the .exit fallback covers tmux and headless lanes, which are children of
-# a shell that is still alive by construction.
-wait_lane() {
+# Wait for a whole WAVE on ONE deadline, then reap each lane.
+#
+# Two defects lived in the previous shape. (1) `job.py wait` was called unguarded under
+# `set -eu`, and wait exits 2 when a lane is not done rc 0 and 3 when it is lost -- so a lane
+# that outran its job budget KILLED THE ORCHESTRATOR at the wait, before any gate, before the
+# run status file, before the ledger, and the run exited 2, which in this script's own contract
+# means "vacuous lane". Measured 2026-09-19. A non-zero wait is the normal reporting channel
+# here, not an error, so it must be swallowed and read from the state instead.
+# (2) Waiting lane-by-lane multiplied the budget by the number of lanes: each wait started only
+# after the previous one returned, so N lanes could consume N x LANE_WAIT_BUDGET. job.py wait
+# already takes repeated --id under a single deadline.
+wait_wave() {
+  IDS=''
+  for ID in "$@"; do [ -d "$JOBS/$ID" ] && IDS="$IDS --id $ID"; done
+  [ -n "$IDS" ] || return 0
+  # shellcheck disable=SC2086
+  "$PY" "$JOB_PY" wait --root "$JOBS" $IDS --budget "${LANE_WAIT_BUDGET:-5400}" --interval 20 || :
+}
+
+# Turn a lane's terminal state into the exit file the gate reads. The `.exit` fallback covers
+# tmux and headless lanes, which are children of a shell that is still alive by construction.
+reap_lane() {
   ID=$1
   if [ -d "$JOBS/$ID" ]; then
-    "$PY" "$JOB_PY" wait --root "$JOBS" --id "$ID" --budget "${LANE_WAIT_BUDGET:-5400}" --interval 20
     ST=$("$PY" "$JOB_PY" status --root "$JOBS" --id "$ID" --json 2>/dev/null | sed -n 's/.*"state": *"\([a-z]*\)".*/\1/p' | head -1)
     case "$ST" in
       lost|forged)
         echo "  $ID job $ST -- no receipt; treating as failed (worker died without reporting)"
         echo "125" > "$RUN/worker-$ID.exit";;
+      running)
+        # The wave budget is spent and the lane is STILL ALIVE inside its worktree. Gating here
+        # would audit, stage and merge a tree a running agent is still writing to. Kill it
+        # first; the wrapper's TERM trap writes a real receipt, so no code is invented.
+        echo "  $ID over the wave budget -- terminating it before gating" >&2
+        "$PY" "$JOB_PY" kill --root "$JOBS" --id "$ID" --signal TERM >/dev/null 2>&1 || :
+        W=0
+        while [ "$W" -lt "${REAP_GRACE_S:-30}" ] && [ "$("$PY" "$JOB_PY" status --root "$JOBS" --id "$ID" --json 2>/dev/null | sed -n 's/.*"state": *"\([a-z]*\)".*/\1/p' | head -1)" = running ]; do
+          sleep 5; W=$((W+5))
+        done
+        "$PY" "$JOB_PY" kill --root "$JOBS" --id "$ID" --signal KILL >/dev/null 2>&1 || :
+        sleep 2
+        [ -f "$JOBS/$ID/exit" ] && cp "$JOBS/$ID/exit" "$RUN/worker-$ID.exit" || echo "124" > "$RUN/worker-$ID.exit";;
       *) [ -f "$JOBS/$ID/exit" ] && cp "$JOBS/$ID/exit" "$RUN/worker-$ID.exit";;
     esac
     [ -f "$JOBS/$ID/out" ] && cat "$JOBS/$ID/out" >> "$RUN/worker-$ID.log" 2>/dev/null
     [ -f "$JOBS/$ID/err" ] && cat "$JOBS/$ID/err" >> "$RUN/worker-$ID.log" 2>/dev/null
-  else
-    WAITED=0
-    while [ ! -f "$RUN/worker-$ID.exit" ]; do
-      sleep 20; WAITED=$((WAITED+20))
-      echo "  … waiting on $ID ($(date +%T))"
-      if [ "$WAITED" -ge "${LANE_WAIT_BUDGET:-5400}" ]; then
-        echo "  $ID: wait budget spent with no receipt -- treating as failed"
-        echo "124" > "$RUN/worker-$ID.exit"; break
-      fi
-    done
+  elif [ ! -f "$RUN/worker-$ID.exit" ]; then
+    # No job and no receipt: a tmux or headless lane that never wrote one. Not success.
+    echo "  $ID: no job and no receipt -- treating as failed"
+    echo "125" > "$RUN/worker-$ID.exit"
   fi
   echo "  $ID worker exit=$(cat "$RUN/worker-$ID.exit" 2>/dev/null || echo '?')"
 }
@@ -158,7 +180,9 @@ while IFS= read -r WAVE <&3; do
     launch "$id"
   done
   [ "$DRY" = 1 ] && continue
-  for id in $WAVE; do wait_lane "$id"; done
+  # shellcheck disable=SC2086
+  wait_wave $WAVE
+  for id in $WAVE; do reap_lane "$id"; done
   for id in $WAVE; do gate_merge "$id"; done
   echo "$STATUS" > "$RUN/status"
 done 3< "$RUN/waves.txt"
