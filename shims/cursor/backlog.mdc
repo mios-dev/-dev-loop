@@ -1,0 +1,20 @@
+---
+description: Work the task ledger — what is unblocked now, add a task with its acceptance check and both controls, flip status with cited evidence, validate, re-render TASKS.md, emit a lane
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /backlog
+
+Task state is the repo's memory across sessions: it lives in `.devloop/tasks.jsonl`, one JSON object per line, never in the context window. `TASKS.md` is generated — hand-editing it loses the edit on the next render. Every command below takes `--root .`; `<scripts>` is the dev-loop scripts directory. Default mode is `next`.
+
+- **next** — `python3 <scripts>/artifacts.py tasks next --root .`: ids that are `open`, not epics, with every `depends_on` already `done` or `cancelled`. `(nothing ready — check blocked/in_progress tasks and the ledger)` is an answer, not an error. Run it first in a fresh session, right after the last `.devloop/LEDGER.md` entry.
+- **add** — `python3 <scripts>/artifacts.py tasks add --root . --id T-0NN --title "…" --ac "WHEN … THE SYSTEM SHALL …" --positive CMD --negative CMD --expect REGEX` plus optional `--type task|epic|bug`, `--owner`, `--epic`, `--goal`, `--depends a,b`. `--id` must match `^[A-Z]+-\d+$`; the task starts `open`; `--ac` is repeatable. The tool refuses a duplicate id, an unknown `--depends` and an unknown `--epic` — but it **accepts** a task with no acceptance criterion and no controls, so refuse that yourself: the definition of done is written before the code, and `tasks lane` will otherwise hand back the literal `<fill>`.
+- **set** — `python3 <scripts>/artifacts.py tasks set <id> <status> --root . [--evidence "…"]`. Vocabulary `open | in_progress | blocked | done | cancelled`. **`done` is refused without `--evidence`** unless the task already carries `verification_evidence`; that refusal is the feature — never route around it by editing the JSONL. Evidence cites both controls with exact commands: the positive one and its result, and the negative one with the line showing it failing for the planted reason. "Tests pass" is not evidence.
+- **validate** — `python3 <scripts>/artifacts.py tasks validate --root .`: unique well-shaped ids, status/type vocabulary, resolvable `depends_on` and `epic`, no cycles, `done` implies evidence. Prints `tasks.jsonl ok: N tasks` or exits 1 listing each problem.
+- **render** — `python3 <scripts>/artifacts.py tasks render --root .` validates first and refuses to render an invalid ledger; writes `TASKS.md` grouped by epic with checkboxes, `**[blocked]**` markers, `@owner`, `← dependencies` and an `N/M done` footer. Run it after any `add` or `set`.
+- **lane** — `python3 <scripts>/artifacts.py tasks lane <id> --root .` prints a v2 lane object on **stdout** (no `--out`; redirect it). `owned_paths` always returns `["<fill: exclusive globs>"]` — you supply the globs. A control field returned as the literal `<fill>` means the task defines no control: stop and ask; never invent a negative control nobody defined. Feed it to `/verify`, or collect several into a `lanes.json` for `/dev-loop`.
+
+**Two-sided verification:** a check that cannot fail passes identically on correct and on broken code, so every task carries a positive control (it works) AND a negative control (plant the defect; the same check must fail naming the plant, tree restored). Prefer an organic expect string — mutate real code, match the tool's own error; otherwise plant exactly `DEVLOOP-PLANTED-<LANE_ID>`, one unique sentinel per task. Never share a sentinel between tasks, and never use an expect string that also appears in the fixture's own filename.
+
+**Boundaries:** not `/goal` (which owns the objective, its stopping conditions and the eval loop, and decomposes a goal into tasks at definition time); the dev loop already flips status on a successful merge; `/backlog` never runs `git add`, `git commit` or `git push`.

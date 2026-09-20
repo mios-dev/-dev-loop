@@ -1,0 +1,69 @@
+[command]
+name = "postmortem"
+description = "Diagnose a lane that did not finish, from its run directory: denied tool calls, a lost worker, an ownership stray, a vacuous gate, or a genuine defect"
+version = "1.0.0"
+entrypoint = "python3 scripts/adapters.py denials"
+
+[parameters]
+lane = { type = "string", description = "Lane id of the lane that did not finish", required = true }
+run = { type = "string", description = "Run directory; defaults to the newest .devloop/run-*", required = false }
+worktree = { type = "string", description = "The lane's worktree, when it still exists; only then can any check be re-run", required = false }
+
+[protocols]
+read_only = true
+never_redispatch = true
+stop_at_first_class = true
+classify_before_fixing = true
+
+[classes]
+order = ["denied", "lost_no_receipt", "ownership_stray", "vacuous_gate", "real_defect"]
+
+[classes.denied]
+command = "python3 scripts/adapters.py denials <RUN>/worker-<id>.log"
+exit_clean = 0
+exit_hit = 3
+trap = "a fully-denied headless run can exit 0 with status SUCCESS and an empty response — the exit code lies, which is why this check exists"
+ambiguity = "exit 3 has two meanings; read the message. 'harness denied N tool call(s)' or 'produced an EMPTY response' = genuinely denied. 'no harness result envelope found' = the file carried no envelope at all (a plain text log does this) — absence of evidence, not evidence of denial; fall through to the next class"
+envelope_recognised_when = "permission_denials | denied_actions | is_error | status+usage (agy) | result+num_turns (claude-code)"
+remedy = "permissions / allowlist, not code"
+control = "tests/test_envelope_denials.py"
+
+[classes.lost_no_receipt]
+receipt = "worker-<id>.exit — absent = nothing returned; 125 = never started / no receipt recovered; 124 = outer timeout"
+command = "python3 scripts/job.py status --root <RUN>/jobs --id <id> --json"
+states = ["absent", "running", "done", "lost", "forged"]
+exit_codes = { 0 = "all done", 2 = "not all done", 3 = "lost or forged" }
+lost = "no receipt and the pid is gone; live grandchildren may remain — cleanup is by session id, never process group"
+forged = "a receipt the wrapper did not write, or pid reuse — untrusted, not done"
+remedy = "assume half-finished edits from every lane that did not report (SKILL 11): inspect lane-<id>.patch, park it, restore, re-dispatch. Exhausted budget or timeout is PARTIAL, never done"
+
+[classes.ownership_stray]
+command = "python3 scripts/adapters.py owned --lane <RUN>/lane-<id>.json --wt <worktree>"
+exit_ok = 0
+exit_violation = 1
+base_command = "python3 scripts/adapters.py base-audit --root . --before <RUN>/base-tree-before.json"
+base_exit = { 0 = "ok", 6 = "stray edits to the base tree", 64 = "bad arguments" }
+base_always_allowed = [".devloop/", ".git/", "AGENTS.md", "TASKS.md", "<worktree root>"]
+caveat = "owned reads `git status --porcelain -uall` inside --wt, so the worktree must still exist and ANY file sitting there counts as changed — keep the lane JSON in the run directory, never copy it into the worktree, or the audit indicts itself"
+remedy = "park the diff, re-scope owned_paths, do not merge"
+controls = ["tests/test_base_tree_guard.py", "tests/test_lane_isolation_leakage.py"]
+
+[classes.vacuous_gate]
+command = "python3 scripts/adapters.py gate --lane <RUN>/lane-<id>.json --wt <worktree> --run <RUNDIR>"
+exit_hit = 2
+evidence = "neg-<id>.log"
+causes = ["sentinel already existed before the control ran", "the control did not restore the tree", "base-tree leakage", "the negative control PASSED", "it failed but did not match negative_expect", "surviving mutants"]
+remedy = "fix the CONTROL, not the code — a lane whose negative control passes is vacuous and must not merge; never round a 2 to 'mostly passing'"
+
+[classes.real_defect]
+precondition = "classes 1-4 all clean AND the positive command failed (gate exit 1, honest red)"
+remedy = "hand the failing command verbatim to /triage"
+
+[output]
+require = ["class name", "deciding command + exact exit code", "the artefact line that proves it", "whether lane-<id>.patch exists", "exactly one next action"]
+undetermined = "when the evidence does not decide between two classes, name both and the artefact that would settle it — an honest 'undetermined' beats a confident wrong class"
+
+[not_this_command]
+triage = "scripts/triage.py takes a failing COMMAND and reruns it N times to separate flake from deterministic bug; it structurally cannot see denials, vacuity, ownership violations or a missing receipt — none of them has a command to rerun"
+watch = "/watch reports a whole RUN, all lanes side by side, while it is in flight"
+postmortem = "takes one LANE that already came back not-done, runs nothing by default, and names the cause"

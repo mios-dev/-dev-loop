@@ -1,0 +1,18 @@
+---
+description: Audit standing gates against the "Checks That Cannot Fail" taxonomy, then plant the violation each cleared gate claims to catch and require it to go red
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /gate-audit
+
+Before trusting a green pipeline, when inheriting a repo, or when a check has never failed:
+
+- Run the detector half: `python3 <scripts>/gate_audit.py <target> [--target RECIPE] [--only RULE,...] [--json]`. It detects seven mechanically decidable rows and no others — `SKIP_AS_PASS`, `SWALLOWED_FAILURE`, `UNANCHORED_ALLOWLIST`, `COUNT_ONLY_RATCHET`, `TIMEOUT_AS_PASS`, `CHECK_WITHOUT_DIFF`, `SELF_COMPARISON` (`--list-rules` prints these and what it does not detect).
+- Read the exit code exactly: `0` = no pattern matched, which is **not** proof the gate can fail; `1` = vacuous gate(s) found, each with its taxonomy row, line, reason and remediation; `2` = **nothing was audited** (unreadable, unsupported, no scannable file, no such recipe) — never report a `2` as clean.
+- Triage every finding against the surrounding gate; they are pattern matches, not verdicts. Cite the detector limit from `<scripts>/../references/gate-audit.md` when dismissing one.
+- Work the six judgment rows by hand — Measuring the Wrong Property, Self-Certifying Predicate, Empty-Set Pass, Mock-Only Coverage, Assertion-Free Test, Snapshot Rubber-Stamp.
+- **Plant and prove every CLEARED gate:** plant exactly the violation it claims to catch, run the gate unchanged, require it to FAIL naming the plant. Stays green ⇒ vacuous regardless of how it reads. Restore the tree (`git status --porcelain` empty); never `git add` or commit a plant.
+- Plant naming: prefer the tool's own error on a real mutation; otherwise `DEVLOOP-PLANTED-<TARGET-ID>`, never a string that also appears in the fixture's own filename or the gate's prompt.
+- Estimate blast radius before arming a repaired gate — it was silently passing real violations, so repairing it makes the pipeline redder. Tell the operator what it will start catching. Honest red beats green that lies.
+- Scope: this audits the standing gate machinery whether or not it changed. `/review` audits a diff; they are different commands.

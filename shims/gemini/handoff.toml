@@ -1,0 +1,83 @@
+[command]
+name = "handoff"
+description = "End a session on disk: flip the task with evidence, park uncommitted work as a patch, and append a ledger entry pinned to HEAD that states what is still unverified"
+version = "1.0.0"
+entrypoint = "python3 scripts/adapters.py ledger"
+
+[parameters]
+task_id = { type = "string", description = "The task to flip in .devloop/tasks.jsonl", required = false }
+note = { type = "string", description = "Free-text status note carried into the ledger objective/next fields", required = false }
+
+[protocols]
+writes_to_disk_not_prose = true
+never_commit = true
+never_merge = true
+never_push = true
+never_git_add = true
+stopping_with_work_unfinished = true
+
+[why]
+next_session_first_step = "SKILL 1 step 1 (Orient) reads AGENTS.md, the LAST .devloop/LEDGER.md entry, TASKS.md and recent history — this command is what writes them"
+failure_mode = "a session that ends without it hands the next one a stale board and no record of what was claimed but never measured"
+
+[order]
+steps = ["flip_task", "render", "park", "ledger"]
+
+[order.flip_task]
+command = "python3 scripts/artifacts.py tasks set <T-0NN> <status> --root . --evidence '<pos and neg, exact commands>'"
+status_values = ["open", "in_progress", "blocked", "done", "cancelled"]
+bad_status = "prints `status must be one of [...]`, exit 1"
+unknown_id = "prints `no task <id>`, exit 1"
+done_refusal = "done requires --evidence (both controls, exact commands)"
+done_refusal_exit = 1
+rule = "SKILL 6 in code — a check that cannot fail passes identically on correct and on broken code, so done means a POSITIVE control passed AND a NEGATIVE control failed naming the plant"
+if_unproven = "write in_progress or blocked; never work around the refusal"
+measured_caveat = "the guard accepts --evidence OR an already-stored verification_evidence, so a task that carried evidence from an earlier flip can be re-set to done with none — stale evidence rubber-stamps new work. Pass fresh evidence every time."
+
+[order.render]
+command = "python3 scripts/artifacts.py tasks render --root ."
+effect = "rewrites TASKS.md from .devloop/tasks.jsonl; refuses an invalid JSONL and names the errors"
+warning = "TASKS.md is generated — never hand-edit it"
+
+[order.park]
+commands = [
+  "mkdir -p .devloop/run-handoff-$(date +%Y%m%d-%H%M%S)",
+  "git diff HEAD > .devloop/run-<stamp>/<task-id>.patch",
+  "git status --porcelain -uall",
+]
+measured_coverage = "git diff = tracked-unstaged only; git diff HEAD also carries staged; UNTRACKED files are in neither — list them and name them in the ledger or the next session restores the patch and loses them"
+exclude = "narrow only: `.devloop/run-*/` in .git/info/exclude — NEVER `.devloop/` wholesale, because LEDGER.md and tasks.jsonl live there and are the handoff itself"
+forbidden = ["git add", "git add -A", "git commit", "git push"]
+
+[order.ledger]
+command = "python3 scripts/adapters.py ledger --root . --status S --objective O [--done --next --blockers --unverified]"
+required = ["--status", "--objective"]
+missing_required = "argparse error, exit 2"
+optional_omitted = "written as '-', so a partial call is still well formed"
+heading = "## <YYYY-MM-DD HH:MM> · <git rev-parse --short HEAD> · <status> — pinned to a commit, not a remembered one"
+append_order = "newest last"
+one_line_per_field = "each field becomes one markdown list item; keep every value single-line"
+no_commit_yet = "with no commits (or outside a repo) the commit field is written EMPTY and git prints `fatal: not a git repository` to stderr while the command still exits 0 — such an entry is unanchored; say so"
+
+[unverified_field]
+takes = "CONTENT — what was claimed but not measured"
+never = "a count"
+good = [
+  "the retry path was never exercised; no test covers it",
+  "the fix is asserted from reading the code; the failing reproduction was never re-run",
+]
+why = "SKILL 7, Measuring the Wrong Property — a number of dirty paths is a proxy, and a proxy lets an unproven claim travel another session as fact"
+dash_means = "nothing outstanding — not 'did not check'"
+
+[precompact_hook]
+what = "hooks/hooks.json -> hooks/pre-compact.sh calls this same adapters.py ledger"
+stub = "--done 'see git log -5' and --unverified set to a COUNT of dirty paths"
+scope = "Claude-Code-only; install.sh installs skills and shims, never hooks, so the other six harnesses have no such hook"
+verdict = "a floor, not a substitute — a stub entry in the ledger is not evidence that a handoff happened"
+
+[not_this_command]
+ship = "/ship merges a finished branch into trunk and writes CHANGELOG.md for humans reading releases, only after /review passed"
+handoff = "/handoff is for STOPPING WITH WORK UNFINISHED — budget exhausted, blocked, converged-stuck, context full — and merges nothing"
+
+[output]
+require = ["task id and new status", "the refusal text if done was refused", "the patch path and the untracked files it does NOT contain", "the ledger heading line written (date · commit · status)", "the --unverified value verbatim"]

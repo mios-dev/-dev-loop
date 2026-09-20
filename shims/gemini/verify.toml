@@ -1,0 +1,47 @@
+[command]
+name = "verify"
+description = "Two-sided verification gate: positive control passes, planted negative control fails naming the plant, tree restored"
+version = "2.0.0"
+entrypoint = "python3 scripts/adapters.py gate"
+
+[parameters]
+lane = { type = "string", description = "Lane JSON describing the controls; build one from a task with 'artifacts.py tasks lane <id> --root .'", required = true }
+wt = { type = "string", description = "Worktree to gate", default = "." }
+run = { type = "string", description = "Run directory for pos/neg logs; must already exist and be git-ignored or outside the worktree", required = true }
+shell = { type = "string", description = "Shell used to run the controls: sh or pwsh", required = false }
+root = { type = "string", description = "Base repository for the base-tree leakage audit when wt is a worktree", required = false }
+
+[protocols]
+two_sided_verification = true
+tree_restore_required = true
+refuse_vacuous_control = true
+
+[exit_codes]
+0 = "positive passed AND negative failed for the named reason AND the tree was restored"
+1 = "positive_cmd or full_gate_cmd failed - honest red, the code is not done"
+2 = "REFUSED/VACUOUS - nothing was proven; never report as mostly passing"
+
+[vacuous_causes]
+sentinel_preexists = "the sentinel already existed in the worktree, so the planted citation would resolve; the gate refuses before running the control"
+tree_not_restored = "the negative control left the tree changed; pre-control diff parked as lane-<id>.patch"
+base_tree_leakage = "the control wrote outside the worktree; pre-control diff parked"
+negative_passed = "the negative control PASSED - the check cannot fail"
+expect_mismatch = "the negative failed but did not match negative_expect, so it proves nothing about the plant"
+mutants_survived = "mutation_cmd found surviving mutants - the tests cannot fail"
+
+[artifacts]
+always = ["pos-<id>.log", "neg-<id>.log"]
+conditional = ["mut-<id>.log", "full-<id>.log", "lane-<id>.patch"]
+
+[plant_naming]
+prefer = "organic - mutate real code and match the tool's own error"
+fallback = "DEVLOOP-PLANTED-<LANE_ID>, one unique sentinel per lane"
+forbidden = "a sentinel shared between lanes, or an expect string that also appears in the fixture's own filename"
+
+[document_branch]
+entrypoint = "python3 scripts/check_finding.py <repo_root> <findings_file>"
+description = "Gate for a prose deliverable: 7 required sections, a verdict from CONFIRMED/PARTLY_CONFIRMED/REFUTED/STALE, >= 3 path:line citations, every citation resolving against the tree"
+
+[do_not_cite]
+verify_harness = "scripts/verify_harness.py is an importable library; its __main__ only prints a readiness line and nothing imports it"
+contracts = "scripts/contracts.py is the same shape - neither is a runnable gate"
