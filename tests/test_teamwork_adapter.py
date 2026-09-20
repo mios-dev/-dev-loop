@@ -290,12 +290,13 @@ class TestReceiptHarvesting(unittest.TestCase):
         handoff_file = auditor_dir / "handoff.md"
         handoff_file.write_text("## 4. Conclusion\nDone\n## 5. Verification Method\ncheck\n", encoding="utf-8")
 
-        real_orig_req = Path("/workspaces/MiOS/.agents/ORIGINAL_REQUEST.md")
-        if real_orig_req.is_file():
-            shutil.copy2(real_orig_req, self.tmp / ".agents" / "ORIGINAL_REQUEST.md")
-            agy_session.harvest_teamwork_receipt(self.tmp, handoff_file, prompt_file=None)
-            ledger_text = (self.tmp / ".devloop" / "LEDGER.md").read_text(encoding="utf-8")
-            self.assertIn("Implement inherent Antigravity", ledger_text)
+        (self.tmp / ".agents" / "ORIGINAL_REQUEST.md").write_text(
+            "# Original User Request\n\n## 2026-09-19T20:00:00Z\n\nImplement inherent Antigravity /teamwork-preview\n",
+            encoding="utf-8",
+        )
+        agy_session.harvest_teamwork_receipt(self.tmp, handoff_file, prompt_file=None)
+        ledger_text = (self.tmp / ".devloop" / "LEDGER.md").read_text(encoding="utf-8")
+        self.assertIn("Implement inherent Antigravity", ledger_text)
 
 
 class TestBaseTreeGuardWithAgents(unittest.TestCase):
