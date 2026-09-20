@@ -96,8 +96,9 @@ launch() { # $1=id  — provision worktree + start worker per layout
         sh -c "$CMD" || true
       fi;;
     tmux_grid)
-      if tmux has-session -t "$SESSION" 2>/dev/null; then tmux split-window -t "$SESSION:0" -c "$WTA" "$CMD; exec sh"; tmux select-layout -t "$SESSION:0" tiled
-      else tmux new-session -d -s "$SESSION" -c "$WTA" "$CMD; exec sh"; fi;;
+      TMUX_WRAP="sh -c '$CMD'; echo \$? > '$RUN/worker-$ID.exit'; exec sh"
+      if tmux has-session -t "$SESSION" 2>/dev/null; then tmux split-window -t "$SESSION:0" -c "$WTA" "$TMUX_WRAP"; tmux select-layout -t "$SESSION:0" tiled
+      else tmux new-session -d -s "$SESSION" -c "$WTA" "$TMUX_WRAP"; fi;;
     *)
       # DETACHED lanes are spawned as JOBS, not as `( ... ) &`. A plain background child is
       # still a child: it dies when the shell's session ends, which is precisely the turn
@@ -131,9 +132,19 @@ launch() { # $1=id  — provision worktree + start worker per layout
 wait_wave() {
   IDS=''
   for ID in "$@"; do [ -d "$JOBS/$ID" ] && IDS="$IDS --id $ID"; done
-  [ -n "$IDS" ] || return 0
-  # shellcheck disable=SC2086
-  "$PY" "$JOB_PY" wait --root "$JOBS" $IDS --budget "${LANE_WAIT_BUDGET:-5400}" --interval "${LANE_WAIT_INTERVAL:-2}" || :
+  if [ -n "$IDS" ]; then
+    # shellcheck disable=SC2086
+    "$PY" "$JOB_PY" wait --root "$JOBS" $IDS --budget "${LANE_WAIT_BUDGET:-5400}" --interval "${LANE_WAIT_INTERVAL:-2}" || :
+  fi
+  for ID in "$@"; do
+    if [ ! -d "$JOBS/$ID" ] && [ ! -f "$RUN/worker-$ID.exit" ]; then
+      W=0
+      BUDGET=$(field "$RUN/lane-$ID.json" worker.timeout_s); case "$BUDGET" in ''|*[!0-9]*) BUDGET=1800;; esac
+      while [ "$W" -lt "$BUDGET" ] && [ ! -f "$RUN/worker-$ID.exit" ]; do
+        sleep 2; W=$((W+2))
+      done
+    fi
+  done
 }
 
 # Turn a lane's terminal state into the exit file the gate reads. The `.exit` fallback covers

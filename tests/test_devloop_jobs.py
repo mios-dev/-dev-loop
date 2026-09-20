@@ -86,7 +86,7 @@ def test_jobs_run_concurrently() -> None:
     check("spawning 3 jobs returns immediately", spawn_elapsed < 1.0,
           f"took {spawn_elapsed:.2f}s — spawn must not block")
 
-    res = job.wait(root, [f"lane{i}" for i in range(3)], budget_s=30, interval_s=1)
+    res = job.wait(root, [f"lane{i}" for i in range(3)], budget_s=30, interval_s=0.2)
     total = time.time() - t0
     check("all three completed", all(r["state"] == "done" and r["rc"] == 0 for r in res.values()),
           str({k: (v["state"], v["rc"]) for k, v in res.items()}))
@@ -341,6 +341,18 @@ def test_the_wave_waits_on_one_deadline_not_n() -> None:
         job.kill(root, f"w{i}", "KILL")
 
 
+def test_failing_lane_gate_does_not_abort_subsequent_lanes() -> None:
+    """MON-001: Under set -eu a bare failing command exits the script before rc=$? runs,
+    so one failing gate used to end the whole run and skip every later lane.
+    Verify that devloop.sh captures gate exit code and continues to gate all lanes."""
+    print("failing lane gate does not abort subsequent lanes (MON-001):")
+    src = DEVLOOP.read_text()
+    check("gate command return code is captured without tripping set -e",
+          'rc=0; "$PY" "$AD" gate' in src and "|| rc=$?" in src)
+    check("status file is written after wave loop",
+          'echo "$STATUS" > "$RUN/status"' in src)
+
+
 def main() -> int:
     for t in (test_detached_lanes_are_jobs_not_background_children,
               test_jobs_run_concurrently,
@@ -352,7 +364,8 @@ def main() -> int:
               test_a_failed_spawn_is_not_swallowed,
               test_budget_guard_fires_on_a_missing_timeout,
               test_a_lane_that_outruns_its_budget_does_not_kill_the_orchestrator,
-              test_the_wave_waits_on_one_deadline_not_n):
+              test_the_wave_waits_on_one_deadline_not_n,
+              test_failing_lane_gate_does_not_abort_subsequent_lanes):
         t()
     print()
     if FAILURES:
