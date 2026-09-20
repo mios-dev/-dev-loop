@@ -15,7 +15,7 @@ flags too — verify against `<cli> --help` before relying on one.
 | Cursor | `.cursor/skills/dev-loop/` | `.cursor/commands/dev-loop.md` (+ optional always-on rule `.cursor/rules/dev-loop.mdc`) | `/dev-loop` | prompt text |
 | GitHub Copilot (VS Code + `copilot` CLI) | `.github/skills/dev-loop/` → `~/.copilot/skills/` | `.github/prompts/dev-loop.prompt.md` (+ optional agent `.github/agents/dev-loop.agent.md`) | `/dev-loop` | `${input}` |
 | OpenCode | `.opencode/skills/dev-loop/` | `.opencode/command/dev-loop.md` | `/dev-loop <obj>` | `$ARGUMENTS` |
-| Hermes-Agent | `~/.hermes/skills/dev-loop/` (agentskills.io compatible; auto-exposed as `/dev-loop`) | n/a | `/dev-loop` | prompt text |
+| Any agentskills.io-compatible local agent gateway | `~/.hermes/skills/dev-loop/` or the gateway's own skills dir (auto-exposed as `/dev-loop`) | n/a | `/dev-loop` | prompt text |
 | OpenAI-compatible runtime (Open WebUI pipe, custom) | pass `SKILL.md` as system context (Open WebUI core has no SKILL.md discovery) | n/a — expose `dev_loop` from `openai-tools.json` as a host-side tool | tool call | JSON |
 
 `scripts/install.sh` / `install.ps1` copies the skill and every shim into the right places for

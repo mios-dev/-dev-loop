@@ -7,7 +7,7 @@
 #   2. The Antigravity CLI itself (official installer → ~/.local/bin/agy)
 #   3. A running Secret Service keyring (env/agy-keyring.sh)
 #   4. The dev-loop skill + /dev-loop workflow installed into Antigravity's
-#      user-scope directories (~/.gemini/config/skills, ~/.gemini/antigravity/workflows)
+#      user-scope directories (~/.gemini/config/skills, ~/.gemini/config/workflows)
 #   5. PATH / keyring env persisted into $CLAUDE_ENV_FILE when set
 #
 # Idempotent and non-interactive: every step no-ops when already satisfied.
@@ -104,12 +104,15 @@ else
 fi
 
 # --- 4. dev-loop skill + /dev-loop workflow into Antigravity (user scope) ------
-if [ -f "$HOME/.gemini/config/skills/dev-loop/SKILL.md" ]; then
-    log "dev-loop skill already installed for Antigravity (user scope)"
-elif sh "$SKILL_DIR/scripts/install.sh" --harness antigravity --user >/dev/null 2>&1; then
-    log "dev-loop skill installed for Antigravity (user scope)"
+# install.sh refreshes destructively (per skill: rm -rf + cp -R; per shim: cp over), so
+# re-running it IS the update path and costs <1s. Gating on the mere presence of SKILL.md
+# pinned the first copy forever -- measured: 12+ files stale, one script missing entirely.
+AGY_SKILL_STATE=installed
+[ -f "$HOME/.gemini/config/skills/dev-loop/SKILL.md" ] && AGY_SKILL_STATE=refreshed
+if sh "$SKILL_DIR/scripts/install.sh" --harness antigravity --user >/dev/null 2>&1; then
+    log "dev-loop skill $AGY_SKILL_STATE for Antigravity (user scope)"
 else
-    warn "dev-loop skill install for Antigravity reported errors; run it manually: sh $SKILL_DIR/scripts/install.sh --harness antigravity --user"
+    warn "dev-loop skill install for Antigravity reported errors ($AGY_SKILL_STATE copy may be stale); run it manually: sh $SKILL_DIR/scripts/install.sh --harness antigravity --user"
 fi
 
 # --- 4b. headless permission grants -------------------------------------------
@@ -127,8 +130,8 @@ fi
 #   * command() prefix-matches the binary, so the shell stays scoped to this list --
 #     which is what makes this narrower than --dangerously-skip-permissions.
 AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
-if [ -n "${MIOS_AGY_NO_GRANTS:-}" ]; then
-    log "skipping permission grants (MIOS_AGY_NO_GRANTS set)"
+if [ -n "${DEVLOOP_AGY_NO_GRANTS:-}" ]; then
+    log "skipping permission grants (DEVLOOP_AGY_NO_GRANTS set)"
 elif command -v python3 >/dev/null 2>&1; then
     mkdir -p "$(dirname "$AGY_SETTINGS")"
     AGY_SETTINGS="$AGY_SETTINGS" python3 - <<'PY' && log "headless grants written to ~/.gemini/antigravity-cli/settings.json"
