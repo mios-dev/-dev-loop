@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "disableAllHooks": false,
+  "hooks": {
+    "preToolUse": [
+      {"type": "command", "bash": "python3 \"${DEVLOOP_HOOKS}/copilot/devloop-hook.py\" pretool", "timeoutSec": 10}
+    ],
+    "postToolUse": [
+      {"type": "command", "bash": "python3 \"${DEVLOOP_HOOKS}/copilot/devloop-hook.py\" format", "timeoutSec": 60}
+    ],
+    "preCompact": [
+      {"type": "command", "bash": "python3 \"${DEVLOOP_HOOKS}/copilot/devloop-hook.py\" pre-compact", "timeoutSec": 20}
+    ],
+    "agentStop": [
+      {"type": "command", "bash": "python3 \"${DEVLOOP_HOOKS}/copilot/devloop-hook.py\" stop-gate", "timeoutSec": 20}
+    ],
+    "subagentStop": [
+      {"type": "command", "bash": "python3 \"${DEVLOOP_HOOKS}/copilot/devloop-hook.py\" stop-gate", "timeoutSec": 20}
+    ]
+  }
+}
