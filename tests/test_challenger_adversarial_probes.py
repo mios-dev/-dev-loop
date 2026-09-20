@@ -695,6 +695,9 @@ exit 0
         )
         mock_agy.chmod(0o755)
 
+        lanes_file = self.sandbox / "lanes.json"
+        lanes_file.write_text(json.dumps({"lanes": [{"id": "lane-test", "worker": {"harness": "antigravity"}}]}), encoding="utf-8")
+
         env = {**os.environ, "PATH": f"{mock_bin_dir}:{os.environ.get('PATH', '')}"}
         res = subprocess.run(
             [
@@ -704,6 +707,8 @@ exit 0
                 str(prompt_file),
                 "--run-root",
                 str(self.sandbox),
+                "--lanes",
+                str(lanes_file),
             ],
             capture_output=True,
             text=True,

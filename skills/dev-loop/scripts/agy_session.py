@@ -48,8 +48,10 @@ Do not describe it as proven.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
+import re
 import select
 import subprocess
 import sys
@@ -98,6 +100,123 @@ def missing_reports(native_dir: Path, lane_ids: list[str], jobs_dir: Path | None
     return out
 
 
+def scan_teamwork_state(agents_dir: Path, now: float) -> dict:
+    """Scans .agents/ to monitor subagent progress, heartbeats, and terminal handoffs."""
+    if not agents_dir.is_dir():
+        return {"live": False, "agents": {}, "terminal_handoff": None}
+
+    agents = {}
+    terminal_candidates = []
+
+    for sub in sorted(agents_dir.iterdir()):
+        if not sub.is_dir() or sub.name.startswith("."):
+            continue
+
+        prog_file = sub / "progress.md"
+        handoff_file = sub / "handoff.md"
+
+        last_visited = 0.0
+        status_text = "unknown"
+        current_step = ""
+
+        if prog_file.is_file():
+            try:
+                txt = prog_file.read_text(encoding="utf-8")
+                m_time = re.search(r"Last visited\*{0,2}:\s*\[?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[^\]\s\n]*)\]?", txt)
+                if m_time:
+                    ts_str = m_time.group(1).strip()
+                    if ts_str.endswith("Z"):
+                        ts_str = ts_str[:-1] + "+00:00"
+                    dt = datetime.datetime.fromisoformat(ts_str)
+                    last_visited = dt.timestamp()
+                m_status = re.search(r"Status\*{0,2}:\s*(.+)", txt)
+                if m_status:
+                    status_text = m_status.group(1).strip().strip("*")
+                m_step = re.search(r"Current Step\*{0,2}:\s*(.+)", txt)
+                if m_step:
+                    current_step = m_step.group(1).strip().strip("*")
+            except Exception:
+                pass
+
+        has_handoff = handoff_file.is_file()
+        age_s = max(0.0, now - last_visited) if last_visited > 0 else 999999.0
+        agents[sub.name] = {
+            "last_visited": last_visited,
+            "age_s": age_s,
+            "status": status_text,
+            "current_step": current_step,
+            "has_handoff": has_handoff
+        }
+
+        if has_handoff:
+            name_lower = sub.name.lower()
+            if (name_lower.startswith("auditor") or name_lower.startswith("orchestrator") or
+                name_lower.startswith("sentinel") or name_lower.startswith("victory_auditor") or
+                "auditor" in name_lower):
+                try:
+                    mtime = handoff_file.stat().st_mtime
+                except Exception:
+                    mtime = 0.0
+                terminal_candidates.append((mtime, handoff_file))
+
+    terminal_handoff = None
+    if terminal_candidates:
+        terminal_candidates.sort(key=lambda x: x[0], reverse=True)
+        terminal_handoff = terminal_candidates[0][1]
+
+    live = any(a["has_handoff"] is False and a["age_s"] < 300 for a in agents.values())
+    return {
+        "live": live,
+        "agents": agents,
+        "terminal_handoff": terminal_handoff
+    }
+
+
+def harvest_teamwork_receipt(run_root: str | Path, terminal_handoff: Path, prompt_file: Path | None = None) -> None:
+    """Harvests teamwork conclusions and writes a Ralph-style entry to .devloop/LEDGER.md."""
+    run_root = Path(run_root).resolve()
+    handoff_text = terminal_handoff.read_text(encoding="utf-8")
+
+    obj_text = ""
+    if prompt_file and Path(prompt_file).is_file():
+        try:
+            raw = Path(prompt_file).read_text(encoding="utf-8")
+            obj_text = raw.replace("/teamwork-preview", "").strip()
+        except Exception:
+            pass
+    if not obj_text:
+        orig_req = run_root / ".agents" / "ORIGINAL_REQUEST.md"
+        if orig_req.is_file():
+            try:
+                m = re.findall(r"##\s*(?:[^\n]*\s*—\s*)?\d{4}-\d{2}-\d{2}[^\n]*\n+(.*?)(?=\n##|\Z)", orig_req.read_text("utf-8"), re.S)
+                if m:
+                    obj_text = m[-1].strip()
+            except Exception:
+                pass
+    if not obj_text:
+        obj_text = "Teamwork execution"
+
+    conclusion = re.search(r"##\s*(?:4\.\s*)?Conclusion\s*\n(.*?)(?=\n##|\Z)", handoff_text, re.S)
+    verif = re.search(r"##\s*(?:5\.\s*)?Verification Method\s*\n(.*?)(?=\n##|\Z)", handoff_text, re.S)
+    caveats = re.search(r"##\s*(?:3\.\s*)?Caveats\s*\n(.*?)(?=\n##|\Z)", handoff_text, re.S)
+
+    done_summary = conclusion.group(1).strip().replace("\n", " ")[:300] if conclusion else "Teamwork execution completed."
+    blockers = caveats.group(1).strip().replace("\n", " ")[:200] if caveats else "-"
+    unverified_summary = verif.group(1).strip().replace("\n", " ")[:200] if verif else "-"
+
+    import adapters
+    args = argparse.Namespace(
+        root=str(run_root),
+        status="teamwork-done",
+        objective=obj_text[:80],
+        done=done_summary,
+        next="Review auditor handoff and sync task parity",
+        blockers=blockers,
+        unverified=unverified_summary,
+    )
+    adapters.cmd_ledger(args)
+
+
 # The manager is not a lane, so nothing else in this file watches what IT writes.
 # Measured 2026-09-19: a manager run with worktree_root set never created a worktree and
 # edited the base tree directly, planting a negatives-suite fixture -- `echo
@@ -105,7 +224,7 @@ def missing_reports(native_dir: Path, lane_ids: list[str], jobs_dir: Path | None
 # SSOT. Every lane gate passed, because lane gates read WORKTREES. The dispatch prompt
 # already said to use isolated workspaces; a rule with no measurement behind it is a check
 # that cannot fail (SKILL.md 7), so this measures it.
-BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md")
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", ".agents/")
 
 
 def base_tree_state(root: Path) -> dict[str, str] | None:
@@ -354,6 +473,8 @@ def main() -> int:
                     help="register this session with Antigravity Remote Control so it can be "
                          "watched and driven from antigravity.google.com; the connection lasts "
                          "exactly as long as this process")
+    ap.add_argument("--teamwork", action="store_true",
+                    help="supervise an Antigravity /teamwork-preview multi-agent session")
     a = ap.parse_args()
 
     argv = session_argv(a.model, a.effort, a.yolo, a.remote_control)
@@ -373,7 +494,7 @@ def main() -> int:
     # named on every turn, prefixed UNGATED, so a monitor and an operator see the tree moving.
     # What is lost is real and is not papered over: a lane-less run has no worktree gate, and
     # its changes must be reviewed before they are trusted.
-    guard_gates = bool(lane_ids)
+    guard_gates = bool(lane_ids) or bool(a.teamwork)
 
     # Baseline BEFORE turn 1, so inherited dirt is never attributed to the manager.
     allowed = BASE_TREE_ALWAYS_ALLOWED + (
@@ -407,6 +528,7 @@ def main() -> int:
 
     last_result: dict | None = None
     turns_sent = 1
+    teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
         proc.stdin.flush()
@@ -463,6 +585,35 @@ def main() -> int:
                 print("agy_session: UNGATED base-tree change (%d lane(s), so no worktree gate "
                       "applies): %s -- review before trusting this run"
                       % (len(lane_ids), ", ".join(fresh)), file=sys.stderr)
+
+            if getattr(a, "teamwork", False):
+                import adapters
+                violations = adapters.validate_agents_metadata_layout(Path(a.run_root))
+                if violations:
+                    print("agy_session: BASE TREE LEAKAGE: unauthorized source/executable files planted in .agents/: %s"
+                          % ", ".join(violations), file=sys.stderr)
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                    except Exception:
+                        proc.kill()
+                    return 6
+                tw_state = scan_teamwork_state(Path(a.run_root) / ".agents", time.time())
+                if tw_state["terminal_handoff"]:
+                    print(f"agy_session: terminal teamwork handoff detected: {tw_state['terminal_handoff']}", file=sys.stderr)
+                    harvest_teamwork_receipt(a.run_root, tw_state["terminal_handoff"], Path(a.prompt_file))
+                    teamwork_harvested = True
+                    break
+                if not tw_state["live"] or turns_sent > a.poll_max:
+                    break
+                print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
+                proc.stdin.write(ndjson_user(
+                    f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
+                    "Continue monitoring until auditor handoff is produced, then report DONE."))
+                proc.stdin.flush()
+                turns_sent += 1
+                continue
+
             if not outstanding or turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
@@ -533,6 +684,21 @@ def main() -> int:
             print("agy_session: (lane-less run: the changes above are its OUTPUT, and carry no "
                   "worktree gate. The repo's own gates are what must accept them.)",
                   file=sys.stderr)
+
+    if getattr(a, "teamwork", False):
+        import adapters
+        violations = adapters.validate_agents_metadata_layout(Path(a.run_root))
+        if violations:
+            print("agy_session: BASE TREE LEAKAGE: unauthorized source/executable files planted in .agents/: %s"
+                  % ", ".join(violations), file=sys.stderr)
+            return 6
+        tw_state = scan_teamwork_state(Path(a.run_root) / ".agents", time.time())
+        if not tw_state["terminal_handoff"]:
+            print("agy_session: poll budget spent; teamwork finished without terminal handoff", file=sys.stderr)
+            return 5
+        if not teamwork_harvested:
+            harvest_teamwork_receipt(a.run_root, tw_state["terminal_handoff"], Path(a.prompt_file))
+        return 0
 
     still = missing_reports(native_dir, lane_ids, jobs_dir)
     if still:

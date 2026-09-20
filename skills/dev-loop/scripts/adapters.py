@@ -20,6 +20,7 @@ adapters.py — the one code path every host uses (stdlib only, Linux/macOS/Wind
                                                     without a stderr notice sharing the stream) and report auto-denied
                                                     tool calls. exit 0 clean, 3 denied/failed/no-envelope.
   ledger    --status S --objective O [--done --next --blockers --unverified]   append a handoff note to .devloop/LEDGER.md
+  teamwork  --objective O [--root DIR] [--timeout SEC]  native /teamwork-preview dispatch & supervision
   base-snapshot --root DIR --out SNAPSHOT_FILE          snapshot git status --porcelain for base-tree auditing
   base-audit    --root DIR --before SNAP [--lanes L]    audit base tree immutability against baseline snapshot; exit 0 ok, 6 stray
   git       --wt DIR -- <git args>                  git with index.lock retry (exponential backoff)
@@ -49,15 +50,17 @@ except ImportError:
 
 HERE = Path(__file__).resolve().parent
 SKILL_DEFAULT = HERE.parent / "SKILL.md"  # scripts/ -> skill dir
-HARNESSES = ["claude-code", "codex", "gemini-cli", "antigravity", "copilot", "opencode", "cursor", "openai-compatible", "custom"]
+HARNESSES = ["claude-code", "codex", "gemini-cli", "antigravity", "antigravity-teamwork", "copilot", "opencode", "cursor", "openai-compatible", "custom"]
 V1_HARNESS = {"claude": "claude-code", "gemini": "gemini-cli", "cloudcode": "antigravity", "openai": "openai-compatible",
-              "copilot": "copilot", "opencode": "opencode", "cursor": "cursor", "antigravity": "antigravity", "codex": "codex"}
-BINARY = {"claude-code": "claude", "codex": "codex", "gemini-cli": "gemini", "antigravity": "agy", "copilot": "copilot", "opencode": "opencode", "cursor": "agent"}
+              "copilot": "copilot", "opencode": "opencode", "cursor": "cursor", "antigravity": "antigravity", "codex": "codex",
+              "teamwork": "antigravity-teamwork", "antigravity-teamwork": "antigravity-teamwork"}
+BINARY = {"claude-code": "claude", "codex": "codex", "gemini-cli": "gemini", "antigravity": "agy", "antigravity-teamwork": "agy", "copilot": "copilot", "opencode": "opencode", "cursor": "agent"}
 # flags the adapter relies on, probed with `<bin> --help` by `probe`; a miss means the CLI moved under us
 PROBE_FLAGS = {"claude-code": ["--output-format", "--max-budget-usd", "--permission-mode", "--allowedTools", "--json-schema", "--effort", "--model"],
                "codex": ["exec", "--json", "--cd", "--sandbox", "--ask-for-approval", "--output-schema"],
                "gemini-cli": ["-p", "--output-format", "--yolo"],
                "antigravity": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
+               "antigravity-teamwork": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
                "copilot": ["-p", "--allow-tool", "--deny-tool", "--output-format", "--add-dir", "--no-ask-user"],
                "opencode": ["run", "--format", "--agent", "--model"],
                "cursor": ["-p", "--output-format", "--force", "--workspace"]}
@@ -219,7 +222,6 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
                 "--permission-prompts", "none",
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
                 "--model", w.get("model", "opus"), "--effort", w.get("effort", "xhigh")]
-        if w.get("max_turns"): argv += ["--max-turns", str(w["max_turns"])]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":
@@ -240,6 +242,14 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
         # `agy models` lists what the account can use — flags drift, probe first.
         argv = ["agy", "-p", obj, "--output-format", "json", "--print-timeout", f"{t}s", "--dangerously-skip-permissions",
                 "--model", w.get("model", "gemini-3.8-flash-high")]
+        if w.get("effort"): argv += ["--effort", w["effort"]]
+        if w.get("sandbox"): argv += ["--sandbox", w["sandbox"]]
+    elif h == "antigravity-teamwork":
+        stripped = obj.strip()
+        teamwork_prompt = stripped if stripped.startswith("/teamwork-preview") else f"/teamwork-preview {stripped}"
+        argv = ["agy", "-p", teamwork_prompt, "--output-format", w.get("output_format", "json"),
+                "--print-timeout", f"{t}s", "--dangerously-skip-permissions",
+                "--model", w.get("model", "gemini-3.1-pro-high")]
         if w.get("effort"): argv += ["--effort", w["effort"]]
         if w.get("sandbox"): argv += ["--sandbox", w["sandbox"]]
     elif h == "copilot":
@@ -444,7 +454,26 @@ def run_shell(cmd: str, cwd: Path, timeout: int, env: dict | None = None, prefer
         return 124, out + f"\nTIMEOUT after {timeout}s", True
 
 
-BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md")
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", ".agents/")
+ALLOWED_AGENTS_METADATA_EXTS = {".md", ".json", ".toml", ".yaml", ".yml", ".txt", ".log", ".patch"}
+
+
+def validate_agents_metadata_layout(root: Path) -> list[str]:
+    """Ensures .agents/ contains strictly metadata files.
+    Planted source, tests, or binaries violate the Layout Compliance Invariant."""
+    agents_dir = Path(root) / ".agents"
+    if not agents_dir.is_dir():
+        return []
+    violations = []
+    for p in sorted(agents_dir.rglob("*")):
+        if p.is_file():
+            if p.suffix.lower() not in ALLOWED_AGENTS_METADATA_EXTS:
+                try:
+                    rel = str(p.relative_to(root)).replace("\\", "/")
+                except ValueError:
+                    rel = str(p).replace("\\", "/")
+                violations.append(rel)
+    return violations
 
 
 def base_tree_state(root: Path) -> dict[str, str] | None:
@@ -792,13 +821,19 @@ def cmd_base_snapshot(a):
 
 def cmd_base_audit(a):
     root = Path(a.root).resolve()
+    violations = validate_agents_metadata_layout(root)
+    if violations:
+        for v in violations:
+            print(f"BASE TREE LEAKAGE: unauthorized file in .agents/: {v}", file=sys.stderr)
+        die("BASE TREE LEAKAGE: unauthorized source/executable files planted in .agents/: " + ", ".join(violations), 6)
     if getattr(a, "save", None) and a.save:
         st = base_tree_state(root)
         Path(a.save).write_text(json.dumps(st or {}), "utf-8")
         print(f"base snapshot saved: {a.save}")
         return
     if not getattr(a, "before", None) or not a.before:
-        die("base-audit requires either --before <snapshot_file> or --save <snapshot_file>", 64)
+        print("base tree audit ok: no unauthorized files in .agents/")
+        return
     snap_path = Path(a.before)
     if not snap_path.exists():
         die(f"snapshot file not found: {a.before}", 64)
@@ -829,6 +864,41 @@ def cmd_base_audit(a):
     print("base tree audit ok: no stray modifications")
 
 
+def cmd_teamwork(a):
+    """Native dispatch and supervision of /teamwork-preview run."""
+    root = Path(getattr(a, "root", None) or ".").resolve()
+    obj = a.objective.strip()
+    agents_dir = root / ".agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    orig_req = agents_dir / "ORIGINAL_REQUEST.md"
+    if orig_req.is_file():
+        archive_path = agents_dir / f"ORIGINAL_REQUEST_ARCHIVE_{int(time.time())}.md"
+        shutil.move(str(orig_req), str(archive_path))
+
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    orig_req.write_text(f"# Original User Request\n\n## {now_iso}\n\n{obj}\n", encoding="utf-8")
+
+    session_py = HERE / "agy_session.py"
+    prompt_file = root / ".devloop" / "teamwork-prompt.txt"
+    prompt_file.parent.mkdir(parents=True, exist_ok=True)
+    prompt_file.write_text(f"/teamwork-preview {obj}\n", encoding="utf-8")
+
+    cmd = [
+        sys.executable, str(session_py),
+        "--prompt-file", str(prompt_file),
+        "--run-root", str(root),
+        "--teamwork",
+        "--yolo"
+    ]
+    timeout_s = getattr(a, "timeout", None) or getattr(a, "timeout_s", None)
+    if timeout_s:
+        cmd += ["--hold-max-s", str(timeout_s)]
+
+    cp = subprocess.run(cmd)
+    sys.exit(cp.returncode)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -852,6 +922,7 @@ def main():
     p = sp.add_parser("probe"); p.add_argument("--harness", nargs="*"); p.set_defaults(f=cmd_probe)
     p = sp.add_parser("ledger"); p.add_argument("--root", default="."); p.add_argument("--status", required=True); p.add_argument("--objective", required=True)
     p.add_argument("--done"); p.add_argument("--next"); p.add_argument("--blockers"); p.add_argument("--unverified"); p.set_defaults(f=cmd_ledger)
+    p = sp.add_parser("teamwork"); p.add_argument("--objective", "-o", required=True); p.add_argument("--root", default="."); p.add_argument("--timeout", "--timeout-s", type=int); p.set_defaults(f=cmd_teamwork)
     p = sp.add_parser("git"); p.add_argument("--wt", required=True); p.add_argument("args", nargs=argparse.REMAINDER); p.set_defaults(f=cmd_git)
     a = ap.parse_args()
     if getattr(a, "args", None) and a.args and a.args[0] == "--": a.args = a.args[1:]

@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Dev Loop orchestrator — POSIX sh + git + python3 (tmux optional).
 #
+#   devloop.sh teamwork <objective>
 #   devloop.sh <lanes.json> [--layout auto|tmux_grid|detached|headless] [--dry-run] [--keep] [--check]
 #
 # Any harness can invoke this from its shell tool; lanes may run in any harness (lane.worker.harness).
@@ -18,7 +19,16 @@ if [ "${1:-}" = "--check" ]; then
   for b in git "$PY" tmux claude codex gemini agy gitleaks; do printf '%-9s %s\n' "$b" "$(command -v "$b" 2>/dev/null || echo '-')"; done
   "$PY" -c 'import jsonschema' 2>/dev/null && echo "jsonschema ok" || echo "jsonschema missing (structural validation only)"; exit 0
 fi
-LANES=${1:?usage: devloop.sh <lanes.json> [--layout L] [--dry-run] [--keep] [--check]}; shift
+
+if [ "${1:-}" = "teamwork" ]; then
+  shift
+  OBJ="${1:?usage: devloop.sh teamwork <objective>}"
+  ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  echo "== Launching native Antigravity /teamwork-preview workflow =="
+  exec "$PY" "$AD" teamwork --objective "$OBJ" --root "$ROOT"
+fi
+
+LANES=${1:?usage: devloop.sh <lanes.json>|teamwork <objective> [--layout L] [--dry-run] [--keep] [--check]}; shift
 DRY=0; KEEP=0; LAYOUT=auto; CONCURRENT=0
 while [ $# -gt 0 ]; do case "$1" in
   --dry-run) DRY=1;; --keep) KEEP=1;; --layout) LAYOUT=$2; shift;; --no-tmux) LAYOUT=detached;;

@@ -9,6 +9,8 @@
 #   sh scripts/agy_host.sh <lanes.json> --headless [--yolo]      # unattended, SINGLE-TURN
 #   sh scripts/agy_host.sh <lanes.json> --session  [--yolo] [--remote-control]
 #                                                                # unattended, HELD SESSION
+#   sh scripts/agy_host.sh --teamwork "<objective>" [--yolo] [--tmux] [--remote-control]
+#                                                                # unattended, TEAMWORK SESSION
 #   sh scripts/agy_host.sh <lanes.json> --print-prompt           # just emit the manager prompt
 #
 # --headless vs --session is about PROCESS LIFETIME, not about being unattended.
@@ -25,14 +27,22 @@
 set -eu
 
 SKILL_DIR=$(cd "$(dirname "$0")/.." && pwd)
-LANES=${1:-}
-[ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo] [--remote-control]] [--tmux] [--print-prompt]" >&2; exit 64; }
-LANES=$(cd "$(dirname "$LANES")" && pwd)/$(basename "$LANES")
-shift
-MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0; REMOTE_CONTROL=0
+TEAMWORK=0; OBJECTIVE=""; LANES=""
+if [ "${1:-}" = "--teamwork" ]; then
+    TEAMWORK=1
+    MODE=teamwork
+    shift
+    OBJECTIVE="${1:?usage: agy_host.sh --teamwork <objective> [--yolo] [--tmux] [--remote-control]}"
+    shift
+elif [ -n "${1:-}" ] && [ -f "${1:-}" ]; then
+    LANES=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+    shift
+fi
+
+MODE=${MODE:-interactive}; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0; REMOTE_CONTROL=0
 # Three axes, tracked separately on purpose, because folding them together makes the
 # behaviour depend on the ORDER the flags were typed in:
-#   MODE       - which executor runs the prompt (interactive / headless / session)
+#   MODE       - which executor runs the prompt (interactive / headless / session / teamwork)
 #   HEADLESS   - which dispatch rule the prompt must carry
 #   PRINT_ONLY - a sticky override: preview the prompt, execute nothing
 # PRINT_ONLY is deliberately NOT a MODE value. When it was, `--print-prompt --headless`
@@ -41,6 +51,7 @@ MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0;
 # and adding --session made it worse. --print-prompt now wins wherever it appears.
 while [ $# -gt 0 ]; do
     case "$1" in
+        --teamwork) MODE=teamwork; TEAMWORK=1;;
         --headless) MODE=headless; HEADLESS=1;;
         --session) MODE=session; HEADLESS=1; SESSION=1;;
         --tmux) USE_TMUX=1;;
@@ -50,19 +61,26 @@ while [ $# -gt 0 ]; do
         # time anyone opens the Remote Control list.
         --remote-control) REMOTE_CONTROL=1;;
         --print-prompt) PRINT_ONLY=1;;
-        *) echo "unknown flag: $1" >&2; exit 64;;
+        *)
+            if [ "$TEAMWORK" = 1 ] && [ -z "$OBJECTIVE" ]; then
+                OBJECTIVE="$1"
+            else
+                echo "unknown flag: $1" >&2; exit 64
+            fi;;
     esac
     shift
 done
 [ "$PRINT_ONLY" = 1 ] && MODE=print
 
-# Validate the lane file before handing it to a model: fail here, not mid-run.
-python3 "$SKILL_DIR/scripts/adapters.py" validate "$LANES" >/dev/null || { echo "lane file failed validation: $LANES" >&2; exit 65; }
-
-# The run's repository root: everything the manager creates lives under it.
-# (An agy manager perceives its TRUSTED WORKSPACE as home and, unanchored,
-# invents paths in the wrong checkout — observed live 2026-09.)
-RUN_ROOT=$(cd "$(dirname "$LANES")" && git rev-parse --show-toplevel 2>/dev/null || dirname "$LANES")
+if [ "$TEAMWORK" = 0 ]; then
+    [ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo] [--remote-control]] [--tmux] [--print-prompt] | --teamwork <objective>" >&2; exit 64; }
+    # Validate the lane file before handing it to a model: fail here, not mid-run.
+    python3 "$SKILL_DIR/scripts/adapters.py" validate "$LANES" >/dev/null || { echo "lane file failed validation: $LANES" >&2; exit 65; }
+    RUN_ROOT=$(cd "$(dirname "$LANES")" && git rev-parse --show-toplevel 2>/dev/null || dirname "$LANES")
+else
+    [ -n "$OBJECTIVE" ] || { echo "usage: sh scripts/agy_host.sh --teamwork <objective>" >&2; exit 64; }
+    RUN_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+fi
 
 # Cloud containers keep the keyring's bus address in this env file; without it
 # agy (and every agy -p lane it spawns) cannot see the cached credential and
@@ -100,28 +118,80 @@ RUN_ROOT=$(cd "$(dirname "$LANES")" && git rev-parse --show-toplevel 2>/dev/null
 # value that had already been measured impossible, surviving in a branch nobody diffed.
 # prompt.py refuses all three: undeclared placeholder, missing value, and any $SHELL_VAR
 # reaching the rendered output.
-PROMPTS="$SKILL_DIR/scripts/prompt.py"
-if [ "$SESSION" = 1 ]; then   DISPATCH_TEMPLATE=dispatch.session
-elif [ "$HEADLESS" = 1 ]; then DISPATCH_TEMPLATE=dispatch.headless
-else                           DISPATCH_TEMPLATE=dispatch.interactive
+if [ "$TEAMWORK" = 0 ]; then
+    PROMPTS="$SKILL_DIR/scripts/prompt.py"
+    if [ "$SESSION" = 1 ]; then   DISPATCH_TEMPLATE=dispatch.session
+    elif [ "$HEADLESS" = 1 ]; then DISPATCH_TEMPLATE=dispatch.headless
+    else                           DISPATCH_TEMPLATE=dispatch.interactive
+    fi
+    PROMPT_ERR=$(mktemp)
+    # Each template is rendered with EXACTLY the variables it declares -- prompt.py rejects extras,
+    # which is what makes a rename that updates only one side fail instead of rendering half a
+    # prompt. Positional args, not a word-split string, so a path with a space survives.
+    set -- render "$DISPATCH_TEMPLATE" --var "RUN_ROOT=$RUN_ROOT"
+    [ "$DISPATCH_TEMPLATE" = dispatch.headless ] && set -- "$@" --var "SKILL_DIR=$SKILL_DIR" --var "LANES=$LANES"
+    DISPATCH_RULE=$(python3 "$PROMPTS" "$@" 2>"$PROMPT_ERR") || {
+        echo "agy_host: dispatch prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
+    PROMPT=$(python3 "$PROMPTS" render manager \
+        --var "RUN_ROOT=$RUN_ROOT" --var "SKILL_DIR=$SKILL_DIR" --var "LANES=$LANES" \
+        --var "DISPATCH_RULE=$DISPATCH_RULE" 2>"$PROMPT_ERR") || {
+        echo "agy_host: manager prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
+    rm -f "$PROMPT_ERR"
+else
+    PROMPT="/teamwork-preview $OBJECTIVE"
 fi
-PROMPT_ERR=$(mktemp)
-# Each template is rendered with EXACTLY the variables it declares -- prompt.py rejects extras,
-# which is what makes a rename that updates only one side fail instead of rendering half a
-# prompt. Positional args, not a word-split string, so a path with a space survives.
-set -- render "$DISPATCH_TEMPLATE" --var "RUN_ROOT=$RUN_ROOT"
-[ "$DISPATCH_TEMPLATE" = dispatch.headless ] && set -- "$@" --var "SKILL_DIR=$SKILL_DIR" --var "LANES=$LANES"
-DISPATCH_RULE=$(python3 "$PROMPTS" "$@" 2>"$PROMPT_ERR") || {
-    echo "agy_host: dispatch prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
-PROMPT=$(python3 "$PROMPTS" render manager \
-    --var "RUN_ROOT=$RUN_ROOT" --var "SKILL_DIR=$SKILL_DIR" --var "LANES=$LANES" \
-    --var "DISPATCH_RULE=$DISPATCH_RULE" 2>"$PROMPT_ERR") || {
-    echo "agy_host: manager prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
-rm -f "$PROMPT_ERR"
 
 case "$MODE" in
     print)
         printf '%s\n' "$PROMPT"
+        ;;
+    teamwork)
+        command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }
+        PROMPT_FILE=$(mktemp)
+        printf '/teamwork-preview %s\n' "$OBJECTIVE" > "$PROMPT_FILE"
+        ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
+        EVENTS_FILE=${AGY_HOST_EVENTS:-$RUN_ROOT/.devloop/native/session-events.ndjson}
+        mkdir -p "$(dirname "$EVENTS_FILE")"
+        set -- --prompt-file "$PROMPT_FILE" --run-root "$RUN_ROOT" \
+               --envelope-out "$ENV_FILE" --events-out "$EVENTS_FILE" \
+               --teamwork \
+               --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" \
+               --effort "${AGY_HOST_EFFORT:-high}" \
+               --poll-max "${AGY_HOST_POLL_MAX:-8}"
+        [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
+        if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
+            HOLD_FILE=${AGY_HOST_HOLD_FILE:-$(dirname "$EVENTS_FILE")/STOP}
+            rm -f "$HOLD_FILE"
+            set -- "$@" --remote-control \
+                   --hold-file "$HOLD_FILE" \
+                   --hold-max-s "${AGY_HOST_HOLD_MAX_S:-3600}"
+            echo "agy_host: session is remote-controllable; stop it with: touch $HOLD_FILE" >&2
+        fi
+        STATUS_FILE=$(dirname "$EVENTS_FILE")/session.status
+        printf '{"state":"running","pid":%s,"events":"%s","started_at":%s}\n' "$$" "$EVENTS_FILE" "$(date +%s)" > "$STATUS_FILE"
+        trap 'printf "{\"state\":\"finished\"}\n" > "$STATUS_FILE"' EXIT INT TERM
+        if [ "$USE_TMUX" = 1 ] && command -v tmux >/dev/null 2>&1; then
+            TSESS=${AGY_HOST_TMUX_SESSION:-devloop-teamwork-$$}
+            tmux new-session -d -s "$TSESS" -c "$RUN_ROOT" \
+                "timeout ${AGY_HOST_TIMEOUT:-4h} python3 '$SKILL_DIR/scripts/agy_session.py' $(for x in "$@"; do printf "'%s' " "$x"; done); echo; echo '[teamwork exited rc='\$?']'; exec sh"
+            tmux split-window -t "$TSESS:0" -c "$RUN_ROOT" \
+                "python3 '$SKILL_DIR/scripts/agy_monitor.py' '$EVENTS_FILE' --follow; exec sh"
+            tmux select-layout -t "$TSESS:0" even-horizontal >/dev/null 2>&1 || true
+            echo "agy_host: teamwork running in tmux session '$TSESS' (attach: tmux attach -t $TSESS)"
+            while tmux has-session -t "$TSESS" 2>/dev/null && [ "$(tmux list-panes -t "$TSESS:0" -F 1 2>/dev/null | wc -l)" -gt 0 ]; do
+                [ -s "$ENV_FILE" ] && break
+                sleep 5
+            done
+            RC_FILE=$(dirname "$EVENTS_FILE")/session.rc
+            RC=0
+            [ -s "$RC_FILE" ] && RC=$(cat "$RC_FILE")
+        else
+            [ "$USE_TMUX" = 1 ] && echo "agy_host: tmux not found; running without panes" >&2
+            timeout "${AGY_HOST_TIMEOUT:-4h}" python3 "$SKILL_DIR/scripts/agy_session.py" "$@"
+            RC=$?
+        fi
+        rm -f "$PROMPT_FILE"
+        exit "$RC"
         ;;
     headless)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }
