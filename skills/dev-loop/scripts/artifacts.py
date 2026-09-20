@@ -260,18 +260,24 @@ def cmd_tasks(a):
         t["updated"] = time.strftime("%Y-%m-%d")
         save_tasks(root, tasks)
         print(f"{a.id} reconciled to HEAD ({head_sha[:8]}); staleness reset to 0.0")
-    elif a.op == "archive-stale":
+    elif a.op in ("archive-stale", "fold-stale"):
         thresh = getattr(a, "threshold", 0.5) or 0.5
         surviving = []
         archived = []
         archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
         historical_md = root / ".devloop" / "HISTORICAL_BACKLOG.md"
         archive_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        head_sha = get_git_head_commit(root)
         
         for t in tasks:
             st = compute_task_staleness(root, t)
             if st["staleness"] >= thresh and t.get("status") not in ("done", "cancelled"):
-                t["archived_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
+                t["folded_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
+                t["folded_commit"] = head_sha
+                t["status_at_fold"] = t.get("status", "open")
+                t["folded_status"] = "folded"
+                t["review_state"] = "re-research_pending"
+                t["recycle_after_commits"] = 25
                 t["archive_staleness"] = st
                 archived.append(t)
             else:
@@ -283,22 +289,127 @@ def cmd_tasks(a):
                     af.write(json.dumps(t, ensure_ascii=False) + "\n")
             
             # Append markdown record
-            md_entries = [f"\n## [{t['id']}] {t['title']} (Archived {t['archived_at']})\n"
-                          f"- **Status at Expiry:** `{t['status']}` (legacy: `{t.get('legacy_status', 'N/A')}`)\n"
+            md_entries = [f"\n## [FOLDED] [{t['id']}] {t['title']} (Folded {t['folded_at']} @ {t['folded_commit'][:8]})\n"
+                          f"- **Status at Fold:** `{t['status_at_fold']}` (legacy: `{t.get('legacy_status', 'N/A')}`)\n"
                           f"- **Staleness Score:** {t['archive_staleness']['staleness']} (age: {t['archive_staleness']['days_elapsed']} days, commits: {t['archive_staleness']['commits_elapsed']})\n"
+                          f"- **Recycle Policy:** Every 25-50 commits for review / re-research\n"
+                          f"- **Review State:** `{t['review_state']}`\n"
                           f"- **Broken Anchors:** {', '.join(t['archive_staleness']['broken_anchors']) or 'none'}\n"
                           f"- **Acceptance Criteria:** {'; '.join(t.get('acceptance_criteria', [])) or 'none'}\n"
-                          f"- **Notes & Rationale:**\n\n```\n{t.get('notes', '')}\n```\n"
+                          f"- **Notes & Historical Context:**\n\n```\n{t.get('notes', '')}\n```\n"
                           for t in archived]
             if not historical_md.exists():
-                historical_md.write_text("# HISTORICAL BACKLOG & KNOWLEDGE ARCHIVE\n\n_Rolling append-only record of tasks that exceeded half-life horizon, preserved with complete reasoning context._\n\n", "utf-8")
+                historical_md.write_text("# HISTORICAL BACKLOG & KNOWLEDGE ARCHIVE\n\n_Rolling append-only record of tasks that exceeded half-life horizon, preserved wholly with complete reasoning context and recycled every 25-50 commits._\n\n", "utf-8")
             with open(historical_md, "a", encoding="utf-8") as hf:
                 hf.write("".join(md_entries))
             
             save_tasks(root, surviving)
-            print(f"Archived {len(archived)} stale tasks to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
+            print(f"Folded {len(archived)} tasks wholly to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
         else:
-            print(f"No tasks exceeded staleness threshold {thresh}. None archived.")
+            print(f"No tasks exceeded staleness threshold {thresh}. None folded.")
+    elif a.op == "recycle":
+        archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
+        if not archive_jsonl.exists():
+            print("No archived tasks found to recycle.")
+            return
+        archived_tasks = [json.loads(l) for l in archive_jsonl.read_text("utf-8").splitlines() if l.strip()]
+        cadence = getattr(a, "cadence", 25) or 25
+        head_sha = get_git_head_commit(root)
+        target_id = a.id or getattr(a, "id_flag", None)
+        re_research = getattr(a, "re_research", False)
+        reactivate = getattr(a, "reactivate", False)
+
+        if target_id and reactivate:
+            target_task = next((t for t in archived_tasks if t["id"] == target_id), None)
+            if not target_task:
+                die(f"Task {target_id} not found in archive")
+            target_task["status"] = "open"
+            target_task["updated"] = time.strftime("%Y-%m-%d")
+            hl = target_task.setdefault("half_life", {})
+            hl["last_reconciled_commit"] = head_sha
+            hl["staleness_score"] = 0.0
+            target_task.pop("folded_status", None)
+            target_task["review_state"] = "reactivated"
+            active = load_tasks(root)
+            active.append(target_task)
+            save_tasks(root, active)
+            for t in archived_tasks:
+                if t["id"] == target_id:
+                    t["review_state"] = "reactivated"
+                    t["reactivated_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
+            archive_jsonl.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks), "utf-8")
+            print(f"Task {target_id} reactivated to active tasks.jsonl at HEAD ({head_sha[:8]})")
+            return
+
+        if target_id and re_research:
+            target_task = next((t for t in archived_tasks if t["id"] == target_id), None)
+            if not target_task:
+                die(f"Task {target_id} not found in archive")
+            spike_dir = root / "docs" / "research"
+            spike_dir.mkdir(parents=True, exist_ok=True)
+            spike_file = spike_dir / f"spike-{target_id.lower()}.md"
+            spike_lines = [
+                f"# Research Spike: {target_id} — {target_task['title']}",
+                "",
+                f"- **Date**: {time.strftime('%Y-%m-%d')}",
+                f"- **Source**: Recycled from historical backlog (folded at {target_task.get('folded_at', 'N/A')})",
+                f"- **Status**: proposed",
+                "",
+                "## 1. Context & Motivation",
+                f"Task `{target_id}` was folded wholly after exceeding half-life expectancies.",
+                f"Recycled for periodic re-research (25-50 commit cadence).",
+                "",
+                "### Original Acceptance Criteria",
+            ] + [f"- {ac}" for ac in target_task.get("acceptance_criteria", [])] + [
+                "",
+                "### Historical Notes & Rationale",
+                "```",
+                target_task.get("notes", ""),
+                "```",
+                "",
+                "## 2. Upstream Tech & Substrate Delta",
+                "What has changed in the codebase or upstream dependencies since this task was created?",
+                "",
+                "## 3. Implementation Recommendation",
+                "- [ ] Reactivate as active task (`python3 artifacts.py tasks recycle " + target_id + " --reactivate`)",
+                "- [ ] Supercede with new ADR / Milestone",
+                "- [ ] Keep folded for future review cycle",
+            ]
+            spike_file.write_text("\n".join(spike_lines), "utf-8")
+            for t in archived_tasks:
+                if t["id"] == target_id:
+                    t["review_state"] = "re-researched"
+                    t["spike_file"] = str(spike_file.relative_to(root))
+            archive_jsonl.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks), "utf-8")
+            print(f"Generated research spike for {target_id} at {spike_file}")
+            return
+
+        candidates = []
+        import subprocess
+        for t in archived_tasks:
+            if t.get("review_state") == "reactivated":
+                continue
+            folded_c = t.get("folded_commit")
+            dc = 0
+            if folded_c and folded_c != "HEAD":
+                try:
+                    res = subprocess.run(["git", "rev-list", "--count", f"{folded_c}..HEAD"], cwd=root, capture_output=True, text=True)
+                    if res.returncode == 0:
+                        dc = int(res.stdout.strip())
+                except Exception:
+                    dc = 0
+            is_candidate = (dc >= cadence) or (t.get("review_state") == "re-research_pending")
+            candidates.append((t["id"], t.get("folded_at", "N/A")[:10], f"{dc}c", t.get("review_state", "pending"), is_candidate, t["title"][:45]))
+
+        print(f"RECYCLED TASK REVIEW CANDIDATES (cadence: >= {cadence} commits)")
+        print(f"{'ID':<12} {'FOLDED':<12} {'DISTANCE':<10} {'STATE':<22} {'TITLE'}")
+        print("-" * 80)
+        for c in candidates:
+            flag = " [DUE FOR REVIEW]" if c[4] else ""
+            print(f"{c[0]:<12} {c[1]:<12} {c[2]:<10} {c[3]:<22} {c[5]}{flag}")
+        due_n = sum(1 for c in candidates if c[4])
+        print(f"\n{due_n}/{len(candidates)} folded tasks due for review/re-research.")
+        print("Action: run `artifacts.py tasks recycle <id> --re-research` or `--reactivate`")
     elif a.op == "distill":
         archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
         if not archive_jsonl.exists():
@@ -420,10 +531,12 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("scaffold"); p.add_argument("--root", default="."); p.add_argument("--dry-run", action="store_true"); p.set_defaults(f=cmd_scaffold)
     p = sp.add_parser("bridges"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_bridges)
-    p = sp.add_parser("tasks"); p.add_argument("op", choices=["render", "validate", "set", "add", "next", "lane", "staleness", "reconcile", "archive-stale", "distill", "export-openai"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
+    p = sp.add_parser("tasks"); p.add_argument("op", choices=["render", "validate", "set", "add", "next", "lane", "staleness", "reconcile", "archive-stale", "fold-stale", "recycle", "distill", "export-openai"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
     p.add_argument("--root", default="."); p.add_argument("--evidence"); p.add_argument("--id", dest="id_flag"); p.add_argument("--title"); p.add_argument("--type", default="task", choices=TASK_TYPE)
     p.add_argument("--owner"); p.add_argument("--epic"); p.add_argument("--goal"); p.add_argument("--depends"); p.add_argument("--ac", action="append")
-    p.add_argument("--positive"); p.add_argument("--negative"); p.add_argument("--expect"); p.add_argument("--threshold", type=float, default=0.5); p.set_defaults(f=cmd_tasks)
+    p.add_argument("--positive"); p.add_argument("--negative"); p.add_argument("--expect"); p.add_argument("--threshold", type=float, default=0.5)
+    p.add_argument("--cadence", type=int, default=25); p.add_argument("--re-research", action="store_true"); p.add_argument("--reactivate", action="store_true")
+    p.set_defaults(f=cmd_tasks)
     p = sp.add_parser("adr"); p.add_argument("op", choices=["new"]); p.add_argument("title"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_adr)
     p = sp.add_parser("trailer"); p.add_argument("id"); p.set_defaults(f=lambda a: print(f"Task-Id: {a.id}"))
     p = sp.add_parser("strip-frontmatter"); p.add_argument("path"); p.set_defaults(f=cmd_strip)
