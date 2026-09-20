@@ -76,7 +76,11 @@ EOF
     exit 3
 }
 
-tmux has-session -t "$SESSION" 2>/dev/null || tmux new-session -d -s "$SESSION" -x 220 -y 50 "agy"
+# -x must exceed the OAuth URL's length or the pane TRUNCATES it and the one thing
+# this script exists to relay comes out unusable. Measured: the Google consent URL is
+# ~430 chars (client_id + code_challenge + 7 scopes + state), and at -x 220 it was cut
+# mid-parameter at "&code_challeng", losing code_challenge_method and state entirely.
+tmux has-session -t "$SESSION" 2>/dev/null || tmux new-session -d -s "$SESSION" -x 1000 -y 50 "agy"
 
 CODE_SENT=0
 URL=""
