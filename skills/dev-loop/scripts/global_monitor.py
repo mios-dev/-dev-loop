@@ -141,6 +141,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -199,7 +200,7 @@ OBSERVED, BLIND, NA = "observed", "blind", "not_applicable"
 # the tree looks like. Counting it as an observation would make `blind` almost unreachable and
 # hand this monitor the exact failure it exists to prevent: a calm tick over an empty view.
 # (Caught by tests/test_global_monitor.py, which refused the first version of this rule.)
-ENUMERATING_SOURCES = ("devloop_runs", "serverd", "native_marker", "harness_cli")
+ENUMERATING_SOURCES = ("devloop_runs", "serverd", "native_marker", "agy_teamwork", "harness_cli")
 
 # `worker-<id>.exit` values with a meaning beyond "the command returned this"
 # (references/run-directory.md 3).
@@ -575,6 +576,67 @@ def scan_serverd(state_path: Path, now: float) -> dict:
 
 # -------------------------------------------------------------- source: explicit run marker(s)
 
+def scan_agy_teamwork(root: Path, now: float) -> dict:
+    """Antigravity's /teamwork-preview publishes its own state, and it is NOT under .devloop.
+
+    It writes .agents/<phase>_level_<NN>_assignments.json (what it dispatched) and
+    .agents/<phase>_level_<NN>_results.json (what came back), one pair per tree level.
+    A level with assignments but no results is work still in flight; the newest results
+    file is the run's progress marker. Without this source an AGY-hosted run is invisible
+    here, and "0 agents" would read exactly like an idle tree -- the failure this whole
+    monitor is built against.
+    """
+    agents_dir = root / ".agents"
+    if not agents_dir.is_dir():
+        return source("agy_teamwork", NA,
+                      f"no {agents_dir} directory: no Antigravity teamwork run has been "
+                      "hosted from this tree")
+    try:
+        assigns = sorted(agents_dir.glob("*_level_*_assignments.json"))
+        results = sorted(agents_dir.glob("*_level_*_results.json"))
+    except OSError as e:
+        return source("agy_teamwork", BLIND,
+                      f"{agents_dir} could not be listed: {type(e).__name__}: {e}")
+    if not assigns and not results:
+        return source("agy_teamwork", NA,
+                      f"{agents_dir} exists but holds no *_level_*_{{assignments,results}}.json: "
+                      "no teamwork run has published here")
+
+    def _lv(pth: Path):
+        m = re.match(r"(?P<phase>.+)_level_(?P<idx>\d+)_(assignments|results)\.json$", pth.name)
+        return (m.group("phase"), int(m.group("idx"))) if m else (pth.name, -1)
+
+    done = {_lv(r) for r in results}
+    out, blind_detail = [], []
+    for a in assigns:
+        phase, idx = _lv(a)
+        finished = (phase, idx) in done
+        try:
+            age = max(0.0, now - a.stat().st_mtime)
+        except OSError as e:
+            blind_detail.append(f"{a.name}: {type(e).__name__}")
+            continue
+        aid = f"agy:{phase}:level{idx:02d}"
+        if finished:
+            out.append(agent(aid, "antigravity", "agy_teamwork", "finished",
+                             basis=f"{a.name} has a matching results file",
+                             where=str(a.parent), last_signal_s=age))
+        else:
+            # In flight. Silence is NOT death: a level legitimately runs long while its
+            # subagents work, which is the measured lesson agy_monitor.py already carries.
+            out.append(agent(aid, "antigravity", "agy_teamwork", "live",
+                             basis=f"{a.name} present with no matching results file yet",
+                             where=str(a.parent), last_signal_s=age))
+    if blind_detail and not out:
+        return source("agy_teamwork", BLIND,
+                      "every teamwork assignment file was unreadable: " + "; ".join(blind_detail))
+    return source("agy_teamwork", OBSERVED,
+                  f"{len(out)} teamwork level(s) from {len(assigns)} assignment file(s), "
+                  f"{len(results)} with results",
+                  agents=out,
+                  detail={"unreadable": blind_detail} if blind_detail else None)
+
+
 def scan_native_marker(root: Path, now: float) -> dict:
     """A run marker is the EXPLICIT signal agy_monitor.py prefers over a silence heuristic.
     Here it is checked against the pid it names, which is the only way a marker can lie."""
@@ -909,6 +971,7 @@ def observe(root: Path, *, now: float | None = None, silence_after_s: float = DE
     sources = [scan_runs(root, now, silence_after_s, max_runs),
                scan_serverd(state_path, now),
                scan_native_marker(root, now),
+               scan_agy_teamwork(root, now),
                scan_processes(root)]
     if want_cli:
         sources.append(scan_harness_clis(root, cli_timeout_s, cli_budget_s, deadline))
