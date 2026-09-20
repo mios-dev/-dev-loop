@@ -312,6 +312,64 @@ def merge_tasks(
     return list(existing_map.values())
 
 
+def resolve_and_sanitize_dependencies(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Resolve range dependencies, prune unknown deps, and break cycles to guarantee a strict DAG."""
+    id_set = {t["id"] for t in tasks}
+    
+    # Map sub-task IDs to parent epic range if epic is defined as AGY-s..e
+    range_map = {}
+    for tid in id_set:
+        m = re.match(r"^([A-Z]+)-(\d+)\.\.(\d+)$", tid)
+        if m:
+            pfx, s, e = m.group(1), int(m.group(2)), int(m.group(3))
+            for k in range(s, e + 1):
+                range_map[f"{pfx}-{k}"] = tid
+
+    # 1. Resolve unknown / range dependencies
+    for t in tasks:
+        tid = t["id"]
+        new_deps = []
+        for d in t.get("depends_on", []):
+            if d in id_set:
+                resolved = d
+            elif d in range_map:
+                resolved = range_map[d]
+            else:
+                continue
+            if resolved != tid and resolved not in new_deps:
+                new_deps.append(resolved)
+        t["depends_on"] = new_deps
+
+    # 2. Cycle detection and topological cycle-breaking (DFS back-edge removal)
+    adj = {t["id"]: list(t.get("depends_on", [])) for t in tasks}
+    state = {t["id"]: 0 for t in tasks}
+    pruned_cycles = []
+
+    def dfs(u: str):
+        state[u] = 1
+        for v in list(adj[u]):
+            if v not in state:
+                continue
+            if state[v] == 1:
+                # Back-edge detected u -> v forms a cycle
+                pruned_cycles.append((u, v))
+                adj[u].remove(v)
+            elif state[v] == 0:
+                dfs(v)
+        state[u] = 2
+
+    for t in tasks:
+        if state[t["id"]] == 0:
+            dfs(t["id"])
+
+    if pruned_cycles:
+        for t in tasks:
+            t["depends_on"] = adj[t["id"]]
+        print(f"Sanitized {len(pruned_cycles)} circular/feedback dependency edges from legacy markdown")
+
+    return tasks
+
+
 def main():
     parser = argparse.ArgumentParser(description="Migrate legacy task lists to dev-loop JSONL.")
     parser.add_argument("--tasks-md", help="Path to TASKS.md")
@@ -352,6 +410,8 @@ def main():
     for t in merged:
         if t.get("status") == "done" and not t.get("verification_evidence"):
             t["verification_evidence"] = f"Migrated from legacy source ({t.get('legacy_status') or 'verified'})"
+
+    merged = resolve_and_sanitize_dependencies(merged)
 
     if not args.dry_run:
         out_p = Path(args.out_jsonl)

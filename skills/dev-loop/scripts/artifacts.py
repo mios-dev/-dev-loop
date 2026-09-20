@@ -66,13 +66,55 @@ def save_tasks(root: Path, tasks: list[dict]) -> None:
     tmp.replace(p)  # atomic
 
 
+_HEAD_COMMIT_CACHE: dict = {}
+_COMMIT_COUNT_CACHE: dict = {}
+_IS_GIT_CACHE: dict = {}
+
+
 def get_git_head_commit(root: Path) -> str:
+    root_str = str(root)
+    if root_str in _HEAD_COMMIT_CACHE:
+        return _HEAD_COMMIT_CACHE[root_str]
     try:
         import subprocess
         res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True)
-        return res.stdout.strip()
+        sha = res.stdout.strip()
+        _HEAD_COMMIT_CACHE[root_str] = sha
+        return sha
     except Exception:
         return "HEAD"
+
+
+def get_commit_distance(root: Path, last_commit: str) -> int:
+    root_str = str(root)
+    if root_str not in _IS_GIT_CACHE:
+        try:
+            import subprocess
+            r = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True)
+            _IS_GIT_CACHE[root_str] = (r.returncode == 0)
+        except Exception:
+            _IS_GIT_CACHE[root_str] = False
+    if not _IS_GIT_CACHE[root_str]:
+        return 0
+
+    key = (root_str, last_commit)
+    if key in _COMMIT_COUNT_CACHE:
+        return _COMMIT_COUNT_CACHE[key]
+
+    try:
+        import subprocess
+        res = subprocess.run(
+            ["git", "rev-list", "--count", f"{last_commit}..HEAD"],
+            cwd=root, capture_output=True, text=True
+        )
+        if res.returncode == 0:
+            c = int(res.stdout.strip())
+            _COMMIT_COUNT_CACHE[key] = c
+            return c
+    except Exception:
+        pass
+    _COMMIT_COUNT_CACHE[key] = 0
+    return 0
 
 
 def compute_task_staleness(root: Path, t: dict) -> dict:
@@ -93,19 +135,10 @@ def compute_task_staleness(root: Path, t: dict) -> dict:
             dt_days = 0
 
     # Commit distance
-    import subprocess
     dc_commits = 0
     last_commit = hl.get("last_reconciled_commit") or hl.get("created_commit")
     if last_commit and last_commit != "legacy-import":
-        try:
-            res = subprocess.run(
-                ["git", "rev-list", "--count", f"{last_commit}..HEAD"],
-                cwd=root, capture_output=True, text=True
-            )
-            if res.returncode == 0:
-                dc_commits = int(res.stdout.strip())
-        except Exception:
-            dc_commits = 0
+        dc_commits = get_commit_distance(root, last_commit)
 
     # Check anchors
     anchors = hl.get("anchors") or t.get("links") or []
@@ -167,7 +200,7 @@ def validate(tasks: list[dict]) -> list[str]:
     if len(ids) != len(set(ids)): errs.append("duplicate ids")
     for t in tasks:
         i = t.get("id", "?")
-        if not re.match(r"^[A-Z]+-\d+(?:[\.\-]\d+)?$", str(i)): errs.append(f"{i}: id must look like T-001 or AGY-106..122")
+        if not re.match(r"^[A-Z]+-\d+(?:(?:\.\.|\-)\d+)?$", str(i)): errs.append(f"{i}: id must look like T-001 or AGY-106..122")
         if t.get("status") not in TASK_STATUS: errs.append(f"{i}: status {t.get('status')!r} not in {TASK_STATUS}")
         if t.get("type", "task") not in TASK_TYPE: errs.append(f"{i}: type {t.get('type')!r} not in {TASK_TYPE}")
         for d in t.get("depends_on", []):
@@ -303,6 +336,16 @@ def cmd_tasks(a):
             with open(historical_md, "a", encoding="utf-8") as hf:
                 hf.write("".join(md_entries))
             
+            archived_ids = {t["id"] for t in archived}
+            for t in surviving:
+                broken = [d for d in t.get("depends_on", []) if d in archived_ids]
+                if broken:
+                    t["depends_on"] = [d for d in t["depends_on"] if d not in archived_ids]
+                    arch_deps = t.setdefault("archived_dependencies", [])
+                    for b in broken:
+                        if b not in arch_deps:
+                            arch_deps.append(b)
+
             save_tasks(root, surviving)
             print(f"Folded {len(archived)} tasks wholly to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
         else:
