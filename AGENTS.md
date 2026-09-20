@@ -28,6 +28,30 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   run dispatched, gated and merged two native lanes in ONE turn, so the poll loop that keeps a
   session alive past a turn end is implemented but **not yet exercised** -- do not cite it as
   proven.
+- **Remote control is a per-SESSION flag, not a daemon property.** `agy --remote-control`
+  ("Create a remote connection for the CLI session on start up") is what puts a running
+  manager in the Remote Control list at antigravity.google.com. The
+  `agy remote-control serve` DAEMON is a different object: it registers the MACHINE (an
+  instance name), not the sessions on it, so a healthy authenticated daemon is NOT evidence
+  that any session can be seen or driven -- reading it as such is how a run gets reported
+  live while being invisible. Measured 2026-09-20 on agy 1.2.6, two probes differing only in
+  the flag: with it, `server.go:3565 "Remote control enabled, starting connection"` and
+  `remote_control_v2.go:2037 "Connection status: Connected"`; without it,
+  `server.go:3768 "[RemoteControl] Session toggle is off, staying disconnected"`. The
+  connection lives exactly as long as the process (`server.go:3650 "Deleted session
+  instance <id>-v2"` fires on exit), so it belongs to `--session` and never to `--headless`:
+  a single-turn `agy -p` run is gone before an operator can attach. Carried by
+  `agy_host.sh --session --remote-control`, which also passes `--hold-file`/`--hold-max-s`
+  so the session stays attachable after its local work ends and is stopped with
+  `touch <run>/.devloop/native/STOP`. Controls: `tests/test_agy_remote_control.py`.
+- **The stray base-tree guard is scoped to lane runs.** `agy_session.py` fails closed (exit 6)
+  on a manager editing the base tree outside a lane worktree. That question presupposes
+  worktrees, so a LANE-LESS session (one manager doing the work itself -- an AGY teamwork run)
+  has none and every edit it makes is "outside every worktree" by construction, including the
+  edits that are the run. There the guard reports instead of killing: every base edit is still
+  named on every turn, prefixed `UNGATED`. The cost is real and is not hidden -- a lane-less
+  run carries no worktree gate and its changes must be reviewed before they are trusted.
+  Controls: `tests/test_base_tree_guard.py::TestGuardScope` (both sides).
 - **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
   concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
   through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's

@@ -31,6 +31,10 @@ import importlib.util
 import os
 import subprocess
 import sys
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -150,6 +154,74 @@ class TestExitCode(unittest.TestCase):
         src = (SCRIPTS / "agy_session.py").read_text()
         self.assertIn("return 6", src)
         self.assertIn("6 the manager left the base tree dirty", src)
+
+
+# A fake `agy` that EDITS THE REPO it is run in, then reports a finished turn. That is the
+# behaviour the scope decision turns on: for a lane run it is a stray to fail closed on, for
+# a lane-less run it is the output.
+EDITING_FAKE = r'''#!/usr/bin/env python3
+import json, os, sys
+open(os.path.join(os.environ["FAKE_AGY_REPO"], "touched.txt"), "w").write("edited by the manager\n")
+print(json.dumps({"event": "init", "conversation_id": "fake",
+                  "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}), flush=True)
+for _ in sys.stdin:
+    print(json.dumps({"event": "result", "result": {"status": "ok", "num_turns": 1}}), flush=True)
+'''
+
+
+class TestGuardScope(unittest.TestCase):
+    """END-TO-END, both sides of the one judgement call in this guard.
+
+    The guard asks "did the manager edit the base tree INSTEAD OF a lane worktree?". With no
+    lanes there are no worktrees, so the answer is yes for every edit a lane-less manager makes
+    -- including the ones that ARE the run. Failing closed there kills the run at its first
+    real change while measuring nothing (SKILL.md 7).
+
+    So: lanes -> still fails closed (the original incident must stay caught). No lanes -> the
+    run survives AND every edit is still named, prefixed UNGATED. The second assertion is the
+    one that matters: the cost of this scope is silence, and silence is what is forbidden."""
+
+    def _run(self, with_lanes: bool):
+        tmp = Path(tempfile.mkdtemp(prefix="scope-"))
+        repo = tmp / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "base"],
+                       check=True, env={**os.environ, "GIT_AUTHOR_NAME": "t",
+                                        "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                                        "GIT_COMMITTER_EMAIL": "t@t"})
+        bindir = tmp / "bin"
+        bindir.mkdir()
+        fake = bindir / "agy"
+        fake.write_text(EDITING_FAKE)
+        fake.chmod(0o755)
+        prompt = tmp / "p.txt"
+        prompt.write_text("go")
+        argv = [sys.executable, str(SCRIPTS / "agy_session.py"), "--prompt-file", str(prompt),
+                "--run-root", str(repo), "--poll-max", "0"]
+        if with_lanes:
+            lanes = tmp / "lanes.json"
+            lanes.write_text(json.dumps({"lanes": [{"id": "n1", "worker": {"harness": "antigravity"}}]}))
+            argv += ["--lanes", str(lanes)]
+        cp = subprocess.run(argv, capture_output=True, text=True, timeout=180,
+                            env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+                                 "FAKE_AGY_REPO": str(repo)})
+        return cp.returncode, cp.stderr
+
+    def test_with_lanes_it_still_fails_closed(self):
+        rc, err = self._run(with_lanes=True)
+        self.assertEqual(rc, 6, f"a lane run must still fail closed on a base edit: {err[-400:]}")
+        self.assertIn("failing closed", err)
+
+    def test_without_lanes_the_run_survives(self):
+        rc, err = self._run(with_lanes=False)
+        self.assertNotEqual(rc, 6, f"a lane-less run was killed by a guard that cannot apply: {err[-400:]}")
+
+    def test_without_lanes_the_edit_is_still_named(self):
+        """The whole cost of the scope. If this goes quiet, the scope became a Skip-as-Pass."""
+        rc, err = self._run(with_lanes=False)
+        self.assertIn("UNGATED", err, f"base edits went unreported in a lane-less run: {err[-400:]}")
+        self.assertIn("touched.txt", err, "the guard must name the files, not just the fact")
 
 
 if __name__ == "__main__":
