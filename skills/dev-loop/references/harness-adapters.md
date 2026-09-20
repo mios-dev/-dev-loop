@@ -123,10 +123,14 @@ which is why the skill stays universal: the host changes, the lane contract does
   `--dangerously-skip-permissions` — in `~/.gemini/antigravity-cli/settings.json`
   (Deny > Ask > Allow; verified against the CLI permissions docs and live runs, 2026-09):
   `{"permissions": {"allow": ["read_file(*)", "write_file(*)", "command(sh)",
-  "command(python3)", "command(git)", "command(cat)", "command(ls)", "command(head)",
-  "command(tail)", "command(mkdir)", "command(cp)", "command(mv)", "command(printf)",
-  "command(echo)", "command(jq)", "command(cd)"]}}`. Prefix rules match the FIRST token
-  only (`cd …&&` needs `command(cd)`), `list_dir` is not a valid action name, and an
+  "command(bash)", "command(python3)", "command(git)", "command(cat)", "command(ls)",
+  "command(head)", "command(tail)", "command(mkdir)", "command(cp)", "command(mv)",
+  "command(printf)", "command(echo)", "command(jq)", "command(cd)"]}}`. Prefix rules match
+  the FIRST token only (`cd …&&` needs `command(cd)`). Shell keywords like `for` and `while`
+  do not receive their own allowlist entries (operator decision: `command(bash)` and `command(sh)`
+  are already granted, so keyword entries add no new authority while encouraging bare loops);
+  managers must wrap multi-statement shell loops in `bash -c '...'` or run a script with
+  `bash` / `python3` from the first attempt. `list_dir` is not a valid action name, and an
   unanchored manager invents paths in its trusted workspace instead of the run's repo —
   `agy_host.sh` now pins the run root in the prompt.
   And in print mode the manager MUST run `devloop.sh` synchronously in the foreground: a
