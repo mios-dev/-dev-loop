@@ -1,10 +1,7 @@
 {
   "name": "dev-loop (Fedora, default)",
   "build": {
-    "dockerfile": "Dockerfile",
-    "args": {
-      "FEDORA_VERSION": "44"
-    }
+    "dockerfile": "Dockerfile"
   },
   "remoteUser": "dev",
   "postCreateCommand": "bash skills/dev-loop/scripts/env/setup-antigravity.sh",

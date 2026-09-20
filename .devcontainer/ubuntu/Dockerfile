@@ -1,7 +1,7 @@
 # dev-loop devcontainer — Ubuntu variant (Fedora is this repo's default; pick
 # this config for apt-based parity with Claude Code on the web containers).
-ARG UBUNTU_VERSION=24.04
-FROM ubuntu:${UBUNTU_VERSION}
+# Nothing pinned: the base floats on Ubuntu's latest release.
+FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 # apt equivalents of the Fedora config's package set, so the two variants and
@@ -18,7 +18,7 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Non-root user; passwordless sudo so setup-antigravity.sh can add packages later
-# ubuntu:24.04 ships a stock "ubuntu" account already holding uid 1000, which
+# Ubuntu images ship a stock "ubuntu" account already holding uid 1000, which
 # would push dev to 1001 and mismatch host file ownership on the bind mount.
 # Drop it so dev lands on 1000, matching the Fedora config.
 RUN userdel -r ubuntu 2>/dev/null || true

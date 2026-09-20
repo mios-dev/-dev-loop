@@ -267,8 +267,8 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
         subprocess.run(["git", "-C", str(repo), "add", "calc.py", "util.py"], check=True)
         subprocess.run(["git", "-C", str(repo), "commit", "-qm", "seeded bugs"], check=True)
 
-        worker_calc = "sh -c \"printf 'def add(a, b): return a + b\\n' > '{wt}/calc.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix calc', 'changed_paths': ['calc.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
-        worker_util = "sh -c \"printf 'def shout(s): return s.upper()\\n' > '{wt}/util.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix util', 'changed_paths': ['util.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
+        worker_calc = "sh -c \"printf 'def add(a, b): return a + b\\n' > '{wt}/calc.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix calc.py addition bug', 'changed_paths': ['calc.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
+        worker_util = "sh -c \"printf 'def shout(s): return s.upper()\\n' > '{wt}/util.py' && python3 -c \\\"import json; r = {{'status': 'done', 'objective': 'fix util.py casing bug', 'changed_paths': ['util.py']}}; open('{report}','w').write(json.dumps(r)); print(json.dumps({{'devloop_report': r}}))\\\"\""
 
         lanes_dir = repo.parent
         lanes_doc = {
