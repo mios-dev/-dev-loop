@@ -200,6 +200,11 @@ OBSERVED, BLIND, NA = "observed", "blind", "not_applicable"
 # the tree looks like. Counting it as an observation would make `blind` almost unreachable and
 # hand this monitor the exact failure it exists to prevent: a calm tick over an empty view.
 # (Caught by tests/test_global_monitor.py, which refused the first version of this rule.)
+# How much older than the newest assignment an ORIGINAL_REQUEST.md may be before it reads as
+# inherited. A request is written moments BEFORE the first dispatch of its own run, so the
+# margin only has to cover that gap; anything beyond it is a previous session's.
+STALE_REQUEST_SLACK_S = 300.0
+
 ENUMERATING_SOURCES = ("devloop_runs", "serverd", "native_marker", "agy_teamwork", "harness_cli")
 
 # `worker-<id>.exit` values with a meaning beyond "the command returned this"
@@ -630,11 +635,55 @@ def scan_agy_teamwork(root: Path, now: float) -> dict:
     if blind_detail and not out:
         return source("agy_teamwork", BLIND,
                       "every teamwork assignment file was unreadable: " + "; ".join(blind_detail))
-    return source("agy_teamwork", OBSERVED,
-                  f"{len(out)} teamwork level(s) from {len(assigns)} assignment file(s), "
-                  f"{len(results)} with results",
-                  agents=out,
-                  detail={"unreadable": blind_detail} if blind_detail else None)
+    # ACCUMULATED OBJECTIVES. `.agents/ORIGINAL_REQUEST.md` is teamwork's record of the
+    # request, it PERSISTS in the tree after the session that wrote it is gone, and it
+    # ACCUMULATES: each run appends a `## <ISO8601>` section. A session started in the same
+    # tree can therefore act on an EARLIER run's objective while its manager reports the
+    # current one -- observed 2026-09-20: a run told to fix the drift gate also rewrote the
+    # Rust resolver, which was the dead previous run's task, and both sets of edits landed
+    # in one working tree with no gate between them.
+    #
+    # Two wrong instruments were tried before this one and are recorded so they are not
+    # retried. The file's MTIME: teamwork rewrites the file during a run, so a request
+    # recorded at 14:43 carried an mtime of 15:22 and the check never fired. The NEWEST
+    # recorded stamp vs the newest assignment: the newest stamp is by definition the current
+    # run's, so it never predates anything and the check never fired again. What is actually
+    # true, and checkable, is the COUNT: more than one request recorded in one tree means an
+    # older objective is present and reachable.
+    #
+    # Reported, never acted on: deleting another harness's state mid-run destroys in-flight
+    # work, which is a worse failure than the one being reported.
+    detail = {"unreadable": blind_detail} if blind_detail else {}
+    req = agents_dir / "ORIGINAL_REQUEST.md"
+    stamps: list[float] = []
+    if req.is_file():
+        try:
+            raws = re.findall(r"^##\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z?\s*$",
+                              req.read_text(errors="replace"), re.M)
+        except OSError:
+            raws = []
+        for raw in raws:
+            try:
+                stamps.append(datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S")
+                              .replace(tzinfo=timezone.utc).timestamp())
+            except ValueError:
+                continue
+    stamps.sort()
+    note = (f"{len(out)} teamwork level(s) from {len(assigns)} assignment file(s), "
+            f"{len(results)} with results")
+    if len(stamps) > 1:
+        span = stamps[-1] - stamps[0]
+        detail["accumulated_requests"] = {
+            "path": str(req), "count": len(stamps),
+            "oldest_age_s": round(max(0.0, now - stamps[0]), 1),
+            "newest_age_s": round(max(0.0, now - stamps[-1]), 1),
+            "span_s": round(span, 1)}
+        note += (f" -- ACCUMULATED OBJECTIVES: {req.name} records {len(stamps)} requests "
+                 f"spanning {round(span)}s, the oldest {round(max(0.0, now - stamps[0]))}s "
+                 f"ago. A previous session's objective is still present in this tree and "
+                 f"agents can work it while the manager reports the current one; treat any "
+                 f"change outside the stated objective as unrequested until reviewed")
+    return source("agy_teamwork", OBSERVED, note, agents=out, detail=detail or None)
 
 
 def scan_native_marker(root: Path, now: float) -> dict:

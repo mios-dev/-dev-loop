@@ -925,6 +925,64 @@ def test_a_slow_tick_cannot_corrupt_the_published_report() -> None:
               f"rc={bad.returncode} {bad.stderr[-120:]}")
 
 
+def test_an_accumulated_objective_is_reported() -> None:
+    """TWO-SIDED, on a defect this monitor missed in production twice before it fired.
+
+    `.agents/ORIGINAL_REQUEST.md` persists after the session that wrote it and ACCUMULATES
+    a `## <ISO8601>` section per run. A new session in the same tree can act on an earlier
+    objective while its manager reports the current one -- observed: a run told to fix the
+    drift gate also rewrote the Rust resolver, the previous dead run's task, and both sets
+    of edits landed in one tree.
+
+    The negative side is the point. Two earlier predicates were silently vacuous here:
+    the file's MTIME (teamwork rewrites it mid-run, so an old request carries a fresh
+    mtime) and newest-stamp-vs-newest-assignment (the newest stamp IS the current run's,
+    so it never predates anything). Both looked fine and never fired. So this asserts the
+    quiet case too: one request must produce NO warning, or the check is just noise."""
+    print("accumulated objectives:")
+    import global_monitor as GM
+
+    def scan(sections: list[str]):
+        d = Path(tempfile.mkdtemp(prefix="acc-"))
+        ag = d / ".agents"
+        ag.mkdir()
+        (ag / "p_level_01_assignments.json").write_text("{}")
+        if sections:
+            (ag / "ORIGINAL_REQUEST.md").write_text(
+                "# Original User Request\n\n" + "\n\n".join(f"## {t}\n\nbody" for t in sections))
+        return GM.scan_agy_teamwork(d, time.time())
+
+    many = scan(["2026-09-20T14:43:53Z", "2026-09-20T15:16:51Z", "2026-09-20T15:22:15Z"])
+    check("three recorded requests are reported", "ACCUMULATED OBJECTIVES" in many.get("reason", ""),
+          many.get("reason", "")[:200])
+    check("it counts them", (many.get("detail") or {}).get("accumulated_requests", {}).get("count") == 3,
+          str(many.get("detail")))
+
+    one = scan(["2026-09-20T15:22:15Z"])
+    check("a single request is NOT reported", "ACCUMULATED" not in one.get("reason", ""),
+          one.get("reason", "")[:200])
+    check("and carries no accumulation detail",
+          "accumulated_requests" not in (one.get("detail") or {}), str(one.get("detail")))
+
+    none = scan([])
+    check("no request file at all is not an accumulation", "ACCUMULATED" not in none.get("reason", ""),
+          none.get("reason", "")[:200])
+
+    # The mtime instrument that failed: an OLD request with a FRESH file mtime must still
+    # be caught, because the stamps are read from the content.
+    d = Path(tempfile.mkdtemp(prefix="acc-mtime-"))
+    ag = d / ".agents"
+    ag.mkdir()
+    (ag / "p_level_01_assignments.json").write_text("{}")
+    rq = ag / "ORIGINAL_REQUEST.md"
+    rq.write_text("# Original User Request\n\n## 2026-09-20T14:43:53Z\n\na\n\n"
+                  "## 2026-09-20T15:22:15Z\n\nb")
+    os.utime(rq, None)   # freshly touched, exactly the case that defeated the mtime check
+    fresh = GM.scan_agy_teamwork(d, time.time())
+    check("a freshly-touched file with an old request is still caught",
+          "ACCUMULATED OBJECTIVES" in fresh.get("reason", ""), fresh.get("reason", "")[:200])
+
+
 def main() -> int:
     def run(t):
         try:
@@ -952,7 +1010,8 @@ def main() -> int:
               test_report_is_published_atomically_and_matches,
               test_harness_table_claims_only_what_was_measured,
               test_it_is_a_conforming_serverd_monitor_worker,
-              test_a_blind_supervisor_state_is_not_silence):
+              test_a_blind_supervisor_state_is_not_silence,
+              test_an_accumulated_objective_is_reported):
         run(t)
     print()
     if FAILURES:
