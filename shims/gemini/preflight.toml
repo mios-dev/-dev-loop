@@ -1,0 +1,23 @@
+description = "Check the environment before a run (read-only): harness binaries, the exact CLI flags the lane templates rely on, AGY auth and grants, repo conformance"
+prompt = """
+Load the `preflight` skill (SKILL.md in .gemini/skills/preflight/, .agents/skills/preflight/, or ~/.gemini/skills/preflight/) and check whether this environment can host a dev-loop run. Harness list:
+
+{{args}}
+
+Empty argument means probe every harness. READ-ONLY: install nothing, log in to nothing, dispatch nothing — name the remedy and stop.
+
+Why this exists: harness CLI flags drift monthly, so a lane command template that worked last month can be rejected by this month's binary. Never assume a tool, flag or subagent exists. Skipped, the failure lands late and expensive — every lane dispatches, every lane dies on an unrecognised flag, and the operator debugs the codebase instead of the CLI.
+
+1. Binaries and flags: `python3 <skills dir>/dev-loop/scripts/adapters.py probe [--harness NAME NAME ...]`. It resolves each binary AND runs its help (`exec --help` for codex, `run --help` for opencode), diffing the flags the lane command templates pass out of that help text. Report the table VERBATIM, one line per harness.
+   `--harness` takes SPACE-SEPARATED CANONICAL names, never a comma-joined token and never the short name: claude-code (binary `claude`), codex, gemini-cli (binary `gemini`), antigravity (binary `agy`), copilot, opencode, cursor (binary `agent`). Anything else raises KeyError and prints a Python traceback — measured. Translate what the operator typed before running it.
+2. READ THE LINES; never infer "all good" from exit 0. Measured: `probe` with no `--harness` printed five MISSING harnesses and exited 0. It exits 1 only when a harness you NAMED is missing, or when any harness has DRIFTED. Four outcomes, all meaningful: `ok`; `MISSING` (no binary — that harness cannot host a lane); `DRIFT: flags not in --help: [...]` (the named flags are exactly what the lane template passes, so that template is UNSAFE TO DISPATCH); `help failed: ...` (binary exists but would not answer — unusable, not ok).
+3. Repo conformance, only when the cwd is a dev-loop checkout (skills/dev-loop/scripts/validate.sh exists): `sh skills/dev-loop/scripts/validate.sh`. It gates the plugin's own tree, not an arbitrary project's build — elsewhere say so and skip it rather than reporting the absent file as a failure.
+4. Antigravity, only when `agy` is on PATH: `bash <skills dir>/dev-loop/scripts/env/agy-doctor.sh` — PASS/WARN/FAIL per check with evidence, exits non-zero ONLY on FAIL, so a WARN (e.g. a stale installed skill copy) still exits 0. Its grants check is the decisive one for unattended runs: headless agy auto-denies any tool it cannot prompt for and STILL REPORTS SUCCESS. `--probe` makes ONE real headless agy call and COSTS A MODEL TURN — offer it, state the cost, never run it unasked; calling a billed check free is itself the overclaiming defect.
+5. Conclude with three things: (a) which harnesses can host a lane right now; (b) which lane command templates are unsafe to dispatch, quoting the drifted flags and any AGY FAIL; (c) the one-line remedy per problem, for the operator to run — `bash <skills dir>/dev-loop/scripts/env/setup-antigravity.sh` (agy missing or unprovisioned), `bash <skills dir>/dev-loop/scripts/env/agy-login.sh` (not authenticated), `sh <skills dir>/dev-loop/scripts/install.sh --harness NAME --user` (stale skill copy), or a correction to the adapter's flag table before that harness is used again.
+
+Two-sided verification applies to this command too: a preflight that can only print PASS is a check that cannot fail, and would certify a container in which no lane can act. Positive control — probe a harness you can see on PATH: `ok`, exit 0. Negative control — probe a harness you know is absent: that line reads MISSING AND the exit code is 1. Exit 0 there means you ran the no-argument form, whose exit code ignores missing binaries.
+
+Not in scope: the staged-diff secret scan and the supply-chain gate (`adapters.py secrets` / `deps`) are fronted by /review. This command asks whether the TOOLS are usable, not whether the DIFF is shippable.
+
+Harnesses on PATH right now: !{command -v claude codex gemini agy copilot opencode agent 2>/dev/null}
+"""

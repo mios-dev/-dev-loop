@@ -21,12 +21,5 @@
     "opencode"
   ],
   "skills": "./skills",
-  "agents": [
-    "./agents/auditor.md",
-    "./agents/lane-worker.md",
-    "./agents/orchestrator.md",
-    "./agents/researcher.md",
-    "./agents/triage.md"
-  ],
   "mcpServers": "./.mcp.json"
 }

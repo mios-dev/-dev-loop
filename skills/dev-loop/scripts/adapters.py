@@ -635,7 +635,7 @@ def cmd_gate(a):
     # A sentinel control works by citing a path that does NOT exist. The lane can SEE its own
     # negative_control_cmd (it is in the lane prompt, line 163), so a lane that creates that
     # path -- deliberately, or by naming a fixture after a string it read in its own contract
-    # -- makes the citation resolve and the control PASS. Observed live 2026-09-19: a MiOS lane
+    # -- makes the citation resolve and the control PASS. Observed live 2026-09-19: a worker lane
     # created automation/DEVLOOP-PLANTED-T1000-GATE04.sh, the exact path its control expected
     # to be missing. The control would then have been vacuous and nothing downstream could tell.
     # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.

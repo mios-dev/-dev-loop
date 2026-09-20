@@ -1,0 +1,47 @@
+---
+description: Check the environment before a run (read-only) — harness binaries, drifted lane-template flags, AGY auth and grants, repo conformance
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /preflight
+
+When invoked as `/preflight [harness ...]` (empty = probe every harness). Read-only: install
+nothing, log in to nothing, dispatch nothing — name the remedy and stop.
+
+Harness CLI flags drift monthly, so a lane command template that worked last month can be rejected
+by this month's binary. Never assume a tool, flag or subagent exists. Skipped, the failure lands
+late: every lane dispatches, every lane dies on an unrecognised flag.
+
+- Binaries and flags: `python3 <skills dir>/dev-loop/scripts/adapters.py probe [--harness NAME NAME ...]`.
+  It resolves each binary AND runs its help (`exec --help` for codex, `run --help` for opencode),
+  diffing out the flags the lane templates pass. Report the table verbatim.
+- `--harness` takes **space-separated canonical names**, never a comma-joined token and never the
+  short name: `claude-code` (binary `claude`), `codex`, `gemini-cli` (`gemini`), `antigravity`
+  (`agy`), `copilot`, `opencode`, `cursor` (binary `agent`). Anything else raises `KeyError` and
+  prints a traceback — measured.
+- **Read the lines, never the exit code alone.** Measured: with no `--harness`, `probe` printed
+  five `MISSING` harnesses and exited **0**. Exit 1 fires only for a harness you NAMED being
+  missing, or DRIFT on any harness. Outcomes: `ok` · `MISSING` (cannot host a lane) ·
+  `DRIFT: flags not in --help: [...]` — those flags are exactly what the lane template passes, so
+  that template is **unsafe to dispatch** · `help failed: ...` (unusable, not ok). A Cursor lane
+  is probed through the binary `agent`, and its relied-on flags are `-p`, `--output-format`,
+  `--force`, `--workspace`.
+- Repo conformance, dev-loop checkouts only (`skills/dev-loop/scripts/validate.sh` exists):
+  `sh skills/dev-loop/scripts/validate.sh`. It gates the plugin's own tree, not an arbitrary
+  project; elsewhere say so and skip it.
+- Antigravity, only when `agy` is on PATH: `bash <skills dir>/dev-loop/scripts/env/agy-doctor.sh`
+  — PASS/WARN/FAIL with evidence, exits non-zero **only on FAIL** (a WARN still exits 0). Its
+  grants check is decisive unattended: headless agy auto-denies any tool it cannot prompt for and
+  still reports SUCCESS. `--probe` makes ONE real headless agy call and **costs a model turn** —
+  offer it, state the cost, never run it unasked.
+- Conclude with three things: which harnesses can host a lane right now; which lane command
+  templates are unsafe to dispatch (quote the drifted flags, plus any AGY FAIL); the one-line
+  remedy per problem for the operator — `bash <skills dir>/dev-loop/scripts/env/setup-antigravity.sh`,
+  `bash <skills dir>/dev-loop/scripts/env/agy-login.sh`, or
+  `sh <skills dir>/dev-loop/scripts/install.sh --harness NAME --user`.
+- Two-sided verification: a preflight that can only print PASS is a check that cannot fail.
+  Positive control — probe a harness on PATH ⇒ `ok`, exit 0. Negative control — probe a harness
+  known absent ⇒ `MISSING` **and exit 1**; exit 0 there means the no-argument form, whose exit
+  code ignores missing binaries.
+- Not in scope: `adapters.py secrets` / `deps` are fronted by `/review`.

@@ -527,7 +527,7 @@ harness, ends its output with this block.**
 {"devloop_report": {
   "status": "done | partial | blocked | converged_stuck | budget | halted",
   "objective": "<DoD objective>", "summary": "...",
-  "changed_paths": ["path/a"], "commits": ["<sha> <subject>"],
+  "changed_paths": ["path/a"],
   "positive_controls": [{"cmd": "...", "exit": 0, "evidence": "..."}],
   "negative_controls": [{"cmd": "...", "exit": 1, "matched": "<planted violation named>"}],
   "full_gate": {"cmd": "...", "exit": 0},

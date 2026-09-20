@@ -1,0 +1,18 @@
+---
+description: Diagnose a lane that did not finish — denied tool calls, a lost worker, an ownership stray, a vacuous gate, or a genuine defect
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /postmortem
+
+When a lane comes back `partial`, `blocked`, `budget`, `halted`, or with no report at all:
+
+- Five causes, five remedies, only the last a code bug. **Read the receipts on disk; run nothing by default; NEVER re-dispatch.** Re-run a check only when the worktree still exists and the operator asks. `<RUN>` defaults to the newest `.devloop/run-*`.
+- **1. DENIED** — `python3 <scripts>/adapters.py denials <RUN>/worker-<id>.log`: `0` clean, `3` hit. A fully-denied headless run can exit `0` with status `SUCCESS` and an empty response, so the exit code lies. Exit `3` means two things — read the message: `denied N tool call(s)` / `EMPTY response` ⇒ genuinely denied, remedy is permissions/allowlist not code; `no harness result envelope found` ⇒ no envelope in the file at all (a plain text log does this), which is absence of evidence — fall through.
+- **2. LOST / NO RECEIPT** — `worker-<id>.exit` absent, `125` (never started) or `124` (timeout); `python3 <scripts>/job.py status --root <RUN>/jobs --id <id> --json` → `absent|running|done|lost|forged`, exit `0` all done / `2` not all done / `3` lost or forged. `lost` may leave live grandchildren — kill by session id, never process group. Remedy: assume half-finished edits, inspect `lane-<id>.patch`, park, restore, re-dispatch. Budget or timeout exhausted is **partial**, never done.
+- **3. OWNERSHIP STRAY** — `adapters.py owned --lane <RUN>/lane-<id>.json --wt <worktree>` exits `1` and lists the paths; `adapters.py base-audit --root . --before <RUN>/base-tree-before.json` exits `6` on stray base-tree edits (`64` = bad args). `owned` reads `git status -uall` in the worktree, so it must still exist and any file sitting there counts — keep the lane JSON in the run dir. Remedy: park the diff, re-scope `owned_paths`, do not merge.
+- **4. VACUOUS GATE** — gate exit `2` in the log, or re-run `adapters.py gate` when the worktree survives. Read `neg-<id>.log`: sentinel pre-existed, tree not restored, base-tree leakage, the negative control PASSED, expect-string mismatch, or surviving mutants. Remedy: fix the **control**, not the code — a lane whose negative control passes is vacuous and must not merge. Never call a `2` mostly passing.
+- **5. REAL DEFECT** — only when 1–4 are clean and the positive command failed (gate exit `1`). Only then hand the failing command to `/triage`.
+- Report the class, the deciding command and its exact exit code, the proving line, whether `lane-<id>.patch` exists, and one next action. Undetermined is an honest answer; a confident wrong class is not.
+- Not `/triage` (a failing **command**, rerun N times for flake vs deterministic bug) and not `/watch` (a whole **run** in flight). `/postmortem` is one **lane**, already returned, cause named.

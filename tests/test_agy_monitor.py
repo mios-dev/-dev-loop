@@ -114,7 +114,7 @@ def test_no_result_event() -> None:
 def test_in_progress_is_not_a_failure() -> None:
     """A live run has not failed, it has not finished. The first version of this monitor
     reported no_result + exit 2 on every healthy run it was watching -- found by pointing it at
-    a real MiOS run, not by reading. A monitor that cries wolf on working runs gets ignored,
+    a real multi-lane run, not by reading. A monitor that cries wolf on working runs gets ignored,
     which costs you the one time it is right."""
     print("run still in progress:")
     d = Path(tempfile.mkdtemp())

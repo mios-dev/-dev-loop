@@ -1,9 +1,9 @@
 # dev-loop — universal autonomous engineering loop (v7.6.0)
 
-One repo, three things:
+One repo, four things:
 
 1. **A Claude Code plugin** — `.claude-plugin/plugin.json`, seven skills (`/dev-loop`, `/goal`, `/research`, `/review`, `/ship`, `/triage`, `/websearch`), five agents (`orchestrator`, `lane-worker` in an isolated worktree, `auditor`, `triage`, `researcher`), and enforcement hooks.
-2. **A portable skill set** (Agent Skills open standard) plus thin command shims for Antigravity, Gemini CLI, Codex, Copilot, Cursor, OpenCode, Hermes-Agent — installed by `skills/dev-loop/scripts/install.sh` / `.ps1`.
+2. **A portable skill set** (Agent Skills open standard) plus thin command shims for Antigravity, Gemini CLI, Codex, Copilot, Cursor and OpenCode — and a skills-only install for agentskills.io-compatible gateways, which expose `/dev-loop` from the skill itself — installed by `skills/dev-loop/scripts/install.sh` / `.ps1`.
 3. **An MCP server** (`skills/dev-loop/scripts/devloop_mcp.py`, registered by `.mcp.json`) so any MCP-capable host drives the orchestrator: `validate_lanes`, `run_lanes`, `gate`, `report`, `tasks_next`, `task_set`, `ledger`, `scaffold`, `probe`.
 4. **Harness-neutral glue** in `skills/dev-loop/scripts/`: `adapters.py` (9 lane harnesses, gates, probe, ledger), `devloop.sh` / `DevLoop.ps1` (worktree lane orchestrators), `artifacts.py` (AGENTS.md, GOALS, ROADMAP, MADR ADRs, tasks.jsonl → TASKS.md, DoD, checklists, CHANGELOG, ledger), `goal.py`, `research.py`, `review.py`, `ship.py`, `triage.py`, `devloop_worker.py` (OpenAI-compatible worker), `contracts.py` (cross-lane interface exchange), `verify_harness.py`; docs in `references/`, schemas/templates in `assets/` (agentskills.io layout).
 
@@ -12,15 +12,37 @@ One repo, three things:
 ```sh
 # Claude Code (plugin — recommended)
 claude plugin marketplace add /path/to/dev-loop        # or a git URL
-claude plugin install dev-loop@dev-loop-marketplace     # commands appear as /dev-loop:goal etc.
+claude plugin install dev-loop@dev-loop-marketplace     # /dev-loop:goal etc., and bare /dev-loop /goal /research /review /ship /triage /websearch while unambiguous
+# takes effect at the NEXT session start; in a running session run /reload-plugins
 # local dev:  claude --plugin-dir /path/to/dev-loop
 
-# Everything else (and Claude Code skills-only fallback), project scope, plus the canonical artifacts
-sh skills/dev-loop/scripts/install.sh --all --scaffold
-pwsh skills/dev-loop/scripts/install.ps1 -All -Scaffold
+# Every OTHER harness (Claude Code is covered by the plugin above - do not register it twice), user scope, plus the canonical artifacts
+sh skills/dev-loop/scripts/install.sh --harness antigravity,gemini,codex,cursor,copilot,opencode,hermes --user --scaffold
+pwsh skills/dev-loop/scripts/install.ps1 -Harness antigravity,gemini,codex,cursor,copilot,opencode,hermes -User -Scaffold
+# re-sync one harness after editing the repo (these installs are COPIES and go stale):
+sh skills/dev-loop/scripts/install.sh --harness antigravity --user
 ```
 
 Required Claude Code settings: `"worktree": {"baseRef": "head"}`; version ≥ 2.1.219. Run `python3 skills/dev-loop/scripts/adapters.py probe` after installing or upgrading any harness CLI.
+
+### Verify the install is registered *and current*
+
+A directory in `~/.claude/skills/` or `~/.gemini/config/skills/` proves nothing: a stale copy looks exactly like a fresh one.
+
+```sh
+# Claude Code - enabled, and pointing at THIS tree. A directory-source marketplace loads IN PLACE,
+# so the repo is the installed copy and cannot go stale; the inventory below is read live from it.
+claude plugin list --json | python3 -c 'import json,sys; p=[x for x in json.load(sys.stdin) if x["id"]=="dev-loop@dev-loop-marketplace"]; assert p and p[0]["enabled"], p or "NOT INSTALLED"; print("enabled, version", p[0]["version"])'
+python3 -c 'import json,os; s=json.load(open(os.path.expanduser("~/.claude/settings.json"))); print(s["extraKnownMarketplaces"]["dev-loop-marketplace"]["source"]["path"])'   # must print this repo
+claude plugin details dev-loop@dev-loop-marketplace   # must read: Skills (7), Agents (5), Hooks (7), MCP servers (1)
+
+# Antigravity - the install IS a copy, so rebuild a reference copy with the same installer and diff.
+# (SKILL.md is frontmatter-stripped on the way in, so a plain `diff -r` against skills/ can never pass.)
+REF=$(mktemp -d); HOME="$REF" sh skills/dev-loop/scripts/install.sh --harness antigravity --user >/dev/null 2>&1
+diff -r -x __pycache__ "$REF/.gemini/config/skills" "$HOME/.gemini/config/skills" \
+  && diff -r "$REF/.gemini/config/workflows" "$HOME/.gemini/config/workflows" \
+  && echo "AGY install CURRENT"; rm -rf "$REF"
+```
 
 ## Conformance
 `sh skills/dev-loop/scripts/validate.sh` — agentskills.io validator on every skill (sub-skills as the six-key copies other harnesses receive), plugin/hook/agent shapes, schemas, syntax, and `claude plugin validate --strict` when the CLI is present. Details and sources: `skills/dev-loop/references/conformance.md`.
@@ -33,11 +55,11 @@ Required Claude Code settings: `"worktree": {"baseRef": "head"}`; version ≥ 2.
 
 Any harness can be the host; any harness can run a lane (`references/harness-adapters.md`). State lives on disk (`.devloop/`), never in the context window (`references/artifacts.md`).
 
-## Environments: devcontainers (Fedora default) + Claude Code on the web
+## Environments: devcontainers + Claude Code on the web
 
 The environment layer ships **inside the skill** (`skills/dev-loop/scripts/env/`, docs in
-`references/environment.md`), so every dev-loop install carries it. It is distro-aware —
-**Fedora/RHEL (dnf5/dnf/microdnf) first, Debian/Ubuntu (apt) second** — idempotent, and
+`references/environment.md`), so every dev-loop install carries it. It detects the host's
+package manager (dnf5/dnf/microdnf, else apt-get) rather than assuming one — idempotent, and
 location-independent.
 
 **Devcontainers:** `.devcontainer/devcontainer.json` is **Fedora 44** (this repo's default

@@ -280,7 +280,7 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
                 {
                     "id": "lane-calc",
                     "owned_paths": ["calc.py"],
-                    "objective": "fix calc",
+                    "objective": "write calc.py add() in the calc lane",
                     "worker": {"harness": "custom", "command": worker_calc},
                     "positive_cmd": "python3 -c 'import calc; assert calc.add(2,3) == 5'",
                     "negative_control_cmd": "cp calc.py .nc.bak; trap 'mv .nc.bak calc.py' EXIT; printf 'def add(a,b): return 0\\n' > calc.py; python3 -c 'import calc; assert calc.add(2,3) == 5'",
@@ -289,7 +289,7 @@ class TestDevLoopE2ELeakageAndConcurrency(unittest.TestCase):
                 {
                     "id": "lane-util",
                     "owned_paths": ["util.py"],
-                    "objective": "fix util",
+                    "objective": "write util.py shout() in the util lane",
                     "worker": {"harness": "custom", "command": worker_util},
                     "positive_cmd": "python3 -c 'import util; assert util.shout(\"hi\") == \"HI\"'",
                     "negative_control_cmd": "cp util.py .nc.bak; trap 'mv .nc.bak util.py' EXIT; printf 'def shout(s): return \"bad\"\\n' > util.py; python3 -c 'import util; assert util.shout(\"hi\") == \"HI\"'",

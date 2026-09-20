@@ -56,4 +56,4 @@ When invoking `/goal dev <objective>`, the agent executes the complete goal-driv
 4. **Stopping Condition Enforcement:**
    - The loop will not stop prematurely. It continuously evaluates `goal.py eval` until every invariant is satisfied.
 5. **Verified Teardown:**
-   - Merges worktrees, cleans branches, generates the final audit report in `.devloop_reports/`, and reports completion to the operator.
+   - Merges worktrees, cleans branches, generates the final audit report in `.devloop/run-*/`, and reports completion to the operator.

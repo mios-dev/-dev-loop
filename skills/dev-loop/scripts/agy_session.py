@@ -50,8 +50,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import select
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # for job.py
@@ -222,6 +224,112 @@ def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     return out
 
 
+def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
+              poll_s: float = 5.0) -> str:
+    """Keep a finished session ALIVE and streaming, so a remote operator can drive it.
+
+    Why this is not just "don't exit": the local driver's work ends when the manager stops
+    speaking, but `--remote-control` ties the remote connection to the PROCESS. Exit and the
+    CLI logs "Deleted session instance <id>-v2" -- the session vanishes from the Remote
+    Control list mid-run. Holding stdin open keeps the conversation attachable, and every
+    turn a remote operator drives arrives on THIS stdout, so the events file keeps growing
+    and the monitor keeps seeing it.
+
+    Costs NOTHING while idle: no follow-up turns are sent. Select-with-timeout, not a read
+    loop, so the stop file is noticed within `poll_s` even when the model says nothing.
+
+    Ends on, and REPORTS WHICH: the stop file appearing (an OPERATOR control -- it is not
+    evidence that any work is correct, and nothing here treats it as such), the wall-clock
+    budget expiring, or the process dying on its own (EOF).
+    """
+    deadline = time.monotonic() + max_s
+    while True:
+        if stop_file.exists():
+            return "stopped"
+        if time.monotonic() >= deadline:
+            return "budget"
+        if proc.poll() is not None:
+            return "exited"
+        try:
+            ready, _, _ = select.select([proc.stdout], [], [], poll_s)
+        except (OSError, ValueError):
+            return "exited"
+        if not ready:
+            continue
+        line = proc.stdout.readline()
+        if not line:              # EOF: the CLI is gone, holding stdin open cannot revive it
+            return "exited"
+        line = line.strip()
+        if not line:
+            continue
+        if events:
+            events.write(line + "\n")
+        try:
+            evt = json.loads(line)
+        except json.JSONDecodeError:
+            print(line, file=sys.stderr)
+            continue
+        if evt.get("event") == "result":
+            # A remotely driven turn. Newest wins, so the envelope reflects the real end.
+            on_result(evt.get("result", {}))
+            print("agy_session: remote-driven turn completed", file=sys.stderr)
+
+
+def write_status(events_out: str | None, **fields) -> None:
+    """The run marker a monitor reads to tell "thinking" from "gone".
+
+    agy_host.sh writes this for runs it launches, which left every DIRECT caller of this
+    driver invisible: the global monitor reported `BLIND native_marker: .devloop/native
+    exists but session.status does not` for exactly that reason -- a session was hosted
+    here and its state was unknowable. The driver owns the session, so the driver writes
+    the marker; the host's copy still agrees with it.
+
+    Staleness alone cannot stand in for this: a manager inside a long run_command is
+    silent for minutes (measured: 128s) and reads as dead without it.
+    """
+    if not events_out:
+        return
+    try:
+        path = Path(events_out).parent / "session.status"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"events": events_out, **fields}) + "\n")
+    except Exception:
+        pass        # a marker that cannot be written must not take the run down with it
+
+
+def session_argv(model: str | None = None, effort: str | None = None,
+                 yolo: bool = False, remote_control: bool = False) -> list[str]:
+    """The held-session command line. Factored out so both sides can be asserted:
+    a flag that is always present is not a flag, it is a constant.
+
+    `--remote-control` ("Create a remote connection for the CLI session on start up")
+    is what puts THIS session in the Remote Control list at antigravity.google.com.
+    Measured 2026-09-20, agy 1.2.6, two probes differing only in this flag:
+      with    -> server.go:3565 "Remote control enabled, starting connection",
+                 remote_control_v2.go:2037 "Connection status: Connected",
+                 and on exit server.go:3650 "Deleted session instance <id>-v2"
+      without -> server.go:3768 "[RemoteControl] Session toggle is off, staying
+                 disconnected" and an EMPTY proxyServerURL
+    The connection lives exactly as long as the process, which is the second half of
+    why a single-turn `agy -p` run is invisible: it is never registered, and it would
+    have exited anyway. The `remote-control serve` DAEMON is a different object -- it
+    registers the MACHINE (an instance name), not the sessions running on it, so a
+    healthy daemon is not evidence that any session can be seen or driven.
+    """
+    argv = ["agy", "--input-format", "stream-json", "--output-format", "stream-json",
+            "--print-timeout", "0"]
+    if model:
+        argv += ["--model", model]
+    if effort:
+        argv += ["--effort", effort]
+    if yolo:
+        argv.append("--dangerously-skip-permissions")
+    if remote_control:
+        argv.append("--remote-control")
+    argv.append("-p=")  # MUST be the attached-empty form; a bare -p eats the next flag
+    return argv
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--prompt-file", required=True, help="file holding the manager prompt (turn 1)")
@@ -236,21 +344,36 @@ def main() -> int:
     ap.add_argument("--events-out", help="tee every raw NDJSON event here for monitors "
                                         "(agy_monitor.py tails this; a tmux pane watches it)")
     ap.add_argument("--yolo", action="store_true")
+    ap.add_argument("--hold-file", help="after the local work ends, keep the session alive and "
+                                       "streaming until THIS path exists. Operator stop control; "
+                                       "it ends the process, it does not certify the work")
+    ap.add_argument("--hold-max-s", type=float, default=3600.0,
+                    help="wall-clock ceiling on --hold-file, so a stop file nobody writes cannot "
+                         "hold a session open forever")
+    ap.add_argument("--remote-control", action="store_true",
+                    help="register this session with Antigravity Remote Control so it can be "
+                         "watched and driven from antigravity.google.com; the connection lasts "
+                         "exactly as long as this process")
     a = ap.parse_args()
 
-    argv = ["agy", "--input-format", "stream-json", "--output-format", "stream-json",
-            "--print-timeout", "0"]
-    if a.model:
-        argv += ["--model", a.model]
-    if a.effort:
-        argv += ["--effort", a.effort]
-    if a.yolo:
-        argv.append("--dangerously-skip-permissions")
-    argv.append("-p=")  # MUST be the attached-empty form; a bare -p eats the next flag
+    argv = session_argv(a.model, a.effort, a.yolo, a.remote_control)
 
     native_dir = Path(a.run_root) / ".devloop" / "native"
     jobs_dir = Path(a.jobs_root) if a.jobs_root else None
     lane_ids = session_lane_ids(Path(a.lanes)) if a.lanes else []
+    # WHAT THE STRAY GUARD ACTUALLY ASKS: did the manager edit the base tree INSTEAD OF a
+    # lane worktree? That question presupposes worktrees. A lane-less session (one manager
+    # doing the work itself, e.g. an AGY teamwork run) has none, so "outside every lane
+    # worktree" is true of every edit it makes by construction -- including the edits that
+    # ARE the run. Failing closed there measures the wrong property (SKILL.md 7) and kills
+    # every such run at its first real change.
+    #
+    # This is a SCOPE, not an off switch: nothing at runtime can set it, it follows from the
+    # lane file, and the lane-less path stays LOUD -- every base edit is still computed and
+    # named on every turn, prefixed UNGATED, so a monitor and an operator see the tree moving.
+    # What is lost is real and is not papered over: a lane-less run has no worktree gate, and
+    # its changes must be reviewed before they are trusted.
+    guard_gates = bool(lane_ids)
 
     # Baseline BEFORE turn 1, so inherited dirt is never attributed to the manager.
     allowed = BASE_TREE_ALWAYS_ALLOWED + (
@@ -279,6 +402,9 @@ def main() -> int:
         print("agy_session: agy not installed", file=sys.stderr)
         return 4
 
+    write_status(a.events_out, state="running", pid=proc.pid, started_at=time.time(),
+                 remote_control=bool(a.remote_control), cwd=str(Path(a.run_root).resolve()))
+
     last_result: dict | None = None
     turns_sent = 1
     try:
@@ -302,8 +428,10 @@ def main() -> int:
             kind = evt.get("event")
             if kind == "init":
                 init = evt.get("init", {})
-                print(f"agy_session: init cwd={init.get('cwd')} "
-                      f"tools={len(init.get('tools', []))} mode={init.get('permission_mode')}",
+                print(f"agy_session: init conversation={evt.get('conversation_id')} "
+                      f"cwd={init.get('cwd')} "
+                      f"tools={len(init.get('tools', []))} mode={init.get('permission_mode')}"
+                      f"{' remote-control=on' if a.remote_control else ''}",
                       file=sys.stderr)
                 continue
             if kind == "step_update":
@@ -323,14 +451,18 @@ def main() -> int:
             outstanding = missing_reports(native_dir, lane_ids, jobs_dir)
             if fresh:
                 stray_warned.update(fresh)
-                print("agy_session: BASE TREE EDITED outside any lane worktree: %s -- failing closed"
-                      % ", ".join(fresh), file=sys.stderr)
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=5)
-                except Exception:
-                    proc.kill()
-                return 6
+                if guard_gates:
+                    print("agy_session: BASE TREE EDITED outside any lane worktree: %s -- failing closed"
+                          % ", ".join(fresh), file=sys.stderr)
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                    except Exception:
+                        proc.kill()
+                    return 6
+                print("agy_session: UNGATED base-tree change (%d lane(s), so no worktree gate "
+                      "applies): %s -- review before trusting this run"
+                      % (len(lane_ids), ", ".join(fresh)), file=sys.stderr)
             if not outstanding or turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
@@ -346,6 +478,19 @@ def main() -> int:
                 poll_message(native_dir, outstanding, subagent_steps, lane_ids)))
             proc.stdin.flush()
             turns_sent += 1
+
+        if a.hold_file:
+            print(f"agy_session: local work done after {turns_sent} turn(s); HOLDING the session "
+                  f"open (stop file: {a.hold_file}, ceiling {a.hold_max_s:.0f}s). "
+                  f"{'It is attachable from Remote Control.' if a.remote_control else 'NOT registered with Remote Control -- pass --remote-control for that.'}",
+                  file=sys.stderr)
+
+            def _newest(r: dict) -> None:
+                nonlocal last_result
+                last_result = r
+
+            why = hold_open(proc, events, _newest, Path(a.hold_file), a.hold_max_s)
+            print(f"agy_session: hold ended ({why})", file=sys.stderr)
     finally:
         if events:
             try:
@@ -360,6 +505,8 @@ def main() -> int:
             proc.wait(timeout=60)
         except Exception:
             proc.kill()
+        write_status(a.events_out, state="finished", pid=proc.pid, ended_at=time.time(),
+                     remote_control=bool(a.remote_control))
 
     if last_result is None:
         # No terminal envelope at all. Measured: a stream whose events are all unknown
@@ -379,7 +526,13 @@ def main() -> int:
                   "worktree: %s -- these were never gated, because lane gates read "
                   "worktrees. Review and revert them before trusting this run."
                   % ", ".join(strays), file=sys.stderr)
-            return 6
+            if guard_gates:
+                return 6
+            # Lane-less: these edits are the run's output, not a stray. Still named above --
+            # reported, never swallowed -- but they are not an error on their own.
+            print("agy_session: (lane-less run: the changes above are its OUTPUT, and carry no "
+                  "worktree gate. The repo's own gates are what must accept them.)",
+                  file=sys.stderr)
 
     still = missing_reports(native_dir, lane_ids, jobs_dir)
     if still:

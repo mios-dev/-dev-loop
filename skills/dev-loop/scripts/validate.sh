@@ -21,6 +21,9 @@ import json,sys,glob,re; P=sys.argv[1]
 m=json.load(open(f"{P}/.claude-plugin/plugin.json")); assert "name" in m and "entrypoint" not in m, "plugin.json: name required, entrypoint invalid"
 for k in ("skills","agents","hooks","commands","mcpServers"):
     if k in m: assert isinstance(m[k],(str,dict,list)), k
+# measured: an explicit "agents": ["./a.md", ...] array is schema-valid and passes `claude plugin validate --strict`,
+# but the host then loads ZERO agents (`claude plugin details` -> "Agents (0)"). Only auto-discovery of agents/ works.
+assert not isinstance(m.get("agents"), list), 'plugin.json: drop the "agents": [...] array - the array form loads zero agents; let agents/ auto-discover'
 # hooks/hooks.json is auto-loaded; declaring it again makes the host refuse the whole plugin
 # ("Duplicate hooks file detected"), so manifest.hooks may only name ADDITIONAL files.
 _hk=m.get("hooks"); _hk=[_hk] if isinstance(_hk,str) else (_hk if isinstance(_hk,list) else [])
@@ -56,7 +59,7 @@ for t in json.load(open(f"{A}/openai-tools.json")):
 print("openai-tools strict: ok")
 PY
 for f in "$PLUG"/skills/dev-loop/scripts/*.py; do "$PY" -m py_compile "$f" || FAIL=1; done; rm -rf "$PLUG"/skills/dev-loop/scripts/__pycache__
-for f in "$PLUG"/skills/dev-loop/scripts/*.sh "$PLUG"/hooks/*.sh; do sh -n "$f" || { note "syntax: $f"; FAIL=1; }; done; note "python/shell syntax: ok"
+for f in "$PLUG"/skills/dev-loop/scripts/*.sh "$PLUG"/skills/dev-loop/scripts/env/*.sh "$PLUG"/hooks/*.sh; do sh -n "$f" || { note "syntax: $f"; FAIL=1; }; done; note "python/shell syntax: ok"
 # 3b. behavioural tests — syntax checks above cannot see a criterion that reports PASSED unmeasured
 for t in "$PLUG"/tests/test_*.py; do
   [ -f "$t" ] || continue
