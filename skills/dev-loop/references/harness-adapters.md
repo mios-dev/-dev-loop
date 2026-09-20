@@ -13,8 +13,8 @@ flags too — verify against `<cli> --help` before relying on one.
 | Gemini CLI | `.gemini/skills/dev-loop/` or `.agents/skills/dev-loop/` → `~/.gemini/skills/` | `.gemini/commands/dev-loop.toml` | `/dev-loop <obj>` | `{{args}}` |
 | Codex CLI | `.agents/skills/dev-loop/` → `~/.agents/skills/dev-loop/` | `.codex/prompts/dev-loop.md` (or `~/.codex/prompts/`) | `/dev-loop <obj>` / `$dev-loop` | `$ARGUMENTS` |
 | Cursor | `.cursor/skills/dev-loop/` | `.cursor/commands/dev-loop.md` (+ optional always-on rule `.cursor/rules/dev-loop.mdc`) | `/dev-loop` | prompt text |
-| GitHub Copilot (VS Code + `copilot` CLI) | `.github/skills/dev-loop/` → `~/.copilot/skills/` | `.github/prompts/dev-loop.prompt.md` (+ optional agent `.github/agents/dev-loop.agent.md`) | `/dev-loop` | `${input}` |
-| OpenCode | `.opencode/skills/dev-loop/` | `.opencode/command/dev-loop.md` | `/dev-loop <obj>` | `$ARGUMENTS` |
+| GitHub Copilot (VS Code + `copilot` CLI) | `.github/skills/dev-loop/` → `~/.copilot/skills/` | `.github/prompts/dev-loop.prompt.md` (VS Code) + agent `.github/agents/dev-loop.agent.md` (**the CLI reads only this**) | `/dev-loop` | `${input:name}` |
+| OpenCode | `.opencode/skills/dev-loop/` | `.opencode/commands/dev-loop.md` | `/dev-loop <obj>` | `$ARGUMENTS` |
 | Any agentskills.io-compatible local agent gateway | `~/.hermes/skills/dev-loop/` or the gateway's own skills dir (auto-exposed as `/dev-loop`) | n/a | `/dev-loop` | prompt text |
 | OpenAI-compatible runtime (Open WebUI pipe, custom) | pass `SKILL.md` as system context (Open WebUI core has no SKILL.md discovery) | n/a — expose `dev_loop` from `openai-tools.json` as a host-side tool | tool call | JSON |
 
