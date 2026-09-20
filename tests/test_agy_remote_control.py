@@ -136,7 +136,7 @@ def test_host_passes_it_through() -> None:
           'set -- "$@" --remote-control' in src, "not wired in the session branch")
     # The headless branch must NOT forward it: that connection would be torn down at the
     # turn end, producing precisely the phantom this file exists to prevent.
-    headless = src.split("    session)")[0]
+    headless = src.split("    headless)")[1].split("    session)")[0]
     check("--headless path does NOT forward it",
           'set -- "$@" --remote-control' not in headless,
           "a single-turn run would register a session that is gone before anyone can open it")
