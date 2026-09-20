@@ -156,5 +156,11 @@ These were measured on agy 1.2.6, not assumed. They are why the rules above exis
    prompt nobody answers and is denied. Put multi-statement shell in `bash -c '...'` or in a
    script file you run with bash or python3, from the first attempt. Never retry a denied
    command in another form.
+10. NESTED HARNESS LAUNCHES. When launching a nested agent (`claude -p`, etc.), NEVER prefix with
+    `timeout` (e.g. `timeout 1800 claude -p ...`). The allowlist evaluates only the first word
+    (`timeout`), tripping an interactive prompt that fails unattended. Use a form the allowlist
+    admits: launch either directly with `claude` as the first word, or through `job.py spawn`
+    (`python3 {{SKILL_DIR}}/scripts/job.py spawn --root {{RUN_ROOT}}/.devloop/jobs --id <id> -- claude -p ...`)
+    so the supervisor outlives the turn and leaves an inspectable exit receipt.
 
 You are the only writer to shared state; lanes never git add/commit/push and never edit AGENTS.md.

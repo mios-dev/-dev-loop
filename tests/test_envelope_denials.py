@@ -125,5 +125,89 @@ class HostSeam(unittest.TestCase):
         self.assertIn("clean", out)
 
 
+def run_check_command(text: str, command: str) -> tuple[int, str]:
+    with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False) as fh:
+        fh.write(text)
+        path = fh.name
+    try:
+        cp = subprocess.run([sys.executable, str(ADAPTERS), "check-command", path, "--command", command],
+                            capture_output=True, text=True)
+        return cp.returncode, cp.stdout + cp.stderr
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+class SlashCommandInitVerification(unittest.TestCase):
+    """MON-011: Claude Code 2.1.274+ sends unknown /commands as plain prompts.
+    A supervisor or runner must assert the command is in system/init.slash_commands."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ad = load_adapters()
+
+    def test_check_command_passes_when_registered(self):
+        stream = (
+            json.dumps({"type": "system", "subtype": "init", "slash_commands": ["goal", "dev-loop:goal", "/commit"]}) + "\n"
+            + json.dumps({"type": "result", "result": "done", "num_turns": 3}) + "\n"
+        )
+        rc, out = run_check_command(stream, "/dev-loop:goal dev fix bug")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("PASS", out)
+
+        rc, out = run_check_command(stream, "/goal dev fix bug")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("PASS", out)
+
+    def test_check_command_fails_when_unregistered(self):
+        stream = (
+            json.dumps({"type": "system", "subtype": "init", "slash_commands": ["commit", "help"]}) + "\n"
+            + json.dumps({"type": "result", "result": "hello", "num_turns": 1}) + "\n"
+        )
+        rc, out = run_check_command(stream, "/dev-loop:goal dev fix bug")
+        self.assertEqual(rc, 3, out)
+        self.assertIn("FAIL", out)
+        self.assertIn("not listed in system/init", out)
+
+    def test_check_command_fails_when_no_init_event(self):
+        stream = json.dumps({"type": "result", "result": "hello", "num_turns": 1}) + "\n"
+        rc, out = run_check_command(stream, "/dev-loop:goal dev fix bug")
+        self.assertEqual(rc, 3, out)
+        self.assertIn("no system/init event found", out)
+
+    def test_normalize_report_halts_on_unregistered_command(self):
+        stream = (
+            json.dumps({"type": "system", "subtype": "init", "slash_commands": ["help"]}) + "\n"
+            + json.dumps({"devloop_report": {"status": "done", "objective": "/dev-loop:goal", "positive_controls": [0]}}) + "\n"
+            + json.dumps({"type": "result", "result": "ok", "num_turns": 1}) + "\n"
+        )
+        rep = self.ad.normalize_report(
+            {"id": "lane-1", "objective": "/dev-loop:goal dev"},
+            "claude-code",
+            stream,
+            0,
+            False,
+            1
+        )
+        self.assertEqual(rep["status"], "halted")
+        self.assertTrue(any("slash command check failed" in u for u in rep["unverified"]))
+
+    def test_normalize_report_preserves_done_on_registered_command(self):
+        stream = (
+            json.dumps({"type": "system", "subtype": "init", "slash_commands": ["dev-loop:goal"]}) + "\n"
+            + json.dumps({"devloop_report": {"status": "done", "objective": "/dev-loop:goal dev", "positive_controls": [0]}}) + "\n"
+            + json.dumps({"type": "result", "result": "ok", "num_turns": 1}) + "\n"
+        )
+        rep = self.ad.normalize_report(
+            {"id": "lane-1", "objective": "/dev-loop:goal dev"},
+            "claude-code",
+            stream,
+            0,
+            False,
+            1
+        )
+        self.assertEqual(rep["status"], "done")
+        self.assertFalse(any("slash command check failed" in u for u in rep["unverified"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

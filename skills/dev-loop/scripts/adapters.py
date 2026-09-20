@@ -432,8 +432,68 @@ def normalize_report(lane: dict, harness: str, stdout: str, exit_code: int, time
     if notes:
         rep["unverified"].extend(notes)
         if rep["status"] == "done": rep["status"] = "partial"
+    if harness == "claude-code" and lane.get("objective", "").strip().startswith("/"):
+        cmd_candidate = lane["objective"].strip().split()[0]
+        init_ev = find_init_event(stdout)
+        if init_ev is not None:
+            ok, msg = verify_slash_command(stdout, cmd_candidate)
+            if not ok:
+                rep["status"] = "halted"
+                rep["unverified"].append(f"slash command check failed: {msg}")
     rep["_meta"] = {"lane": lane["id"], "harness": harness, "exit": exit_code, "timed_out": timed_out, "turns": turns}
     return rep
+
+
+def find_init_event(text: str) -> dict | None:
+    """Find the system/init event in stream-json output (MON-011)."""
+    for d in _balanced_json_objects(text):
+        if isinstance(d, dict):
+            if d.get("type") in ("system", "system/init") and (d.get("subtype") == "init" or "slash_commands" in d):
+                return d
+            if "slash_commands" in d:
+                return d
+    return None
+
+
+def extract_slash_commands(init_event: dict) -> set[str]:
+    """Extract registered slash command names normalized without leading slashes."""
+    raw = init_event.get("slash_commands") or []
+    cmds = set()
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str):
+                cmds.add(item.strip().lstrip("/").lower())
+            elif isinstance(item, dict):
+                name = item.get("name") or item.get("command") or ""
+                if name:
+                    cmds.add(str(name).strip().lstrip("/").lower())
+    return cmds
+
+
+def verify_slash_command(text: str, command: str) -> tuple[bool, str]:
+    """Verify that a slash command was recognized in system/init rather than degraded.
+
+    Since Claude Code 2.1.274, an unknown slash command is not rejected with an error;
+    instead it sends the prompt as an ordinary message and exits 0 (MON-011).
+    A supervisor or runner must assert the command was present in system/init.slash_commands.
+    """
+    token = command.strip().split()[0].lstrip("/").lower()
+    init_ev = find_init_event(text)
+    if init_ev is None:
+        return False, f"no system/init event found in output; cannot verify slash command '/{token}'"
+    available = extract_slash_commands(init_ev)
+    if token in available:
+        return True, f"slash command '/{token}' verified in system/init"
+    if ":" in token:
+        prefix, suffix = token.split(":", 1)
+        plugins = init_ev.get("plugins")
+        if isinstance(plugins, list):
+            plugin_names = {p.get("name") if isinstance(p, dict) else str(p) for p in plugins}
+            if prefix not in plugin_names and token not in available:
+                return False, f"plugin '{prefix}' for command '/{token}' not loaded in system/init.plugins"
+        if suffix in available:
+            return True, f"slash command '/{token}' verified in system/init (as '{suffix}')"
+    return False, f"slash command '/{token}' not listed in system/init.slash_commands: {sorted(available)}"
 
 
 # ---------------------------------------------------------------- shell helpers
@@ -739,6 +799,16 @@ def cmd_denials(a):
     print(f"denials: none — envelope clean ({env.get('num_turns', '?')} turn(s))")
 
 
+def cmd_check_command(a):
+    """Verify that a slash command was registered in system/init (MON-011)."""
+    text = sys.stdin.read() if a.envelope == "-" else Path(a.envelope).read_text("utf-8", errors="replace")
+    ok, msg = verify_slash_command(text, a.command)
+    if not ok:
+        print(f"check-command: FAIL — {msg}", file=sys.stderr)
+        die(f"check-command: {msg}", 3)
+    print(f"check-command: PASS — {msg}")
+
+
 def cmd_secrets(a):
     wt = Path(a.wt)
     if shutil.which("gitleaks"):
@@ -918,6 +988,7 @@ def main():
     p.add_argument("--save"); p.add_argument("--lanes"); p.set_defaults(f=cmd_base_audit)
     p = sp.add_parser("base-snapshot"); p.add_argument("--root", default="."); p.add_argument("--out", required=True); p.set_defaults(f=cmd_base_snapshot)
     p = sp.add_parser("denials"); p.add_argument("envelope"); p.set_defaults(f=cmd_denials)
+    p = sp.add_parser("check-command"); p.add_argument("envelope"); p.add_argument("--command", required=True); p.set_defaults(f=cmd_check_command)
     p = sp.add_parser("secrets"); p.add_argument("--wt", required=True); p.set_defaults(f=cmd_secrets)
     p = sp.add_parser("deps"); p.add_argument("--wt", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_deps)
     p = sp.add_parser("probe"); p.add_argument("--harness", nargs="*"); p.set_defaults(f=cmd_probe)

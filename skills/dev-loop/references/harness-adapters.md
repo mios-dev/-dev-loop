@@ -130,9 +130,12 @@ which is why the skill stays universal: the host changes, the lane contract does
   do not receive their own allowlist entries (operator decision: `command(bash)` and `command(sh)`
   are already granted, so keyword entries add no new authority while encouraging bare loops);
   managers must wrap multi-statement shell loops in `bash -c '...'` or run a script with
-  `bash` / `python3` from the first attempt. `list_dir` is not a valid action name, and an
-  unanchored manager invents paths in its trusted workspace instead of the run's repo —
-  `agy_host.sh` now pins the run root in the prompt.
+  `bash` / `python3` from the first attempt. When launching nested agents like `claude -p`,
+  never prefix with `timeout … claude` (the first token `timeout` trips interactive prompts that
+  fail unattended; MON-012); launch either with `claude` as the first token or wrap under
+  `job.py spawn` (`python3 …/job.py spawn`) so the supervisor outlives the turn. `list_dir` is
+  not a valid action name, and an unanchored manager invents paths in its trusted workspace
+  instead of the run's repo — `agy_host.sh` now pins the run root in the prompt.
   And in print mode the manager MUST run `devloop.sh` synchronously in the foreground: a
   headless `agy -p` answers once and exits, killing every backgrounded child with it — a manager
   that "launches and awaits" reports SUCCESS while nothing merges (observed live, 2026-09;
