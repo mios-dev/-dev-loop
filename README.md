@@ -1,11 +1,11 @@
-# dev-loop — universal autonomous engineering loop (v7.6.0)
+# dev-loop — universal autonomous engineering loop (v0.7.1)
 
 One repo, four things:
 
 1. **A Claude Code plugin** — `.claude-plugin/plugin.json`, seven skills (`/dev-loop`, `/goal`, `/research`, `/review`, `/ship`, `/triage`, `/websearch`), five agents (`orchestrator`, `lane-worker` in an isolated worktree, `auditor`, `triage`, `researcher`), and enforcement hooks.
-2. **A portable skill set** (Agent Skills open standard) plus thin command shims for Antigravity, Gemini CLI, Codex, Copilot, Cursor and OpenCode — and a skills-only install for agentskills.io-compatible gateways, which expose `/dev-loop` from the skill itself — installed by `skills/dev-loop/scripts/install.sh` / `.ps1`.
+2. **A portable skill set** (Agent Skills open standard) plus thin command shims for Antigravity, Gemini CLI, Codex, Copilot, Cursor and OpenCode — and a skills-only install for agentskills.io-compatible gateways, which expose `/dev-loop` from the skill itself installed by `skills/dev-loop/scripts/install.sh` / `.ps1`.
 3. **An MCP server** (`skills/dev-loop/scripts/devloop_mcp.py`, registered by `.mcp.json`) so any MCP-capable host drives the orchestrator: `validate_lanes`, `run_lanes`, `gate`, `report`, `tasks_next`, `task_set`, `ledger`, `scaffold`, `probe`.
-4. **Harness-neutral glue** in `skills/dev-loop/scripts/`: `adapters.py` (9 lane harnesses, gates, probe, ledger), `devloop.sh` / `DevLoop.ps1` (worktree lane orchestrators), `artifacts.py` (AGENTS.md, GOALS, ROADMAP, MADR ADRs, tasks.jsonl → TASKS.md, DoD, checklists, CHANGELOG, ledger), `goal.py`, `research.py`, `review.py`, `ship.py`, `triage.py`, `devloop_worker.py` (OpenAI-compatible worker), `contracts.py` (cross-lane interface exchange), `verify_harness.py`; docs in `references/`, schemas/templates in `assets/` (agentskills.io layout).
+4. **Harness-neutral glue** in `skills/dev-loop/scripts/`: `adapters.py` (9 lane harnesses, gates, probe, ledger), `devloop.sh` / `DevLoop.ps1` (worktree lane orchestrators), `artifacts.py` (AGENTS.md, GOALS.md, ROADMAP, MDAR docs, tasks.jsonl, ledger), `goal.py`, `research.py`, `review.py`, `ship.py`, `triage.py`, `devloop_worker.py` (OpenAI-compatible worker), `contracts.py` (cross-lane interface exchange), `verify_harness.py`; docs in `references/`, schemas/templates in `assets/` (agentskills.io layout).
 
 ## Install
 
@@ -32,7 +32,7 @@ A directory in `~/.claude/skills/` or `~/.gemini/config/skills/` proves nothing:
 ```sh
 # Claude Code - enabled, and pointing at THIS tree. A directory-source marketplace loads IN PLACE,
 # so the repo is the installed copy and cannot go stale; the inventory below is read live from it.
-claude plugin list --json | python3 -c 'import json,sys; p=[x for x in json.load(sys.stdin) if x["id"]=="dev-loop@dev-loop-marketplace"]; assert p and p[0]["enabled"], p or "NOT INSTALLED"; print("enabled, version", p[0]["version"])'
+claude plugin list --json | python3 -c 'import json,sys; p=[x for x in json.load(sys.stdin) if x["id"]=="dev-loop@dev-loop-marketplace"]; assert p and p[0]["enabled"], p or "NOT INSTALLED"; print(p[0]["enabled"], p[0]["version"])'
 python3 -c 'import json,os; s=json.load(open(os.path.expanduser("~/.claude/settings.json"))); print(s["extraKnownMarketplaces"]["dev-loop-marketplace"]["source"]["path"])'   # must print this repo
 claude plugin details dev-loop@dev-loop-marketplace   # must read: Skills (7), Agents (5), Hooks (7), MCP servers (1)
 
@@ -117,7 +117,7 @@ Mixed-lane example: `skills/dev-loop/assets/lanes.agy-manager.example.json` (2 A
 2 Claude Code lanes + an AGY auditor). The manager runs every merge gate itself; lanes never
 commit, and a lane whose negative control passes is never merged.
 
-## SCOPE staged review (v7.6.0, merged from the dev-loop v2.x lineage)
+## SCOPE staged review (v0.7.1, merged from the dev-loop v2.x lineage)
 
 `/review` now runs the full **SCOPE** oversight model (Staged Code Oversight with Proportional
 Escalation, after Greiler's staged-review work): Stage 1 agent review (severity × dimension
