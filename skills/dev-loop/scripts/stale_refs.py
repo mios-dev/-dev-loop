@@ -837,9 +837,11 @@ def resolve(token: str, kind: str, citing: str, corpus: Corpus, cfg: Config) -> 
         return Resolution("stale", None, "escapes_root")
     c0 = collapse(token) or collapsed[0]
 
-    # The single highest-value rung. Resolving only at the repo root reports every doc that
-    # cites a path relative to its own subtree as stale; measured on this repository, that was
-    # 49 of 110 apparent findings (44%), all false.
+    # The single highest-value rung, and it covers directories as well as files. Resolving
+    # only at the repo root reports every doc that cites a path relative to its own subtree as
+    # stale. Measured on this repository: adding this rung and the `..` fix below together cut
+    # apparent findings 158 -> 117, and every one of the 41 removed was inspected and false
+    # (`references/`, `assets/`, `scripts/` each name exactly one directory in the tree).
     sm = suffix_matches(c0, corpus, is_dir=token.endswith("/"))
     if len(sm) == 1:
         return Resolution("resolved", "suffix_unique", None, target=sm[0])

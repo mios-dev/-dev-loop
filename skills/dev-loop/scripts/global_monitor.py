@@ -65,32 +65,76 @@ Silence-based findings are `confidence: "weak"`, are counted separately as `susp
 and produce the distinct verdict `suspect` -- never `stale`. They cannot fire at all for a lane
 whose liveness IS measurable. `--count-silence` promotes them, for a caller that wants it.
 
-Verdicts (severity order, worst wins)
+THREE outcomes, never collapsed into two
+----------------------------------------
+`outcome` is the top-level three-valued answer, and it is the word the headline prints:
+
+  CLEAN         observed >=1 source that can enumerate agents, full coverage, nothing stale,
+                nothing suspected, and no agent whose state could not be determined
+  STALE         observed, and something is stale: a measured-stale agent, a stale reference, or
+                a silence-based suspicion (which is LISTED, and marked unconfirmed)
+  UNOBSERVABLE  could not observe. Either nothing could enumerate agents at all, or some source
+                went blind, or some enumerated agent's state could not be determined. The report
+                then says WHAT could not be seen (coverage.blind_sources, agents.unknown) and WHY.
+
+`verdict` keeps the finer five-value lattice underneath, so nothing is lost by the collapse:
+
   blind    no source observed anything -- the monitor is not measuring    <- the headline failure
   stale    >=1 measured-stale agent, or the reference scan found stale references
-  partial  >=1 source is blind: coverage is incomplete, so `clean` cannot be claimed
+  partial  >=1 source is blind, or >=1 enumerated agent is `unknown`: coverage is incomplete,
+           so `clean` cannot be claimed
   suspect  full coverage, nothing measured-stale, but >=1 silence-based suspicion
-  clean    full coverage, no findings, nothing suspected
+  clean    full coverage, no findings, nothing suspected, nothing undetermined
 
-Exit codes (tuned for a supervisor, not for a gate)
-  0  the monitor ran and published a report -- WHATEVER it found. Findings live in the report,
-     not in the exit code, because a monitor that exits non-zero for doing its job is one the
-     supervisor marks `failing` and eventually kills for noticing a stale agent.
-  3  verdict `blind`: the instrument itself is not measuring. Escalating this is correct, and a
-     monitor blind for max_failures consecutive ticks SHOULD be declared failed rather than
-     retried in silence forever.
-  4  a gate opted in with --fail-on-stale (verdict `stale`) or --strict (anything but `clean`).
+  verdict -> outcome:  clean->CLEAN   suspect,stale->STALE   partial,blind->UNOBSERVABLE
+
+Exit codes
+----------
+  0  CLEAN
+  5  STALE         -- distinct from CLEAN by requirement: the three outcomes are three codes
+  3  UNOBSERVABLE  -- the loudest, because an instrument that stopped measuring is worse than
+                     a fleet with a known fault
+  4  --strict: any outcome but CLEAN, for a gate that wants one code
   1  usage error.   2  the report could not be published.
+
+  --supervised INVERTS the emphasis for devloop_serverd, and the registration below uses it.
+  Under a supervisor, findings must NOT ride the exit code: max_failures consecutive non-zero
+  exits mark a monitor `failed_permanent`, and a monitor that is the only live worker then ends
+  the supervisor. A persistently stale fleet would therefore kill the very monitor reporting it.
+  So --supervised returns 0 for CLEAN and for STALE -- the finding lives in the report -- and
+  keeps 3 for verdict `blind` ALONE, where escalating to failed_permanent is the right outcome:
+  a monitor that has enumerated nothing for max_failures ticks should be declared broken, not
+  left ticking calmly over an empty view.
 
 Registering this monitor (devloop_serverd.py worker registry, `serverd.workers.v1`)
   {"schema": "serverd.workers.v1", "workers": [
      {"id": "global", "kind": "monitor",
-      "argv": ["python3", "<this dir>/global_monitor.py", "--root", ".", "--quiet",
-               "--report-out", ".devloop/global-monitor.json"],
+      "argv": ["python3", "<this dir>/global_monitor.py", "--once", "--supervised", "--quiet",
+               "--root", ".", "--report-out", ".devloop/global-monitor.json"],
       "cwd": ".", "interval_s": 30, "timeout_s": 25, "max_failures": 5}]}
   `timeout_s` MUST be <= `interval_s` (the supervisor refuses otherwise: monitors run inside the
-  tick). This monitor bounds its own work below that -- see --deadline-s, whose default 25s
-  leaves the supervisor's kill as a backstop rather than the mechanism.
+  tick). Pass --supervised there, for the reason in the exit-code table above.
+
+What "a 30-second tick" honestly means, and why a long scan cannot corrupt anything
+-----------------------------------------------------------------------------------
+The supervisor is single-threaded: `tick()` calls a BLOCKING subprocess.run(..., timeout=
+timeout_s) inline, and sets `next_run_at = time.time() + interval_s` AFTER the run returns.
+There is no thread, pool or queue, so runs NEVER overlap, are never queued, and are never
+skipped -- but `interval_s` is a GAP AFTER COMPLETION, not a wall-clock period. Measured on the
+supervisor: a monitor sleeping 2s at interval_s=3 started every 5.015s, i.e. duration+interval,
+and the daemon's own --interval quantises that further. So 30s means "at least 30s after the
+previous scan ended, plus up to one daemon tick" -- claiming an exact 30s cadence would be an
+overclaim, and this file does not make it.
+
+A scan can therefore never overlap into corruption from the supervisor's side. Two defences
+cover the side the supervisor does not control -- a human, a second supervisor, or an AGY
+workflow running this by hand at the same moment:
+  * --deadline-s (default 25s) bounds the scan from the inside, so the supervisor's kill at
+    timeout_s is a backstop rather than the mechanism. A killed run is recorded rc=None and
+    counts as a failure; a self-bounded one returns a report.
+  * --report-out is published tmp+rename with a PID-UNIQUE temporary name, so two monitors
+    writing the same path cannot interleave into a half-written document. rename(2) is atomic
+    on one filesystem: a reader sees the old report or the new one, never a torn one.
 """
 from __future__ import annotations
 
@@ -129,7 +173,22 @@ DEFAULT_DEADLINE_S = 25.0       # under a 30s tick, with room for the supervisor
 
 # Severity order, least to most severe. A verdict is the max over every axis.
 VERDICTS = ("clean", "suspect", "partial", "stale", "blind")
-VERDICT_EXIT = {"clean": 0, "suspect": 0, "partial": 0, "stale": 0, "blind": 3}
+
+# The three top-level outcomes the operator asked for, and the only words the headline prints.
+# The five-value verdict above stays in the report underneath, so collapsing to three loses
+# nothing -- but a reader who takes only one field takes a three-valued one, never a boolean.
+CLEAN, STALE, UNOBSERVABLE = "CLEAN", "STALE", "UNOBSERVABLE"
+OUTCOME_OF = {"clean": CLEAN, "suspect": STALE, "stale": STALE,
+              "partial": UNOBSERVABLE, "blind": UNOBSERVABLE}
+
+# One code per outcome, so a caller that reads only $? still gets three answers, not two.
+OUTCOME_EXIT = {CLEAN: 0, STALE: 5, UNOBSERVABLE: 3}
+
+
+def outcome_of(verdict: str) -> str:
+    """Collapse the verdict lattice to the three outcomes. An unknown verdict is UNOBSERVABLE --
+    degrading pessimistically, never into CLEAN."""
+    return OUTCOME_OF.get(verdict, UNOBSERVABLE)
 
 # Source status vocabulary. `not_applicable` is NOT a pass -- it says the source has nothing to
 # do with this tree, and it never counts as an observation.
@@ -878,6 +937,7 @@ def observe(root: Path, *, now: float | None = None, silence_after_s: float = DE
     enumerating = [s for s in sources if s["source"] in ENUMERATING_SOURCES]
     enum_observed = [s for s in enumerating if s["status"] == OBSERVED]
 
+    undetermined = [a for a in records if a["state"] == "unknown"]
     stale_refs = refs["detail"].get("stale_refs", -1) if refs["status"] == OBSERVED else -1
 
     # ---- the verdict. Worst axis wins, and `clean` needs complete coverage to be reachable.
@@ -900,6 +960,13 @@ def observe(root: Path, *, now: float | None = None, silence_after_s: float = DE
             axes.append("partial")
             bits.append(f"{len(blind)} source(s) blind: "
                         + ", ".join(s["source"] for s in blind))
+        # An agent that was ENUMERATED but whose state could not be DETERMINED is the headline
+        # failure in miniature: counting it as "not stale" would let "clean" mean "I found five
+        # agents and could not tell you anything about any of them".
+        if undetermined:
+            axes.append("partial")
+            bits.append(f"{len(undetermined)} enumerated agent(s) whose state could NOT be "
+                        "determined -- not observed to be healthy, merely not observed")
         if weak_stale:
             axes.append("suspect")
             bits.append(f"{len(weak_stale)} agent(s) SUSPECTED stale on silence alone -- "
@@ -919,6 +986,9 @@ def observe(root: Path, *, now: float | None = None, silence_after_s: float = DE
         "observed_at_epoch": round(now, 3),
         "tick_interval_s": TICK_S,
         "root": str(root),
+        # The three-valued answer first, because a reader who takes one field must not take a
+        # field that can only say "fine" or "not fine".
+        "outcome": outcome_of(verdict),
         "verdict": verdict,
         "verdict_reason": reason,
         "coverage": {
@@ -968,7 +1038,23 @@ def observe(root: Path, *, now: float | None = None, silence_after_s: float = DE
         },
         "duration_s": round(_now() - t0, 3),
     }
+    out["headline"] = headline(out)
     return out
+
+
+def headline(rep: dict) -> str:
+    """The whole verdict in ONE line, because a supervisor keeps only _tail(stdout, 400) of a
+    monitor run (measured: 5000 chars in, 415 out). Counts come before prose so that truncating
+    the prose cannot turn a finding into a silence."""
+    c, a, rf = rep["coverage"], rep["agents"], rep["references"]
+    refs = ("unavailable" if not rf["scanned"]
+            else ("none" if rf["stale_refs"] == 0 else str(rf["stale_refs"])))
+    head = (f"[global-monitor] {rep['outcome']} ({rep['verdict']}) "
+            f"agents={a['total']} live={a['live']} finished={a['finished']} "
+            f"stale={a['stale']} suspected={a['suspected_stale']} unknown={a['unknown']} "
+            f"refs={refs} coverage={c['observed']}/{c['sources_total']} blind={c['blind']}")
+    room = max(0, 380 - len(head))
+    return head + " :: " + rep["verdict_reason"][:room]
 
 
 def _by_harness(records) -> dict:
@@ -986,8 +1072,9 @@ def _by_harness(records) -> dict:
 # ----------------------------------------------------------------------------------- rendering
 
 def render_text(rep: dict) -> str:
-    L = [f"[global-monitor] {rep['verdict'].upper()}  {rep['observed_at']}  "
-         f"root={rep['root']}  ({rep['duration_s']}s)",
+    L = [rep["headline"],
+         f"  at {rep['observed_at']}  root={rep['root']}  scan={rep['duration_s']}s  "
+         f"tick>={rep['tick_interval_s']:g}s",
          f"  why: {rep['verdict_reason']}"]
     c, a = rep["coverage"], rep["agents"]
     L.append(f"  coverage: {c['observed']}/{c['sources_total']} observing, {c['blind']} BLIND, "
@@ -1003,6 +1090,9 @@ def render_text(rep: dict) -> str:
         L.append(f"    STALE [{r['basis']}] {r['agent_id']} ({r['harness']}): {r['reason']}")
     for r in a["suspected_records"]:
         L.append(f"    SUSPECT [{r['basis']}] {r['agent_id']} ({r['harness']}): {r['reason']}")
+    for r in a["records"]:
+        if r["state"] == "unknown":
+            L.append(f"    UNKNOWN {r['agent_id']} ({r['harness']}): {r['reason']}")
     rf = rep["references"]
     L.append(f"  references: {rf['status']} -- {rf['reason']}")
     return "\n".join(L)
@@ -1013,8 +1103,19 @@ def main(argv: list[str] | None = None) -> int:
         prog="global_monitor.py",
         description="THE global reporting monitor: all agents, all harnesses, one 30s tick.")
     ap.add_argument("--root", default=".", help="repository root holding .devloop/ (default .)")
+    ap.add_argument("--once", action="store_true",
+                    help="run exactly one tick and exit. This is the ONLY mode -- the flag is "
+                         "accepted so a caller can be explicit, and because this program must "
+                         "never grow a loop of its own: the supervisor owns the interval")
+    ap.add_argument("--supervised", action="store_true",
+                    help="exit 0 for findings (CLEAN and STALE alike) and reserve a non-zero "
+                         "exit for verdict `blind`. Pass this in a devloop_serverd registration: "
+                         "without it a persistently stale fleet drives the monitor to "
+                         "failed_permanent and takes the supervisor down with it")
     ap.add_argument("--report-out", help="also write the JSON report here (tmp+rename)")
-    ap.add_argument("--format", choices=("json", "text"), default="json")
+    ap.add_argument("--format", choices=("json", "text", "both"), default="json",
+                    help="json (machine-readable), text (human summary), or both -- the human "
+                         "summary first, then the JSON document")
     ap.add_argument("--quiet", action="store_true",
                     help="with --report-out, print only the one-line verdict to stdout")
     ap.add_argument("--silence-after-s", type=float, default=DEFAULT_SILENCE_S,
@@ -1038,10 +1139,9 @@ def main(argv: list[str] | None = None) -> int:
                          f"(default {DEFAULT_DEADLINE_S:g}s)")
     ap.add_argument("--harness", default="*", help="report only agents of harnesses matching "
                                                    "this glob (the scan itself is unfiltered)")
-    ap.add_argument("--fail-on-stale", action="store_true",
-                    help="exit 4 when the verdict is `stale` (for a gate, not a supervisor)")
     ap.add_argument("--strict", action="store_true",
-                    help="exit 4 when the verdict is anything but `clean`")
+                    help="exit 4 for any outcome but CLEAN -- one code for a gate that does not "
+                         "want to distinguish STALE from UNOBSERVABLE")
     a = ap.parse_args(argv)
 
     root = Path(a.root)
@@ -1058,30 +1158,43 @@ def main(argv: list[str] | None = None) -> int:
                   refs_timeout_s=a.refs_timeout_s, deadline_s=a.deadline_s,
                   count_silence=a.count_silence, harness_filter=a.harness)
 
-    body = json.dumps(rep, indent=2) if a.format == "json" else render_text(rep)
+    doc = json.dumps(rep, indent=2)
+    body = {"json": doc, "text": render_text(rep),
+            "both": render_text(rep) + "\n" + doc}[a.format]
     if a.report_out:
         out = Path(a.report_out)
         try:
             out.parent.mkdir(parents=True, exist_ok=True)
-            tmp = out.with_suffix(out.suffix + ".tmp")
-            tmp.write_text(json.dumps(rep, indent=2) + "\n", encoding="utf-8")
-            tmp.replace(out)                     # atomic: a reader never sees half a report
+            # PID-unique temporary name: two monitors publishing the same path concurrently
+            # must not interleave into one half-written file. rename(2) is atomic on one
+            # filesystem, so a reader sees the old document or the new one, never a torn one.
+            tmp = out.with_name(f"{out.name}.{os.getpid()}.tmp")
+            tmp.write_text(doc + "\n", encoding="utf-8")
+            tmp.replace(out)
         except OSError as e:
             print(f"global_monitor: could not publish {out}: {type(e).__name__}: {e}",
                   file=sys.stderr)
+            try:
+                tmp.unlink()
+            except (OSError, UnboundLocalError, NameError):
+                pass
             return 2
-        if a.quiet:
-            print(f"[global-monitor] {rep['verdict'].upper()}: {rep['verdict_reason']}")
-        else:
-            print(body)
+        # The headline goes first WHATEVER the format, so the 400 characters a supervisor keeps
+        # carry the verdict and the path to the rest rather than the opening of a JSON document.
+        print(rep["headline"] if a.quiet else body)
+        # Never after a JSON document: `--format json` keeps stdout parseable as ONE document.
+        if a.quiet or a.format != "json":
+            print(f"report: {out.resolve()}")
     else:
         print(body)
 
-    if a.strict and rep["verdict"] != "clean":
+    if a.strict and rep["outcome"] != CLEAN:
         return 4
-    if a.fail_on_stale and rep["verdict"] == "stale":
-        return 4
-    return VERDICT_EXIT.get(rep["verdict"], 3)
+    if a.supervised:
+        # Findings ride the report, not the exit code. Only an instrument that enumerated
+        # nothing escalates -- see the exit-code table at the top of this file.
+        return 3 if rep["verdict"] == "blind" else 0
+    return OUTCOME_EXIT.get(rep["outcome"], 3)
 
 
 if __name__ == "__main__":
