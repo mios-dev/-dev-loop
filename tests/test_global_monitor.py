@@ -183,8 +183,14 @@ def test_a_live_pid_is_never_stale() -> None:
         run = make_run(root, "run-20260101-000000", "alive")
         job.spawn(run / "jobs", "alive", ["sleep", "120"], root, budget_s=3600, label="alive")
         try:
-            # A silence threshold of 1s, then sleep past it: a naive monitor calls this dead.
-            time.sleep(2.0)
+            # Wait for the job to be genuinely RUNNING rather than sleeping a fixed 2s. Measured:
+            # under the load of a full validate.sh pass the detached wrapper had not yet written
+            # pid/pidstart after 2s, job.status read `absent`, the lane fell through to the
+            # silence branch and this control failed -- a flaky control that accuses a healthy
+            # agent is the very bug this file exists to catch.
+            started = _wait_running(run / "jobs", "alive")
+            check("the fixture agent really is running", started is not None, "job never started")
+            time.sleep(1.5)                     # ...and then let it go quiet past the threshold
             rc, rep, err = run_monitor(root, *BASE, "--silence-after-s", "1")
             recs = rep.get("agents", {}).get("records", [])
             lane = next((r for r in recs if r["agent_id"].endswith(":alive")), None)
