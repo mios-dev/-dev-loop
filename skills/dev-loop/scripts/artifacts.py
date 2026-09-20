@@ -435,12 +435,7 @@ def cmd_tasks(a):
             folded_c = t.get("folded_commit")
             dc = 0
             if folded_c and folded_c != "HEAD":
-                try:
-                    res = subprocess.run(["git", "rev-list", "--count", f"{folded_c}..HEAD"], cwd=root, capture_output=True, text=True)
-                    if res.returncode == 0:
-                        dc = int(res.stdout.strip())
-                except Exception:
-                    dc = 0
+                dc = get_commit_distance(root, folded_c)
             is_candidate = (dc >= cadence) or (t.get("review_state") == "re-research_pending")
             candidates.append((t["id"], t.get("folded_at", "N/A")[:10], f"{dc}c", t.get("review_state", "pending"), is_candidate, t["title"][:45]))
 
