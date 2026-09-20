@@ -24,7 +24,7 @@ gemini|gemini|.gemini/skills|'"$H"'/.gemini/skills|.gemini/commands|'"$H"'/.gemi
 codex|codex|.agents/skills|'"$H"'/.agents/skills|.codex/prompts|'"$H"'/.codex/prompts|
 cursor|.cursor|.cursor/skills|'"$H"'/.cursor/skills|.cursor/commands|'"$H"'/.cursor/commands|mdc=.cursor/rules
 copilot|.github|.github/skills|'"$H"'/.copilot/skills|.github/prompts|'"$H"'/.copilot/prompts|agent.md=.github/agents
-opencode|opencode|.opencode/skills|'"$H"'/.config/opencode/skills|.opencode/command|'"$H"'/.config/opencode/command|
+opencode|opencode|.opencode/skills|'"$H"'/.config/opencode/skills|.opencode/commands|'"$H"'/.config/opencode/commands|
 hermes|hermes|'"$H"'/.hermes/skills|'"$H"'/.hermes/skills|-|-|
 '
 echo "$TABLE" | while IFS='|' read -r name det pskill uskill pcmd ucmd extra; do

@@ -86,7 +86,7 @@ path and handles the permission gap the only safe way: **by refusing** (§5.3).
 
 Constraints in tension: the Antigravity SDK is Python-only and its runtime ships as a **closed
 compiled binary** inside six platform wheels (no sdist), with `max_subagent_depth` defaulting to
-**1**. MiOS's standing directive is Rust static binaries.
+**1**. The consuming project's standing directive is Rust static binaries.
 
 Resolution:
 
@@ -95,7 +95,7 @@ Resolution:
   without pinning the layer to Python or to a closed wheel.
 - **Language:** P0–P3 land as Python in this repo (its existing language, alongside
   `adapters.py`/`devloop_mcp.py`). The Rust-static-binary directive applies when/if `loopd` moves
-  into MiOS `tools/native/`; the ports, the schema and the mapping table are the portable parts and
+  into a consuming project's `tools/native/`; the ports, the schema and the mapping table are the portable parts and
   the HTTP/stdio plumbing is the throwaway part. Stated plainly rather than pretended.
 - **Lane execution:** one subprocess per lane, **stdin held open**:
   - AGY lane — `agy --input-format stream-json --output-format stream-json --json-schema <report.schema.json> --print-timeout 0 -p=''` (flag order is load-bearing — see §5.1a)
@@ -344,8 +344,9 @@ is primary.
   the existing `assets/openai-tools.json`. `stream: true` supported (SSE).
 - AGY points `LocalOpenAIAgentConfig.base_url` here and a **lane appears to AGY as a model**. This
   is the only direction AGY natively supports, which is what makes the façade worth building at all.
-- Auth: bearer token read from a 0600 file. **Never an env var** — Law 11 shape
-  (`SECRETS-NEVER-IN-ENV`), and Law 10 forbids it in `install.env` regardless.
+- Auth: bearer token read from a 0600 file. **Never an env var** — a secret in an environment
+  file leaks through `env` dumps, CI logs and every child process (SKILL.md §10), and bare
+  `KEY=value` env files are read by shells, systemd and container runtimes alike.
 
 ### 6.3 Anthropic Messages `/v1/messages` — deferred
 
@@ -426,8 +427,10 @@ All version-stamped; probed in this container unless marked otherwise.
 - Claude Code — plugin auto-discovery, declaration merge/replace semantics, depth 3 / 20
   concurrent subagents, `permission_denials` envelope key.
 - MCP revision **2026-07-28** (the version `devloop_mcp.py` already negotiates).
-- Prior art and licences: `research_notes/AGY Claude Code translation server/prior_art_and_protocols.md`.
-- Round-1 notes: `research_notes/Native AGY and Claude Code patterns/` (6 files).
+- Prior art and licences: round-1 research notes, kept in the originating workspace and not
+  vendored here; their conclusions are carried in §2 and in `references/upstream-patterns.md`.
+- Round-1 harness survey (6 notes: customization system, headless and permissions, plugins and
+  skills, web and apps, cross-harness interop, API and SDK) — same, external to this repo.
 
 **Two upstream sources are contradicted by measurement.** antigravity-cli issue #31 and the pi-go
 write-up both state `agy` has only three modes and offers no programmatic orchestration. The
@@ -440,10 +443,12 @@ installed binary has a working bidirectional NDJSON session channel — not mere
 
 Carried forward, unanswered:
 
-1. **`ratchet.md` prescribes `git reset --hard HEAD`** (v8 artifact port). That is on the
+1. **`ratchet.md` prescribes `git reset --hard HEAD`** (predecessor artifact set being ported in;
+   the file is not in this repo). That is on the
    confirm-before list and destroys uncommitted lane work. Proposal: park the diff as a patch per
    `SKILL.md` §11 instead. Confirm the substitution?
-2. **`critic.py`'s maker-checker panel vs the existing `review` skill** — merge the panel into
+2. **`critic.py`'s maker-checker panel vs the existing `review` skill** (same predecessor set;
+   `critic.py` is not in this repo) — merge the panel into
    `review`, or keep them as separate stages? They overlap on DRY/KISS/SRP/security.
 
 New, raised by this design:

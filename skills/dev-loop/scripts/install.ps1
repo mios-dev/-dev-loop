@@ -7,7 +7,7 @@ $Src = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path; $Plug = (Resolve-Path
 $Root = (git rev-parse --show-toplevel 2>$null); if (-not $Root) { $Root = (Get-Location).Path }; $H = $HOME
 $Table = @(
   @{n='claude';      d='claude';   ps='.claude/skills';   us="$H/.claude/skills";               pc='.claude/commands';   uc="$H/.claude/commands";              x=@{}},
-  @{n='antigravity'; d='agy';      ps='.agents/skills';   us="$H/.gemini/config/skills";        pc='.agent/workflows';   uc="$H/.gemini/antigravity/workflows"; x=@{}},
+  @{n='antigravity'; d='agy';      ps='.agents/skills';   us="$H/.gemini/config/skills";        pc='.agents/workflows';  uc="$H/.gemini/config/workflows";       x=@{}},
   @{n='gemini';      d='gemini';   ps='.gemini/skills';   us="$H/.gemini/skills";               pc='.gemini/commands';   uc="$H/.gemini/commands";              x=@{}},
   @{n='codex';       d='codex';    ps='.agents/skills';   us="$H/.agents/skills";               pc='.codex/prompts';     uc="$H/.codex/prompts";                x=@{}},
   @{n='cursor';      d='.cursor';  ps='.cursor/skills';   us="$H/.cursor/skills";               pc='.cursor/commands';   uc="$H/.cursor/commands";              x=@{'.mdc'='.cursor/rules'}},

@@ -2,7 +2,7 @@
 status: proposed
 date: 2026-09-19
 decision-makers: [operator]
-consulted: [research: research_notes/AGY Claude Code translation server/prior_art_and_protocols.md, research_notes/Native AGY and Claude Code patterns/*]
+consulted: [research: round-1 harness research notes (external to this repo), summarised in skills/dev-loop/references/upstream-patterns.md]
 informed: []
 ---
 # Loop translation layer: serve both harnesses, translate the loop, refuse the permission map
@@ -202,9 +202,10 @@ exhaustively check every `(measured)` claim, so more may remain.
 ## More Information
 
 - Design detail, wire shapes, mapping tables, phasing: `skills/dev-loop/references/translation-layer.md`
-- Research: `research_notes/AGY Claude Code translation server/prior_art_and_protocols.md`;
-  `research_notes/Native AGY and Claude Code patterns/` (6 notes: customization system, headless
-  and permissions, plugins and skills, web and apps, cross-harness interop, API and SDK)
+- Research: round-1 harness research notes (6 notes: customization system, headless and
+  permissions, plugins and skills, web and apps, cross-harness interop, API and SDK) — kept in the
+  originating workspace, not vendored here; conclusions carried in §2 of the design reference and
+  in `skills/dev-loop/references/upstream-patterns.md`
 - Upstream, with versions: `agy` 1.2.6 (probed 2026-09-19); `google-antigravity` PyPI 0.1.17
   (Apache-2.0, compiled runtime in platform wheels); Agent Client Protocol (Zed);
   google-antigravity/antigravity-cli issue #31 (`--acp` request, unanswered); MCP revision

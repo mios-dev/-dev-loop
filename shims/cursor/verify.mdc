@@ -1,0 +1,18 @@
+---
+description: Two-sided verification gate — positive control passes, planted negative control fails naming the plant, tree restored
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /verify
+
+Before claiming any task done, and before `/review` or `/ship`:
+
+- Build the lane object: `python3 <scripts>/artifacts.py tasks lane <T-0NN> --root . > RUNDIR/lane.json` (stdout; no `--out`). A `<fill>` value means the task defines no control — stop and ask; never invent a negative control.
+- `mkdir -p RUNDIR` first — the gate does not create `--run` and crashes (exit 1) if it is missing. Keep it git-ignored (`.devloop/run-*/` in `.git/info/exclude`, never `.devloop/` wholesale) or outside the worktree, or the gate's own `neg-<id>.log` looks like an unrestored tree and reports a false exit 2.
+- Run `python3 <scripts>/adapters.py gate --lane RUNDIR/lane.json --wt . --run RUNDIR`.
+- Read the exit code exactly: `0` = positive passed, negative failed for the named reason, tree restored. `1` = the positive (or full) gate failed — honest red, fix the cause, do not weaken the check. `2` = REFUSED/VACUOUS, nothing proven (sentinel already existed, tree not restored, base-tree leakage, negative control PASSED, expect-string mismatch, surviving mutants) — never report a `2` as mostly passing.
+- Cite `pos-<id>.log` / `neg-<id>.log`, plus `mut-<id>.log`, `full-<id>.log`, `lane-<id>.patch` when written.
+- Plant naming: prefer the tool's own error on a real mutation; otherwise exactly `DEVLOOP-PLANTED-<LANE_ID>`, unique per lane.
+- Prose deliverable instead of code: `python3 <scripts>/check_finding.py <repo_root> <findings_file>` — 7 required sections, a verdict from CONFIRMED/PARTLY_CONFIRMED/REFUTED/STALE, ≥ 3 resolving `path:line` citations.
+- Never cite `verify_harness.py` or `contracts.py` — importable libraries, not runnable gates.

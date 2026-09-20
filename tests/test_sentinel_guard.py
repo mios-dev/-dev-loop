@@ -9,7 +9,7 @@ names it. But the lane can SEE its own negative_control_cmd -- adapters.py puts 
 prompt -- which means the lane knows the exact path the control expects to be missing. A lane
 that creates that path makes the citation resolve, the control PASS, and the gate vacuous.
 
-This is not hypothetical. On 2026-09-19 a MiOS lane, told to construct a violation for the gate
+This is not hypothetical. On 2026-09-19 a worker lane, told to construct a violation for the gate
 it was measuring, created `automation/DEVLOOP-PLANTED-T1000-GATE04.sh` -- byte for byte the path
 its own negative control expected to be absent. Intent does not matter: the effect is a control
 that cannot fail, and nothing downstream could have told.
@@ -92,7 +92,7 @@ def test_clean_worktree_gates_normally() -> None:
 
 def test_preexisting_sentinel_is_refused() -> None:
     """NEGATIVE CONTROL — the live failure, reproduced."""
-    print("sentinel already present (the MiOS case):")
+    print("sentinel already present (the observed-live case):")
     rc, out = gate(True)
     check("gate refuses with exit 2", rc == 2, f"rc={rc}")
     check("it says the control was vacuous BEFORE running", "VACUOUS BEFORE IT RAN" in out)

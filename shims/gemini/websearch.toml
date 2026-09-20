@@ -1,9 +1,16 @@
-[command]
-name = "websearch"
-description = "Real-time vendor documentation and error triage discovery"
-version = "2.0.0"
-entrypoint = "python3 scripts/research.py search"
-aliases = ["s"]
+description = "Targeted web discovery for canonical vendor docs, API specs, and error triage"
+prompt = """
+# /websearch (alias /s): Real-Time Documentation & Error Discovery
 
-[parameters]
-query = { type = "string", description = "Documentation query or error message", required = true }
+Search authoritative vendor documentation, specifications, and issue trackers.
+
+Usage:
+`/websearch <query>`
+Alias: `/s <query>`
+
+## Execution Protocol
+
+1. Run `python3 scripts/research.py search "{{args}}"`.
+2. Cross-reference local docs and canonical web sources.
+3. Output relevant code samples and API contract definitions before writing code.
+"""

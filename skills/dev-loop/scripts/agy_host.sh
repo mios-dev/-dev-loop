@@ -7,7 +7,8 @@
 #
 #   sh scripts/agy_host.sh <lanes.json>                          # interactive manager
 #   sh scripts/agy_host.sh <lanes.json> --headless [--yolo]      # unattended, SINGLE-TURN
-#   sh scripts/agy_host.sh <lanes.json> --session  [--yolo]      # unattended, HELD SESSION
+#   sh scripts/agy_host.sh <lanes.json> --session  [--yolo] [--remote-control]
+#                                                                # unattended, HELD SESSION
 #   sh scripts/agy_host.sh <lanes.json> --print-prompt           # just emit the manager prompt
 #
 # --headless vs --session is about PROCESS LIFETIME, not about being unattended.
@@ -25,10 +26,10 @@ set -eu
 
 SKILL_DIR=$(cd "$(dirname "$0")/.." && pwd)
 LANES=${1:-}
-[ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo]] [--tmux] [--print-prompt]" >&2; exit 64; }
+[ -n "$LANES" ] && [ -f "$LANES" ] || { echo "usage: sh scripts/agy_host.sh <lanes.json> [--headless|--session [--yolo] [--remote-control]] [--tmux] [--print-prompt]" >&2; exit 64; }
 LANES=$(cd "$(dirname "$LANES")" && pwd)/$(basename "$LANES")
 shift
-MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0
+MODE=interactive; SKIP_PERMS=0; HEADLESS=0; SESSION=0; PRINT_ONLY=0; USE_TMUX=0; REMOTE_CONTROL=0
 # Three axes, tracked separately on purpose, because folding them together makes the
 # behaviour depend on the ORDER the flags were typed in:
 #   MODE       - which executor runs the prompt (interactive / headless / session)
@@ -44,6 +45,10 @@ while [ $# -gt 0 ]; do
         --session) MODE=session; HEADLESS=1; SESSION=1;;
         --tmux) USE_TMUX=1;;
         --yolo) SKIP_PERMS=1;;
+        # Only the held session can carry this: the connection dies with the process,
+        # so attaching it to a single-turn `agy -p` buys a session that is gone by the
+        # time anyone opens the Remote Control list.
+        --remote-control) REMOTE_CONTROL=1;;
         --print-prompt) PRINT_ONLY=1;;
         *) echo "unknown flag: $1" >&2; exit 64;;
     esac
@@ -166,6 +171,18 @@ case "$MODE" in
                --effort "${AGY_HOST_EFFORT:-high}" \
                --poll-max "${AGY_HOST_POLL_MAX:-8}"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
+        if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
+            # Registering the session and then exiting is the phantom this pairing exists to
+            # prevent: the connection dies with the process, so a run that returns the moment
+            # the manager stops speaking leaves a Remote Control entry that is already gone.
+            # Hold it open so the operator can actually attach, bounded so it cannot hang.
+            HOLD_FILE=${AGY_HOST_HOLD_FILE:-$(dirname "$EVENTS_FILE")/STOP}
+            rm -f "$HOLD_FILE"   # a stale stop file from a previous run ends this one instantly
+            set -- "$@" --remote-control \
+                   --hold-file "$HOLD_FILE" \
+                   --hold-max-s "${AGY_HOST_HOLD_MAX_S:-3600}"
+            echo "agy_host: session is remote-controllable; stop it with: touch $HOLD_FILE" >&2
+        fi
         # A run marker, so a monitor can tell "quiet because it is thinking" from "finished".
         # Staleness alone calls a manager inside a long run_command dead (measured: 128s silent).
         STATUS_FILE=$(dirname "$EVENTS_FILE")/session.status

@@ -1,11 +1,15 @@
-[command]
-name = "ship"
-description = "Safe trunk-based branch merger, worktree pruner, and changelog updater"
-version = "2.0.0"
-entrypoint = "python3 scripts/ship.py"
-aliases = ["sh"]
+description = "Safe trunk-based branch merge, worktree pruning, and changelog update"
+prompt = """
+# /ship (alias /sh): Trunk-Based Release & Worktree Reconciliation
 
-[parameters]
-source = { type = "string", description = "Source feature or lane branch", required = true }
-target = { type = "string", description = "Target trunk branch", default = "main" }
-tag = { type = "string", description = "Optional release tag", required = false }
+Automate safe merges into main, prune worktrees, and record release notes.
+
+Usage:
+`/ship <source_branch> [--target main] [--tag vX.Y.Z]`
+Alias: `/sh <source_branch>`
+
+## Protocol
+1. Validate pre-flight checks (clean git status, passing tests, passed review).
+2. Execute merge: `python3 scripts/ship.py {{args}}`.
+3. Reconcile branch, prune ephemeral worktree, and append entry to `CHANGELOG.md`.
+"""

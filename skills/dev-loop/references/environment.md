@@ -1,8 +1,9 @@
 # Environment — running Antigravity (`agy`) in headless containers
 
 `scripts/env/` provisions any Linux container so Antigravity can be a dev-loop
-host or lane: **Fedora/RHEL family first** (dnf5 / dnf / microdnf — the
-reference devcontainer is Fedora), Debian/Ubuntu (apt) second. All scripts are
+host or lane. The package manager is **detected, not assumed** — dnf5 / dnf /
+microdnf where present, apt-get otherwise; the reference devcontainer happens
+to be Fedora, and nothing in the loop requires it. All scripts are
 idempotent, non-interactive, and location-independent (they resolve paths
 relative to themselves, so they work from a repo checkout or an installed
 skill copy).
@@ -76,10 +77,13 @@ login once.
 POSIX-only for now; there is no PowerShell port of the env scripts
 (`install.ps1` installs the skill but Windows keyring caching is untested).
 
-## Fedora in a Claude Code *cloud environment*
+## A different distro userland in a Claude Code *cloud environment* (worked example: Fedora)
 
-A cloud environment (claude.ai/code, `claude --cloud`, routines) is not a
-devcontainer: the VM is a fixed **Ubuntu 24.04 x86_64** image and, per
+When a project's toolchain needs a userland the cloud VM does not provide —
+a different distro's package manager, a specific libc or compiler set — the
+image cannot simply be swapped. A cloud environment (claude.ai/code, `claude
+--cloud`, routines) is not a devcontainer: the VM is a fixed **Ubuntu 24.04
+x86_64** image and, per
 `code.claude.com/docs/en/cloud-environments`, *"replacing the base image
 entirely isn't supported yet"*. There is no image, Dockerfile or devcontainer
 field anywhere in the environment dialog — only name, network access,

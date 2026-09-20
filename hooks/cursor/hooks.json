@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" session-start", "timeout": 15}
+    ],
+    "beforeShellExecution": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" shell", "timeout": 10, "failClosed": false}
+    ],
+    "preToolUse": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" pretool", "timeout": 10, "failClosed": false}
+    ],
+    "postToolUse": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" format", "timeout": 60}
+    ],
+    "preCompact": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" pre-compact", "timeout": 20}
+    ],
+    "stop": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" stop-gate", "timeout": 20, "loop_limit": 5}
+    ],
+    "subagentStop": [
+      {"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/cursor/devloop-hook.py\" stop-gate", "timeout": 20, "loop_limit": 5}
+    ]
+  }
+}

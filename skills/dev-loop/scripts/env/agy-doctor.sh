@@ -30,10 +30,16 @@ else
 fi
 
 # 3. dev-loop skill visible to Antigravity (user scope)
-if [ -f "$HOME/.gemini/config/skills/dev-loop/SKILL.md" ]; then
-    pass "dev-loop skill installed for Antigravity: ~/.gemini/config/skills/dev-loop/"
-else
+# Presence is not currency: compare the tree, and say so when this script IS the copy.
+AGY_SKILL_COPY="$HOME/.gemini/config/skills/dev-loop"
+if [ ! -f "$AGY_SKILL_COPY/SKILL.md" ]; then
     warn "dev-loop skill not in ~/.gemini/config/skills — run: sh $SCRIPT_DIR/../install.sh --harness antigravity --user"
+elif [ "$(cd "$SCRIPT_DIR/../.." && pwd)" = "$(cd "$AGY_SKILL_COPY" && pwd)" ]; then
+    warn "dev-loop skill present, but this doctor IS the installed copy — currency unverifiable here; re-run from the repo checkout"
+elif diff -rq -x __pycache__ -x '*.pyc' "$SCRIPT_DIR/../.." "$AGY_SKILL_COPY" >/dev/null 2>&1; then
+    pass "dev-loop skill installed for Antigravity and identical to this checkout: ~/.gemini/config/skills/dev-loop/"
+else
+    warn "dev-loop skill in ~/.gemini/config/skills DIFFERS from this checkout (stale) — refresh: sh $SCRIPT_DIR/../install.sh --harness antigravity --user"
 fi
 
 # 3b. permission grants. Headless agy auto-denies any tool it cannot prompt for, so a

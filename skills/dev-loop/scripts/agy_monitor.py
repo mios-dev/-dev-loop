@@ -147,7 +147,7 @@ class State:
         if self.results == 0:
             # A live run has not failed, it has not finished. Conflating "no result yet" with
             # "produced no result" makes the monitor cry wolf on every healthy run it watches --
-            # found by watching a real MiOS run with it. `in_progress` is only claimed when the
+            # found by watching a real multi-lane run with it. `in_progress` is only claimed when the
             # stream shows actual activity; a stream with neither results nor tool calls really
             # has produced nothing.
             if self.tool_calls and not self._complete:
@@ -452,7 +452,7 @@ def main() -> int:
         idle_for = _t.time() - path.stat().st_mtime
         # Staleness is a POOR proxy for completion: a manager inside a long run_command emits
         # no events for minutes and a purely time-based rule calls that a dead run. Measured on
-        # a real MiOS run -- 128s of silence while a gate executed, flipping the verdict to
+        # a real multi-lane run -- 128s of silence while a gate executed, flipping the verdict to
         # no_result on a perfectly healthy manager. Prefer the run marker agy_host.sh writes;
         # fall back to staleness only when there is no marker to read.
         marker = path.parent / "session.status"

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # cloud-fedora-setup.sh — give an Anthropic-hosted cloud environment a real
-# Fedora userspace.
+# Fedora userspace. Fedora is the worked example of a general pattern: when a
+# project needs a userland the fixed cloud VM image cannot provide, build it as
+# a container and bind-mount host paths unchanged. Adapt the repo and package
+# blocks below for another distro (FEDORA_VERSION / FEDORA_BASE / FEDORA_PACKAGES
+# cover Fedora releases only).
 #
 # WHERE THIS RUNS
 #   Paste the whole file into the "Setup script" field of a cloud environment
