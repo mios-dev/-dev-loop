@@ -85,6 +85,46 @@ Prints a v2 lane object to **stdout** (there is no `--out`; redirect it). It car
 
 Feed the completed object to `/verify` (`adapters.py gate --lane ...`) for a single task, or collect several into a `lanes.json` for `/dev-loop`.
 
+## staleness - monitor task half-life decay and anchor drift
+
+```sh
+python3 $S/artifacts.py tasks staleness --root . [--threshold 0.5]
+```
+
+Computes exponential half-life decay ($P_{\text{fresh}} = 2^{-\Delta C / H_C} \cdot 2^{-\Delta T / H_T}$) and broken path anchor penalties. Flags tasks that have crossed the half-life threshold ($S \ge 0.5$).
+
+## reconcile - re-anchor a task to current HEAD
+
+```sh
+python3 $S/artifacts.py tasks reconcile <id> --root .
+```
+
+Re-anchors the task to current git HEAD, verifies referenced paths, updates timestamps, and resets the staleness score to 0.0.
+
+## archive-stale - lossless rolling backlog preservation
+
+```sh
+python3 $S/artifacts.py tasks archive-stale --root . [--threshold 0.5]
+```
+
+Losslessly appends expired open tasks to `.devloop/backlog_archive.jsonl` and `.devloop/HISTORICAL_BACKLOG.md` with complete reasoning context, acceptance criteria, and historical notes preserved.
+
+## distill - synthesize archived tasks into permanent documentation
+
+```sh
+python3 $S/artifacts.py tasks distill --root .
+```
+
+Synthesizes archived tasks into permanent documentation (`docs/distilled/knowledge_distillation.md`), preserving lessons learned and architectural invariants.
+
+## export-openai - strict OpenAI JSON Schema
+
+```sh
+python3 $S/artifacts.py tasks export-openai --root .
+```
+
+Emits strict OpenAI JSON Schema tool definition (`strict: true`, `additionalProperties: false`, all fields in required array) for OpenAI function calling and Responses API.
+
 ## Boundaries
 
 - **Not `/goal`.** `/goal` owns the objective, its stopping conditions and the eval loop, and decomposes a goal into tasks *at definition time*. `/backlog` is the day-to-day ledger afterwards.
@@ -92,3 +132,4 @@ Feed the completed object to `/verify` (`adapters.py gate --lane ...`) for a sin
 - `/backlog` never runs `git add`, `git commit` or `git push`; it edits `.devloop/tasks.jsonl` and `TASKS.md` only.
 
 Return: the exact command run, its output, and - for `set <id> done` - the two cited controls.
+

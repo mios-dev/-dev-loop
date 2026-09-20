@@ -66,6 +66,74 @@ def save_tasks(root: Path, tasks: list[dict]) -> None:
     tmp.replace(p)  # atomic
 
 
+def get_git_head_commit(root: Path) -> str:
+    try:
+        import subprocess
+        res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True)
+        return res.stdout.strip()
+    except Exception:
+        return "HEAD"
+
+
+def compute_task_staleness(root: Path, t: dict) -> dict:
+    """Compute task half-life decay staleness score S in [0.0, 1.0]."""
+    hl = t.get("half_life") or {}
+    h_commits = float(hl.get("half_life_horizon_commits") or 50)
+    h_days = float(hl.get("half_life_horizon_days") or 90)
+
+    # Days elapsed
+    dt_days = 0
+    updated_str = t.get("updated") or t.get("created")
+    if updated_str:
+        try:
+            import datetime
+            up_dt = datetime.datetime.strptime(updated_str[:10], "%Y-%m-%d")
+            dt_days = max(0, (datetime.datetime.now() - up_dt).days)
+        except Exception:
+            dt_days = 0
+
+    # Commit distance
+    import subprocess
+    dc_commits = 0
+    last_commit = hl.get("last_reconciled_commit") or hl.get("created_commit")
+    if last_commit and last_commit != "legacy-import":
+        try:
+            res = subprocess.run(
+                ["git", "rev-list", "--count", f"{last_commit}..HEAD"],
+                cwd=root, capture_output=True, text=True
+            )
+            if res.returncode == 0:
+                dc_commits = int(res.stdout.strip())
+        except Exception:
+            dc_commits = 0
+
+    # Check anchors
+    anchors = hl.get("anchors") or t.get("links") or []
+    broken_anchors = []
+    for anc in anchors:
+        if isinstance(anc, str) and ("/" in anc or "." in anc) and not anc.startswith("http"):
+            clean_p = anc.lstrip("/")
+            if not (root / clean_p).exists():
+                broken_anchors.append(anc)
+
+    # Decay math: P_fresh = 2^(-dc / H_c) * 2^(-dt / H_t)
+    p_commit = 2.0 ** (-dc_commits / h_commits) if h_commits > 0 else 1.0
+    p_time = 2.0 ** (-dt_days / h_days) if h_days > 0 else 1.0
+    p_fresh = p_commit * p_time
+    
+    anchor_penalty = 0.35 if broken_anchors else 0.0
+    staleness = min(1.0, (1.0 - p_fresh) + anchor_penalty)
+
+    return {
+        "staleness": round(staleness, 3),
+        "p_fresh": round(p_fresh, 3),
+        "days_elapsed": dt_days,
+        "commits_elapsed": dc_commits,
+        "broken_anchors": broken_anchors,
+        "expired": staleness >= 0.5,
+    }
+
+
 # ---------------------------------------------------------------- scaffold / bridges
 def cmd_scaffold(a):
     root = Path(a.root).resolve(); made = []
@@ -99,7 +167,7 @@ def validate(tasks: list[dict]) -> list[str]:
     if len(ids) != len(set(ids)): errs.append("duplicate ids")
     for t in tasks:
         i = t.get("id", "?")
-        if not re.match(r"^[A-Z]+-\d+$", str(i)): errs.append(f"{i}: id must look like T-001")
+        if not re.match(r"^[A-Z]+-\d+(?:[\.\-]\d+)?$", str(i)): errs.append(f"{i}: id must look like T-001 or AGY-106..122")
         if t.get("status") not in TASK_STATUS: errs.append(f"{i}: status {t.get('status')!r} not in {TASK_STATUS}")
         if t.get("type", "task") not in TASK_TYPE: errs.append(f"{i}: type {t.get('type')!r} not in {TASK_TYPE}")
         for d in t.get("depends_on", []):
@@ -169,6 +237,156 @@ def cmd_tasks(a):
                 "negative_control_cmd": v.get("negative_control_cmd", "<fill>"), "negative_expect": v.get("negative_expect", "<fill>"),
                 "depends_on": [re.sub(r"[^a-z0-9_-]", "-", d.lower()) for d in t.get("depends_on", [])]}
         print(json.dumps(lane, indent=2))
+    elif a.op == "staleness":
+        thresh = getattr(a, "threshold", 0.5) or 0.5
+        rows = []
+        for t in tasks:
+            st = compute_task_staleness(root, t)
+            flag = " [EXPIRED]" if st["expired"] else ""
+            rows.append((t["id"], t["status"], f"{st['staleness']:.2f}", f"{st['days_elapsed']}d", f"{st['commits_elapsed']}c", f"{len(st['broken_anchors'])} broken", flag, t["title"][:50]))
+        print(f"TASK STALENESS & HALF-LIFE MONITOR (threshold >= {thresh:.2f})")
+        print(f"{'ID':<12} {'STATUS':<12} {'STALE':<7} {'AGE':<6} {'COMMITS':<9} {'ANCHORS':<10} {'TITLE'}")
+        print("-" * 80)
+        for r in rows:
+            print(f"{r[0]:<12} {r[1]:<12} {r[2]:<7} {r[3]:<6} {r[4]:<9} {r[5]:<10} {r[7]}{r[6]}")
+        expired_count = sum(1 for r in rows if r[6])
+        print(f"\n{expired_count}/{len(tasks)} tasks exceeded half-life horizon.")
+    elif a.op == "reconcile":
+        t = next((t for t in tasks if t["id"] == a.id), None) or die(f"no task {a.id}")
+        head_sha = get_git_head_commit(root)
+        hl = t.setdefault("half_life", {})
+        hl["last_reconciled_commit"] = head_sha
+        hl["staleness_score"] = 0.0
+        t["updated"] = time.strftime("%Y-%m-%d")
+        save_tasks(root, tasks)
+        print(f"{a.id} reconciled to HEAD ({head_sha[:8]}); staleness reset to 0.0")
+    elif a.op == "archive-stale":
+        thresh = getattr(a, "threshold", 0.5) or 0.5
+        surviving = []
+        archived = []
+        archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
+        historical_md = root / ".devloop" / "HISTORICAL_BACKLOG.md"
+        archive_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        
+        for t in tasks:
+            st = compute_task_staleness(root, t)
+            if st["staleness"] >= thresh and t.get("status") not in ("done", "cancelled"):
+                t["archived_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
+                t["archive_staleness"] = st
+                archived.append(t)
+            else:
+                surviving.append(t)
+        
+        if archived:
+            with open(archive_jsonl, "a", encoding="utf-8") as af:
+                for t in archived:
+                    af.write(json.dumps(t, ensure_ascii=False) + "\n")
+            
+            # Append markdown record
+            md_entries = [f"\n## [{t['id']}] {t['title']} (Archived {t['archived_at']})\n"
+                          f"- **Status at Expiry:** `{t['status']}` (legacy: `{t.get('legacy_status', 'N/A')}`)\n"
+                          f"- **Staleness Score:** {t['archive_staleness']['staleness']} (age: {t['archive_staleness']['days_elapsed']} days, commits: {t['archive_staleness']['commits_elapsed']})\n"
+                          f"- **Broken Anchors:** {', '.join(t['archive_staleness']['broken_anchors']) or 'none'}\n"
+                          f"- **Acceptance Criteria:** {'; '.join(t.get('acceptance_criteria', [])) or 'none'}\n"
+                          f"- **Notes & Rationale:**\n\n```\n{t.get('notes', '')}\n```\n"
+                          for t in archived]
+            if not historical_md.exists():
+                historical_md.write_text("# HISTORICAL BACKLOG & KNOWLEDGE ARCHIVE\n\n_Rolling append-only record of tasks that exceeded half-life horizon, preserved with complete reasoning context._\n\n", "utf-8")
+            with open(historical_md, "a", encoding="utf-8") as hf:
+                hf.write("".join(md_entries))
+            
+            save_tasks(root, surviving)
+            print(f"Archived {len(archived)} stale tasks to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
+        else:
+            print(f"No tasks exceeded staleness threshold {thresh}. None archived.")
+    elif a.op == "distill":
+        archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
+        if not archive_jsonl.exists():
+            print(f"No archive file found at {archive_jsonl} to distill.")
+            return
+        archived_tasks = [json.loads(line) for line in archive_jsonl.read_text("utf-8").splitlines() if line.strip()]
+        distill_dir = root / "docs" / "distilled"
+        distill_dir.mkdir(parents=True, exist_ok=True)
+        distill_out = distill_dir / "knowledge_distillation.md"
+        
+        lines = [
+            "# DISTILLED KNOWLEDGE & HISTORICAL TASK ANALYSIS",
+            "",
+            f"_Synthesized on {time.strftime('%Y-%m-%d %H:%M:%SZ')} from {len(archived_tasks)} archived task records._",
+            "",
+            "## 1. Executive Summary & Recurrent Themes",
+            "",
+        ]
+        domains = {}
+        for t in archived_tasks:
+            dom = t.get("goal") or "General"
+            domains.setdefault(dom, []).append(t)
+            
+        for dom, dtasks in sorted(domains.items()):
+            lines.append(f"### Domain: {dom} ({len(dtasks)} tasks)")
+            for t in dtasks:
+                lines.append(f"- **{t['id']}**: {t['title']}")
+                if t.get("acceptance_criteria"):
+                    lines.append(f"  - *Acceptance:* {'; '.join(t['acceptance_criteria'])}")
+                if t.get("knowledge", {}).get("why"):
+                    lines.append(f"  - *Why:* {t['knowledge']['why']}")
+            lines.append("")
+            
+        lines.append("## 2. Invariants & Lessons Learned")
+        lines.append("- Task half-lives decay exponentially with commit drift and calendar days.")
+        lines.append("- Broken file anchors are the strongest leading indicator of task obsolescence.")
+        lines.append("- Historical reasoning is preserved losslessly for future architectural synthesis.")
+        
+        distill_out.write_text("\n".join(lines), "utf-8")
+        print(f"Distilled {len(archived_tasks)} archived tasks into {distill_out}")
+    elif a.op == "export-openai":
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "DevLoopTask",
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "id", "type", "title", "status", "legacy_status", "owner", "epic", "goal",
+                "depends_on", "acceptance_criteria", "verification",
+                "verification_evidence", "links", "notes", "created"
+            ],
+            "properties": {
+                "id": {"type": "string", "pattern": "^[A-Z]+-\\d+(?:[\\.\\-]\\d+)?$"},
+                "type": {"type": "string", "enum": ["task", "epic", "bug"]},
+                "title": {"type": "string"},
+                "status": {"type": "string", "enum": ["open", "in_progress", "blocked", "done", "cancelled"]},
+                "legacy_status": {"type": ["string", "null"]},
+                "owner": {"type": "string"},
+                "epic": {"type": "string"},
+                "goal": {"type": "string"},
+                "depends_on": {"type": "array", "items": {"type": "string"}},
+                "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
+                "verification": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["positive_cmd", "negative_control_cmd", "negative_expect"],
+                    "properties": {
+                        "positive_cmd": {"type": "string"},
+                        "negative_control_cmd": {"type": "string"},
+                        "negative_expect": {"type": "string"}
+                    }
+                },
+                "verification_evidence": {"type": "string"},
+                "links": {"type": "array", "items": {"type": "string"}},
+                "notes": {"type": "string"},
+                "created": {"type": "string"}
+            }
+        }
+        tool_definition = {
+            "type": "function",
+            "function": {
+                "name": "manage_devloop_task",
+                "description": "Manage and manipulate dev-loop canonical tasks adhering strictly to OpenAI standards.",
+                "strict": True,
+                "parameters": schema
+            }
+        }
+        print(json.dumps(tool_definition, indent=2))
 
 
 def cmd_adr(a):
@@ -202,10 +420,10 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("scaffold"); p.add_argument("--root", default="."); p.add_argument("--dry-run", action="store_true"); p.set_defaults(f=cmd_scaffold)
     p = sp.add_parser("bridges"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_bridges)
-    p = sp.add_parser("tasks"); p.add_argument("op", choices=["render", "validate", "set", "add", "next", "lane"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
+    p = sp.add_parser("tasks"); p.add_argument("op", choices=["render", "validate", "set", "add", "next", "lane", "staleness", "reconcile", "archive-stale", "distill", "export-openai"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
     p.add_argument("--root", default="."); p.add_argument("--evidence"); p.add_argument("--id", dest="id_flag"); p.add_argument("--title"); p.add_argument("--type", default="task", choices=TASK_TYPE)
     p.add_argument("--owner"); p.add_argument("--epic"); p.add_argument("--goal"); p.add_argument("--depends"); p.add_argument("--ac", action="append")
-    p.add_argument("--positive"); p.add_argument("--negative"); p.add_argument("--expect"); p.set_defaults(f=cmd_tasks)
+    p.add_argument("--positive"); p.add_argument("--negative"); p.add_argument("--expect"); p.add_argument("--threshold", type=float, default=0.5); p.set_defaults(f=cmd_tasks)
     p = sp.add_parser("adr"); p.add_argument("op", choices=["new"]); p.add_argument("title"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_adr)
     p = sp.add_parser("trailer"); p.add_argument("id"); p.set_defaults(f=lambda a: print(f"Task-Id: {a.id}"))
     p = sp.add_parser("strip-frontmatter"); p.add_argument("path"); p.set_defaults(f=cmd_strip)

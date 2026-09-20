@@ -12,4 +12,4 @@ _Rendered from `.devloop/tasks.jsonl` — edit the JSONL (or `artifacts.py tasks
 - [x] **T-004** skills/research cannot write files: allowed-tools lacks Write
 - [ ] **T-005** GOALS.md is double-tracked: goal.py writes root, scaffold and SKILL §3 say docs/
 
-_2/5 done · 2026-09-19_
+_2/5 done · 2026-09-20_
