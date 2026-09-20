@@ -261,6 +261,28 @@ def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
             print("agy_session: remote-driven turn completed", file=sys.stderr)
 
 
+def write_status(events_out: str | None, **fields) -> None:
+    """The run marker a monitor reads to tell "thinking" from "gone".
+
+    agy_host.sh writes this for runs it launches, which left every DIRECT caller of this
+    driver invisible: the global monitor reported `BLIND native_marker: .devloop/native
+    exists but session.status does not` for exactly that reason -- a session was hosted
+    here and its state was unknowable. The driver owns the session, so the driver writes
+    the marker; the host's copy still agrees with it.
+
+    Staleness alone cannot stand in for this: a manager inside a long run_command is
+    silent for minutes (measured: 128s) and reads as dead without it.
+    """
+    if not events_out:
+        return
+    try:
+        path = Path(events_out).parent / "session.status"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"events": events_out, **fields}) + "\n")
+    except Exception:
+        pass        # a marker that cannot be written must not take the run down with it
+
+
 def session_argv(model: str | None = None, effort: str | None = None,
                  yolo: bool = False, remote_control: bool = False) -> list[str]:
     """The held-session command line. Factored out so both sides can be asserted:
@@ -366,6 +388,9 @@ def main() -> int:
         print("agy_session: agy not installed", file=sys.stderr)
         return 4
 
+    write_status(a.events_out, state="running", pid=proc.pid, started_at=time.time(),
+                 remote_control=bool(a.remote_control), cwd=str(Path(a.run_root).resolve()))
+
     last_result: dict | None = None
     turns_sent = 1
     try:
@@ -466,6 +491,8 @@ def main() -> int:
             proc.wait(timeout=60)
         except Exception:
             proc.kill()
+        write_status(a.events_out, state="finished", pid=proc.pid, ended_at=time.time(),
+                     remote_control=bool(a.remote_control))
 
     if last_result is None:
         # No terminal envelope at all. Measured: a stream whose events are all unknown

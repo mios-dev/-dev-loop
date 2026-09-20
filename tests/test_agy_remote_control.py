@@ -208,6 +208,48 @@ def test_hold_warns_when_it_is_pointless() -> None:
               "attachable from Remote Control" in err, err[-300:])
 
 
+
+def test_the_driver_writes_its_own_run_marker() -> None:
+    """The monitor's blind spot, closed at the source.
+
+    Measured before this: `BLIND native_marker: .devloop/native exists but session.status
+    does not: a native session was hosted here and its run marker is missing, so its state
+    is UNKNOWN`. agy_host.sh wrote the marker, so every direct caller of the driver was
+    unobservable -- and a manager inside a long run_command is silent for minutes, so
+    staleness cannot substitute for it."""
+    print("the driver publishes session.status:")
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        bindir = tmp / "bin"
+        bindir.mkdir(parents=True)
+        fake = bindir / "agy"
+        fake.write_text(FAKE)
+        fake.chmod(0o755)
+        prompt = tmp / "p.txt"
+        prompt.write_text("go")
+        events = tmp / "native" / "session-events.ndjson"
+        subprocess.run(
+            [sys.executable, str(SESSION), "--prompt-file", str(prompt), "--run-root", str(tmp),
+             "--poll-max", "0", "--events-out", str(events), "--remote-control"],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+                 "FAKE_AGY_ARGV": str(tmp / "argv.json")})
+        marker = events.parent / "session.status"
+        check("a marker is written beside the events file", marker.is_file(),
+              "no session.status — the monitor cannot tell thinking from gone")
+        if marker.is_file():
+            doc = json.loads(marker.read_text())
+            check("it ends in a terminal state", doc.get("state") == "finished", str(doc))
+            check("it records the pid", isinstance(doc.get("pid"), int), str(doc))
+            check("it records whether the session was remote-controlled",
+                  doc.get("remote_control") is True, str(doc))
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        recorded_argv(tmp, [])
+        check("no --events-out -> no marker invented elsewhere",
+              not list(tmp.rglob("session.status")), "a marker was written with nowhere to put it")
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -216,6 +258,7 @@ def main() -> int:
     test_hold_keeps_the_session_alive()
     test_no_hold_means_no_hold()
     test_hold_warns_when_it_is_pointless()
+    test_the_driver_writes_its_own_run_marker()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))
