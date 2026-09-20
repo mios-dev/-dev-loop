@@ -1,11 +1,12 @@
----
-description: Run the two-sided gate on work in progress — positive control passes, planted negative control FAILS naming the plant, tree restored
-argument-hint: [task-id|lane.json]
----
+# Antigravity Workflow: /workflows:verify
+
+Identifier: `verify`
+Purpose: Run the two-sided gate on work in progress — positive control passes, planted negative control FAILS naming the plant, tree restored
+Input: `[task-id|lane.json]`
 
 # /verify: Two-Sided Verification Gate
 
-Target: `$ARGUMENTS` — a task id (`T-0NN`), a path to a lane JSON, or empty.
+Target: `the workflow input` — a task id (`T-0NN`), a path to a lane JSON, or empty.
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`).
 

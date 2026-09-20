@@ -1,11 +1,12 @@
----
-description: Work the task ledger — list what is unblocked now, add a task with its acceptance check and both controls, flip a status with cited evidence, validate, re-render TASKS.md, emit a lane
-argument-hint: [next|add|set|validate|render|lane] [args]
----
+# Antigravity Workflow: /workflows:backlog
+
+Identifier: `backlog`
+Purpose: Work the task ledger — list what is unblocked now, add a task with its acceptance check and both controls, flip a status with cited evidence, validate, re-render TASKS.md, emit a lane
+Input: `[next|add|set|validate|render|lane] [args]`
 
 # /backlog: The Task Ledger
 
-Input: `$ARGUMENTS` — a mode (`next` | `add` | `set` | `validate` | `render` | `lane`) plus its arguments. Default mode: `next`.
+Input: `the workflow input` — a mode (`next` | `add` | `set` | `validate` | `render` | `lane`) plus its arguments. Default mode: `next`.
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`). Every command takes `--root .`.
 

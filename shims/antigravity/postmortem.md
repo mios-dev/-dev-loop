@@ -1,11 +1,12 @@
----
-description: Diagnose a lane that did not finish, from its run directory — denied tool calls, a lost worker, an ownership stray, a vacuous gate, or a genuine defect
-argument-hint: [lane-id] [run-dir]
----
+# Antigravity Workflow: /workflows:postmortem
+
+Identifier: `postmortem`
+Purpose: Diagnose a lane that did not finish, from its run directory — denied tool calls, a lost worker, an ownership stray, a vacuous gate, or a genuine defect
+Input: `[lane-id] [run-dir]`
 
 # /postmortem: Failed-Lane Diagnosis
 
-Target: `$ARGUMENTS` — a lane id, and optionally a run directory. Empty run dir ⇒ the newest `.devloop/run-*` (`ls -1d .devloop/run-* | tail -1`).
+Target: `the workflow input` — a lane id, and optionally a run directory. Empty run dir ⇒ the newest `.devloop/run-*` (`ls -1d .devloop/run-* | tail -1`).
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`).
 

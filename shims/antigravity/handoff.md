@@ -1,11 +1,12 @@
----
-description: End a session on disk — flip the task with evidence, park uncommitted work as a patch, append a ledger entry pinned to HEAD stating what is still unverified
-argument-hint: [task-id] [status note]
----
+# Antigravity Workflow: /workflows:handoff
+
+Identifier: `handoff`
+Purpose: End a session on disk — flip the task with evidence, park uncommitted work as a patch, append a ledger entry pinned to HEAD stating what is still unverified
+Input: `[task-id] [status note]`
 
 # /handoff: End the Session on Disk
 
-Target: `$ARGUMENTS` — a task id and a free-text status note; either may be empty.
+Target: `the workflow input` — a task id and a free-text status note; either may be empty.
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`).
 

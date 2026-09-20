@@ -1,11 +1,12 @@
----
-description: Audit the repo's STANDING gates against the "Checks That Cannot Fail" taxonomy, then plant the violation each cleared gate claims to catch and require it to go red
-argument-hint: [ci-file|script|target|test-dir]
----
+# Antigravity Workflow: /workflows:gate-audit
+
+Identifier: `gate-audit`
+Purpose: Audit the repo's STANDING gates against the "Checks That Cannot Fail" taxonomy, then plant the violation each cleared gate claims to catch and require it to go red
+Input: `[ci-file|script|target|test-dir]`
 
 # /gate-audit: Can This Gate Fail?
 
-Target: `$ARGUMENTS` — a CI workflow, a gate/lint script, a `Makefile`/`justfile` (one recipe via `--target NAME`), or a test directory. Empty: list the repo's real gates first and say which you are auditing.
+Target: `the workflow input` — a CI workflow, a gate/lint script, a `Makefile`/`justfile` (one recipe via `--target NAME`), or a test directory. Empty: list the repo's real gates first and say which you are auditing.
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`).
 
