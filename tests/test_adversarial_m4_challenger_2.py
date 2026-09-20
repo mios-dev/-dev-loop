@@ -494,8 +494,9 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         self.assertEqual(argv[argv.index("--max-budget-usd") + 1], "2.5")
         self.assertIn("--json-schema", argv)
 
-        # Critical Negative Invariants:
-        self.assertNotIn("--max-turns", argv, "--max-turns was deprecated and removed from claude CLI")
+        # Critical Invariants:
+        self.assertIn("--max-turns", argv, "MON-013: claude CLI parses --max-turns to bound execution")
+        self.assertEqual(argv[argv.index("--max-turns") + 1], "15")
         self.assertNotIn("-w", argv, "Worktree must NOT be passed via -w flag (isolation handled via cwd=wt)")
 
     def test_probe_4_2_antigravity_argument_synthesis_contract(self) -> None:

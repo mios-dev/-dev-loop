@@ -14,6 +14,8 @@ conflict.
 | [`nwiizo/ccswarm`](https://github.com/nwiizo/ccswarm) | MIT | `1cec7fe72886b2fffc4424637350f28f3130e6b4` | Master-orchestrator + domain-specialist agents on git worktrees; a dedicated quality-review agent between worker output and merge; session persistence so specialists keep context across tasks |
 | [`ai-boost/awesome-harness-engineering`](https://github.com/ai-boost/awesome-harness-engineering) | CC0-1.0 | `fa3275de3db67ccf7f0c84912af6ea27f3d3719e` | The harness-engineering frame: orchestration, permissions, memory, evals, and observability treated as one control plane; AGENTS.md-as-contract templates |
 | [`mraza007/baton`](https://github.com/mraza007/baton) | MIT | `7bb5fb73c08f31d897b7b64e85b3247a0292eebd` | Issue-driven loop: each GitHub Issue becomes one isolated worktree run with its own lifecycle and merge-back; the tracker, not the prompt, is the work queue |
+| [`packit/packit`](https://github.com/packit/packit) + [`teemtee/tmt`](https://github.com/teemtee/tmt) | Apache-2.0 / MIT | upstream | Upstream CI gating: decoupling external test orchestrator from OS substrate; declarative test plans (tmt / .fmf) tested in disposable environments (Testing Farm) against bootc/Image Mode before Greenwave/Bodhi gating |
+| [`openai/model-spec`](https://github.com/openai/model-spec) | CC-BY-4.0 | upstream | Strict hierarchical rules over soft defaults; strict JSON Schema validation (additionalProperties: false); zero vendor-cloud URLs in tool calls |
 
 ## Patterns the ecosystem has converged on (and where this skill stands)
 
@@ -72,6 +74,16 @@ conflict.
    control plane; the 2026-09 live e2e reinforced it — determinism must
    extend to the manager's own dispatch (verbatim foreground command, scoped
    permission rules), because print-mode managers die with their children.
+
+7. **Fedora Linux Upstream CI & Gating Model (Packit + Testing Farm + tmt + Greenwave).**
+   Upstream testing infrastructure must never contaminate downstream distribution roots.
+   Packit triggers external automation; tmt (.fmf) specifies reproducible test plans;
+   Testing Farm provisions disposable image-mode (bootc) environments; Greenwave gates
+   compose promotion on verified receipts.
+   *This skill:* Applied to MiOS — `-dev-loop` runs externally as the Packit/tmt runner,
+   driving tasks in isolated worktree lanes without baking test harnesses into the
+   downstream bootc image; MiOS's standing drift and schema gates serve as the Bodhi/Greenwave
+   promotion gate.
 
 ## Live-verified lessons folded back into this skill (2026-09-18)
 

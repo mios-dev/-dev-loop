@@ -348,6 +348,8 @@ class TestTier1FeatureCoverage(SandboxTestCase):
         self.assertIn("--effort", argv)
         self.assertEqual(argv[argv.index("--effort") + 1], "xhigh")
         self.assertIn("--json-schema", argv)
+        self.assertIn("--max-turns", argv)
+        self.assertEqual(argv[argv.index("--max-turns") + 1], "40")
         self.assertNotIn("-w", argv, "claude -w must NOT be used because orchestrator provides dedicated wt")
 
     def test_t1_f3_13_independent_worktree_index_files(self) -> None:

@@ -223,6 +223,7 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
                 "--allowedTools", w.get("allowed_tools", "Read,Edit,Write,Glob,Grep,Bash"),
                 "--model", w.get("model", "opus"), "--effort", w.get("effort", "xhigh")]
         if structured: argv += ["--json-schema", json.dumps(report_schema())]
+        if w.get("max_turns"): argv += ["--max-turns", str(w["max_turns"])]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":
         # --cd is the real write fence (issue #24214: --add-dir is not); never --full-auto (it overrides --sandbox)
