@@ -42,9 +42,15 @@ RUN="$ROOT/.devloop/run-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$RUN"
 JOBS="$RUN/jobs"; mkdir -p "$JOBS"
 SPEC="$RUN/lanes.normalized.json"
 "$PY" "$AD" validate "$LANES" --out "$SPEC" || exit 64
-field() { "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d
+field() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -r -c --arg p "$2" 'if (getpath($p / ".") != null) then getpath($p / ".") else empty end' "$1" 2>/dev/null || true
+  else
+    "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d
 for k in sys.argv[2].split("."): v=v.get(k,"") if isinstance(v,dict) else ""
-print(v if not isinstance(v,(list,dict)) else json.dumps(v))' "$1" "$2"; }
+print(v if not isinstance(v,(list,dict)) else json.dumps(v))' "$1" "$2"
+  fi
+}
 BASE=$(field "$SPEC" base_ref); WT_ROOT=$(field "$SPEC" worktree_root); INTEG=$(field "$SPEC" integration_cmd)
 [ "$LAYOUT" = auto ] && LAYOUT=$(field "$SPEC" terminal_layout)
 [ "$LAYOUT" = auto ] || [ -z "$LAYOUT" ] && LAYOUT=detached
@@ -314,7 +320,7 @@ while IFS= read -r WAVE <&3; do
   for id in $WAVE; do
     ( gate_lane "$id" ) &
   done
-  wait
+  wait || true
   # Sequential atomic integration: merge verified lanes into base tree
   for id in $WAVE; do
     merge_lane "$id"
