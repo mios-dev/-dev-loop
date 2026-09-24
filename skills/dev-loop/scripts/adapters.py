@@ -519,6 +519,27 @@ BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", ".age
 ALLOWED_AGENTS_METADATA_EXTS = {".md", ".json", ".toml", ".yaml", ".yml", ".txt", ".log", ".patch"}
 
 
+# Directory placeholders. `Path(".gitkeep").suffix` is "" -- a dotfile has no extension -- so
+# the suffix allowlist rejected every one of them, and a teamwork run on a repo that TRACKS
+# them (measured: 9 in one tree, 8 committed on main) died at its first turn-end as "BASE TREE
+# LEAKAGE". The allowlist was measuring "has a metadata suffix" when the property it guards is
+# "is not planted source or an executable". The exemption is narrow on purpose: the exact name,
+# no execute bit, and no shebang, so the name cannot be used to smuggle a script past it.
+PLACEHOLDER_NAMES = {".gitkeep", ".keep"}
+
+
+def _is_inert_placeholder(p: Path) -> bool:
+    if p.name not in PLACEHOLDER_NAMES:
+        return False
+    try:
+        if p.stat().st_mode & 0o111:
+            return False
+        with open(p, "rb") as fh:
+            return not fh.read(2).startswith(b"#!")
+    except OSError:
+        return False
+
+
 def validate_agents_metadata_layout(root: Path) -> list[str]:
     """Ensures .agents/ contains strictly metadata files.
     Planted source, tests, or binaries violate the Layout Compliance Invariant."""
@@ -528,6 +549,8 @@ def validate_agents_metadata_layout(root: Path) -> list[str]:
     violations = []
     for p in sorted(agents_dir.rglob("*")):
         if p.is_file():
+            if _is_inert_placeholder(p):
+                continue
             if p.suffix.lower() not in ALLOWED_AGENTS_METADATA_EXTS:
                 try:
                     rel = str(p.relative_to(root)).replace("\\", "/")
