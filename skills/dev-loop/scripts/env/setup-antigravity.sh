@@ -133,26 +133,18 @@ AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
 if [ -n "${DEVLOOP_AGY_NO_GRANTS:-}" ]; then
     log "skipping permission grants (DEVLOOP_AGY_NO_GRANTS set)"
 elif command -v python3 >/dev/null 2>&1; then
-    mkdir -p "$(dirname "$AGY_SETTINGS")"
-    AGY_SETTINGS="$AGY_SETTINGS" python3 - <<'PY' && log "headless grants written to ~/.gemini/antigravity-cli/settings.json"
-import json, os, pathlib
-p = pathlib.Path(os.environ["AGY_SETTINGS"])
-try:
-    cfg = json.loads(p.read_text()) if p.is_file() else {}
-except (json.JSONDecodeError, OSError):
-    cfg = {}
-if not isinstance(cfg, dict):
-    cfg = {}
-want = ["read_file(*)", "write_file(*)"] + [f"command({c})" for c in (
-    "sh", "bash", "python3", "git", "cat", "grep", "head", "tail", "ls", "find",
-    "wc", "sed", "awk", "mkdir", "cp", "mv", "printf", "echo", "jq", "cd")]
-allow = cfg.setdefault("permissions", {}).setdefault("allow", [])
-for rule in want:
-    if rule not in allow:
-        allow.append(rule)
-p.write_text(json.dumps(cfg, indent=2) + "\n")
-print(f"[antigravity-setup] {len(want)} grant(s) ensured, {len(allow)} total")
-PY
+    # agy_settings.py is the one writer: it merges, writes atomically, and REFUSES a corrupt file
+    # rather than replacing it with {} (the old inline block erased every setting on one bad byte).
+    python3 "$SKILL_DIR/scripts/env/agy_settings.py" --settings "$AGY_SETTINGS" ensure-grants \
+        && log "headless grants written to ~/.gemini/antigravity-cli/settings.json" \
+        || warn "agy settings not written -- see the message above; headless lanes may be auto-denied"
+    # Unattended /teamwork-preview needs explicit approval of its draft; `turbo` supplies it.
+    # Opt-in, and validated: agy drops EVERY setting on an unrecognized value (measured 1.2.7).
+    if [ -n "${DEVLOOP_AGY_ARTIFACT_REVIEW:-}" ]; then
+        python3 "$SKILL_DIR/scripts/env/agy_settings.py" --settings "$AGY_SETTINGS" \
+            review-policy "$DEVLOOP_AGY_ARTIFACT_REVIEW" \
+            || warn "DEVLOOP_AGY_ARTIFACT_REVIEW=$DEVLOOP_AGY_ARTIFACT_REVIEW refused; settings left unchanged"
+    fi
 else
     warn "python3 missing -- cannot write permission grants; headless lanes will be auto-denied"
 fi

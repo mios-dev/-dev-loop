@@ -90,12 +90,24 @@ def _refs_stub(tmp: Path, stale: int, verdict: str = "clean") -> tuple[str, ...]
 
 def _wait_running(jobs_root: Path, jid: str, timeout_s: float = 20.0):
     """job.spawn() returns as soon as it has detached; the WRAPPER writes pid/pidstart. Poll
-    until the job is genuinely running, so a test never races its own fixture."""
+    until the job is genuinely running, so a test never races its own fixture.
+
+    "running" per job.status() is not enough for a fixture that backdates artifacts. status()
+    turns true once the pid is alive, but the wrapper still has startup writes to do after
+    that: pidstart, and then the `> out 2> err` redirection that CREATES both files when the
+    command launches. A test that backdated in that window had its backdating undone by the
+    wrapper a moment later -- measured: out/err/pidstart 0.5s old right after a 200s backdate,
+    so a monitor read `last_signal_s` 0.1 where the fixture promised >=128. It passed on an
+    idle host and failed under load, which is a race, not a flake. Waiting for out and err to
+    exist waits for the redirection itself: after it, the wrapper is blocked in the command
+    and writes nothing more until exit."""
     deadline = time.time() + timeout_s
+    d = jobs_root / jid
     while time.time() < deadline:
-        if job.status(jobs_root, jid)["state"] == "running":
+        if (job.status(jobs_root, jid)["state"] == "running"
+                and (d / "out").exists() and (d / "err").exists() and (d / "pidstart").exists()):
             try:
-                return int((jobs_root / jid / "pid").read_text().strip())
+                return int((d / "pid").read_text().strip())
             except (OSError, ValueError):
                 pass
         time.sleep(0.2)

@@ -343,6 +343,56 @@ def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     return out
 
 
+CONTINUE_MESSAGE = (
+    "Continue autonomously. Anything you drafted or proposed is APPROVED: do not ask for "
+    "confirmation, do not wait for a reply -- nobody is watching this turn. Take the next step "
+    "yourself (dispatch, implement, gate, report). If you are genuinely blocked, state exactly "
+    "on what, write it to your results file, and stop.")
+
+
+class RelayWatch:
+    """Points the manager back at the monitor's relay file when, and only when, it changed.
+
+    A monitor that relays findings by editing a file has no channel into a running session:
+    the manager read the relay once, in turn 1, and every later turn is text this driver
+    injects. Without this the relay is read only if the manager happens to remember it.
+    Change is decided by CONTENT (sha256), not mtime: a touched-but-unchanged file is not
+    news, and an edit inside the same mtime tick still is."""
+
+    def __init__(self, path: str | None):
+        self.path = Path(path) if path else None
+        self.seen = self._digest()   # turn 1's prompt already points at it
+
+    def _digest(self) -> str | None:
+        if self.path is None:
+            return None
+        try:
+            import hashlib
+            return hashlib.sha256(self.path.read_bytes()).hexdigest()
+        except OSError:
+            return None               # absent: its later creation is a change
+
+    def note(self) -> str:
+        now = self._digest()
+        if self.path is None or now is None or now == self.seen:
+            return ""
+        self.seen = now
+        return (f" The monitor relay {self.path} CHANGED since your last turn. Re-read it now, "
+                "before anything else, and act on its open items.")
+
+
+def done_by(cmd: str | None, cwd: str) -> bool:
+    """The EXTERNAL stop signal for --auto-continue. A shell command, run by the driver, never
+    by the model: the model saying it is finished is a claim; this exiting 0 is the fact."""
+    if not cmd:
+        return False
+    try:
+        return subprocess.run(["sh", "-c", cmd], cwd=cwd, capture_output=True,
+                              timeout=1800).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
               poll_s: float = 5.0) -> str:
     """Keep a finished session ALIVE and streaming, so a remote operator can drive it.
@@ -469,12 +519,21 @@ def main() -> int:
     ap.add_argument("--hold-max-s", type=float, default=3600.0,
                     help="wall-clock ceiling on --hold-file, so a stop file nobody writes cannot "
                          "hold a session open forever")
+    ap.add_argument("--auto-continue", type=int, default=0,
+                    help="answer up to N turn-ends with a pre-approved continue message. "
+                         "A manager that ends its turn with a question otherwise stalls "
+                         "forever in an unattended run (measured: /teamwork-preview stops "
+                         "to ask for draft approval)")
+    ap.add_argument("--done-cmd", help="shell command checked after every turn; exit 0 ends "
+                    "--auto-continue. Run by the driver, never by the model")
     ap.add_argument("--remote-control", action="store_true",
                     help="register this session with Antigravity Remote Control so it can be "
                          "watched and driven from antigravity.google.com; the connection lasts "
                          "exactly as long as this process")
     ap.add_argument("--teamwork", action="store_true",
                     help="supervise an Antigravity /teamwork-preview multi-agent session")
+    ap.add_argument("--relay-file", help="the monitor's relay file; when its content changes, the "
+                    "next injected turn tells the manager to re-read it")
     a = ap.parse_args()
 
     argv = session_argv(a.model, a.effort, a.yolo, a.remote_control)
@@ -528,6 +587,8 @@ def main() -> int:
 
     last_result: dict | None = None
     turns_sent = 1
+    auto_left = max(0, a.auto_continue)
+    relay = RelayWatch(a.relay_file)
     teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
@@ -604,17 +665,39 @@ def main() -> int:
                     harvest_teamwork_receipt(a.run_root, tw_state["terminal_handoff"], Path(a.prompt_file))
                     teamwork_harvested = True
                     break
-                if not tw_state["live"] or turns_sent > a.poll_max:
+                if not tw_state["live"]:
+                    # NOTHING LIVE is not the same as FINISHED. /teamwork-preview's first turn
+                    # ends by asking "does this draft look good to run?" -- before any agent is
+                    # live. Breaking here ended every unattended teamwork run at that question
+                    # (measured: 1 invoke_subagent in 100 turns). Fall through to the
+                    # auto-continue decision below, which answers it and still stops on the
+                    # EXTERNAL done-cmd or an exhausted budget.
+                    pass
+                elif turns_sent > a.poll_max:
                     break
-                print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
-                proc.stdin.write(ndjson_user(
-                    f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
-                    "Continue monitoring until auditor handoff is produced, then report DONE."))
-                proc.stdin.flush()
-                turns_sent += 1
-                continue
+                else:
+                    print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
+                    proc.stdin.write(ndjson_user(
+                        f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
+                        "Continue monitoring until auditor handoff is produced, then report DONE."
+                        + relay.note()))
+                    proc.stdin.flush()
+                    turns_sent += 1
+                    continue
 
-            if not outstanding or turns_sent > a.poll_max:
+            if not outstanding:
+                if (auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists())
+                        and not done_by(a.done_cmd, a.run_root)):
+                    auto_left -= 1
+                    print(f"agy_session: turn {turns_sent} ended with work outstanding by "
+                          f"{'--done-cmd' if a.done_cmd else 'default'}; auto-continue "
+                          f"({auto_left} left)", file=sys.stderr)
+                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE + relay.note()))
+                    proc.stdin.flush()
+                    turns_sent += 1
+                    continue
+                break
+            if turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
             # session the process is still alive, so ask it to wait rather than
@@ -626,7 +709,7 @@ def main() -> int:
                 print(f"agy_session: {len(subagent_steps)} subagent(s) dispatched for "
                       f"{len(lane_ids)} lane(s) — {short} never started", file=sys.stderr)
             proc.stdin.write(ndjson_user(
-                poll_message(native_dir, outstanding, subagent_steps, lane_ids)))
+                poll_message(native_dir, outstanding, subagent_steps, lane_ids) + relay.note()))
             proc.stdin.flush()
             turns_sent += 1
 

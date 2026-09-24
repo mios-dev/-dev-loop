@@ -250,6 +250,136 @@ def test_the_driver_writes_its_own_run_marker() -> None:
               not list(tmp.rglob("session.status")), "a marker was written with nowhere to put it")
 
 
+
+COUNTING_FAKE = r'''#!/usr/bin/env python3
+import json, os, sys
+n = 0
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}), flush=True)
+for line in sys.stdin:
+    n += 1
+    open(os.environ["FAKE_AGY_TURNS"], "w").write(str(n))
+    print(json.dumps({"event": "result", "result": {"status": "ok", "num_turns": n,
+          "response": "Does this draft look good to run?"}}), flush=True)
+'''
+
+
+def turns_taken(extra: list[str]) -> int:
+    """Run the driver against a manager that ends EVERY turn with a question (the measured
+    /teamwork-preview behaviour) and return how many turns it was given."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(COUNTING_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("draft a plan")
+        turns = tmp / "turns"
+        subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                        "--run-root", str(tmp), "--poll-max", "0", *extra],
+                       capture_output=True, text=True, timeout=120,
+                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            "FAKE_AGY_TURNS": str(turns)})
+        return int(turns.read_text()) if turns.is_file() else 0
+
+
+def test_auto_continue_answers_the_stall_and_stops_on_the_fact() -> None:
+    """Measured stall: /teamwork-preview ends its turn asking 'does this draft look good?' and an
+    unattended session waits forever. Auto-continue answers it -- and must STOP on an external
+    fact, or it is a loop with no end that burns turns."""
+    print("auto-continue:")
+    check("off by default: one turn, then the stall", turns_taken([]) == 1)
+    n = turns_taken(["--auto-continue", "3"])
+    check("--auto-continue 3 answers three turn-ends", n == 4, f"got {n} turns")
+    n = turns_taken(["--auto-continue", "3", "--done-cmd", "true"])
+    check("a done-cmd that already passes stops it at once", n == 1, f"got {n} turns")
+    n = turns_taken(["--auto-continue", "3", "--done-cmd", "false"])
+    check("a done-cmd that fails lets it run the full budget", n == 4, f"got {n} turns")
+
+
+
+def test_teamwork_draft_approval_does_not_end_the_run() -> None:
+    """Measured: in --teamwork mode the driver broke the moment no teamwork agent was live. But
+    /teamwork-preview's FIRST turn ends asking 'does this draft look good to run?' -- before
+    any agent exists -- so every unattended teamwork run ended right there (1 invoke_subagent in
+    100 turns). Nothing live is not the same as finished."""
+    print("teamwork draft-approval turn-end:")
+    n = turns_taken(["--teamwork"])
+    check("teamwork without auto-continue: one turn, then the stall", n == 1, f"got {n}")
+    n = turns_taken(["--teamwork", "--auto-continue", "2"])
+    check("teamwork + auto-continue answers the approval question", n == 3, f"got {n} turns")
+    n = turns_taken(["--teamwork", "--auto-continue", "2", "--done-cmd", "true"])
+    check("...and the external done-cmd still stops it", n == 1, f"got {n} turns")
+
+
+RELAY_FAKE = r"""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+relay = Path(os.environ["FAKE_RELAY"]) if os.environ.get("FAKE_RELAY") else None
+log = open(os.environ["FAKE_MSGS"], "a")
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}), flush=True)
+n = 0
+for line in sys.stdin:
+    n += 1
+    log.write(json.dumps(json.loads(line)) + "\n"); log.flush()
+    if relay is not None and n == 2:
+        relay.write_text(relay.read_text() + "item 2: new finding\n")   # the monitor edits it
+    if relay is not None and n == 3:
+        relay.write_text(relay.read_text())                              # touched, NOT changed
+    print(json.dumps({"event": "result", "result": {"status": "ok", "num_turns": n,
+          "response": "Does this draft look good to run?"}}), flush=True)
+"""
+
+
+def relay_messages(with_relay: bool) -> list[str]:
+    """Drive a 4-turn session and return the text of every user message the manager got."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(RELAY_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("read the relay first")
+        relay = tmp / "monitor-relay.md"
+        relay.write_text("item 1: old finding\n")
+        msgs = tmp / "msgs.ndjson"
+        extra = ["--relay-file", str(relay)] if with_relay else []
+        subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                        "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3", *extra],
+                       capture_output=True, text=True, timeout=120,
+                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            "FAKE_MSGS": str(msgs), "FAKE_RELAY": str(relay)})
+        out = []
+        for line in msgs.read_text().splitlines() if msgs.is_file() else []:
+            m = json.loads(line)
+            c = m.get("message", {}).get("content", m)
+            out.append(json.dumps(c))
+        return out
+
+
+def test_relay_changes_reach_the_manager() -> None:
+    """The monitor relays findings by editing a file, and turn 1 is the only turn whose text the
+    manager chose to read it in. Every later turn is text the driver injects, so a relay edit
+    made mid-run was invisible unless the manager happened to remember the file (measured
+    2026-09-24: a teamwork run started before two research docs landed, and nothing pointed
+    it back). Both sides: a CONTENT change is announced exactly once; a touch that changes
+    nothing is not news; no --relay-file, no note."""
+    print("relay changes reach the manager:")
+    got = relay_messages(True)
+    check("4 turns ran", len(got) == 4, f"got {len(got)}")
+    if len(got) == 4:
+        says = ["CHANGED since your last turn" in m for m in got]
+        check("unchanged relay: turn 2 carries no note", not says[1], got[1][:200])
+        check("changed relay: turn 3 tells the manager to re-read it", says[2], got[2][:300])
+        check("touched but identical: turn 4 carries no note (content, not mtime)",
+              not says[3], got[3][:300])
+    got = relay_messages(False)
+    check("without --relay-file no turn mentions a relay",
+          len(got) == 4 and not any("relay" in m for m in got[1:]), str(got)[:300])
+    src = HOST.read_text()
+    check("agy_host.sh forwards AGY_HOST_RELAY_FILE at both session call sites",
+          src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -259,6 +389,9 @@ def main() -> int:
     test_no_hold_means_no_hold()
     test_hold_warns_when_it_is_pointless()
     test_the_driver_writes_its_own_run_marker()
+    test_auto_continue_answers_the_stall_and_stops_on_the_fact()
+    test_teamwork_draft_approval_does_not_end_the_run()
+    test_relay_changes_reach_the_manager()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))

