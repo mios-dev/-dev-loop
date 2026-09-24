@@ -37,6 +37,8 @@ Wire protocol (all measured, see references/translation-layer.md 5.1a)
 Exit codes: 0 ok · 3 no terminal envelope / session produced nothing · 4 agy missing
             5 lane reports still missing when the poll budget ran out
             6 the manager left the base tree dirty outside every lane worktree
+            7 --done-cmd still FAILS when the session ended (it ended without doing the work)
+            75 (EX_TEMPFAIL) as 7, and agy reported RESOURCE_EXHAUSTED: a quota, retry after reset
 
 STATUS OF THE POLL LOOP: UNEXERCISED as of the first end-to-end run (2026-09-19). The manager
 dispatched both native lanes, gated them and merged them inside a SINGLE turn, so `missing_reports`
@@ -589,6 +591,7 @@ def main() -> int:
     turns_sent = 1
     auto_left = max(0, a.auto_continue)
     relay = RelayWatch(a.relay_file)
+    quota = None   # agy's RESOURCE_EXHAUSTED line, kept verbatim: it carries the reset time
     teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
@@ -606,6 +609,8 @@ def main() -> int:
                 evt = json.loads(line)
             except json.JSONDecodeError:
                 print(line, file=sys.stderr)  # warnings/errors arrive as bare text
+                if "RESOURCE_EXHAUSTED" in line and quota is None:
+                    quota = line[:400]
                 continue
 
             kind = evt.get("event")
@@ -714,7 +719,14 @@ def main() -> int:
             turns_sent += 1
 
         if a.hold_file:
-            print(f"agy_session: local work done after {turns_sent} turn(s); HOLDING the session "
+            # Say which of the two states this is. "local work done" used to be printed
+            # unconditionally, so an agy that died on a quota 429 after two turns was announced
+            # as finished (measured 2026-09-24: 11 nested instances, 0 deliverables, rc 0).
+            met = (not a.done_cmd) or done_by(a.done_cmd, a.run_root)
+            state = ("local work done" if met else
+                     "stop condition NOT met (%s)" % ("agy exited" if proc.poll() is not None
+                                                      else "turn budget spent"))
+            print(f"agy_session: {state} after {turns_sent} turn(s); HOLDING the session "
                   f"open (stop file: {a.hold_file}, ceiling {a.hold_max_s:.0f}s). "
                   f"{'It is attachable from Remote Control.' if a.remote_control else 'NOT registered with Remote Control -- pass --remote-control for that.'}",
                   file=sys.stderr)
@@ -752,6 +764,17 @@ def main() -> int:
     if a.envelope_out:
         Path(a.envelope_out).write_text(text + "\n")
     print(text)
+
+    # The EXTERNAL stop condition decides the exit code, whatever ended the session. Without
+    # this a lane-less run that produced any result event returned 0 -- dead reported as done.
+    if a.done_cmd and not done_by(a.done_cmd, a.run_root):
+        if quota:
+            print("agy_session: --done-cmd still FAILS and agy hit its quota -- retry after the "
+                  "reset: %s" % quota, file=sys.stderr)
+            return 75
+        print("agy_session: --done-cmd still FAILS -- the session ended without doing the work",
+              file=sys.stderr)
+        return 7
 
     if base_before is not None:
         strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)

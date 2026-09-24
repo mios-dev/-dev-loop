@@ -380,6 +380,57 @@ def test_relay_changes_reach_the_manager() -> None:
           src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
 
 
+# Modelled on a REAL quota death (2026-09-24, agy 1.2.7): two bare error lines, then a result event
+# with status "ERROR" and the reset time; the next turn finds the process gone.
+QUOTA_FAKE = r"""#!/usr/bin/env python3
+import json, os, sys
+mode = os.environ.get("FAKE_MODE", "quota")
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "model": "m", "tools": [], "permission_mode": "always-proceed"}}), flush=True)
+for n, line in enumerate(sys.stdin, 1):
+    if n > 1:
+        sys.exit(1)            # the second turn finds agy already gone
+    if mode == "quota":
+        print("error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 2h44m46s.", flush=True)
+        print('AGY_ERROR: {"short_error":"RESOURCE_EXHAUSTED (code 429): Individual quota reached.","status":"RESOURCE_EXHAUSTED","error_code":429,"retryable":true}', flush=True)
+        print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "ERROR", "response": "", "error": "Individual quota reached. Resets in 2h44m46s.", "duration_seconds": 1.0, "num_turns": 1}}), flush=True)
+    else:
+        print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "SUCCESS", "response": "ok", "duration_seconds": 1.0, "num_turns": 1}}), flush=True)
+"""
+
+
+def ended(mode: str, done_cmd: str) -> tuple[int, str]:
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(QUOTA_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("do the work")
+        cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                             "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3",
+                             "--done-cmd", done_cmd, "--hold-file", str(tmp / "STOP"),
+                             "--hold-max-s", "3"],
+                            capture_output=True, text=True, timeout=120,
+                            env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                                 "FAKE_MODE": mode})
+        return cp.returncode, cp.stderr
+
+
+def test_dead_is_not_done() -> None:
+    """Measured 2026-09-24: 11 nested AGY instances hit a quota 429, exited after two turns, and
+    the driver printed "local work done" and returned 0 -- with not one deliverable written. The
+    external stop condition must decide the exit code, whatever ended the session."""
+    print("a session that ends without the work is not done:")
+    rc, err = ended("quota", "false")
+    check("quota death -> rc 75 (retry after reset)", rc == 75, f"rc={rc}\n{err[-400:]}")
+    check("...and the reset time is carried", "Resets in 2h44m46s" in err, err[-300:])
+    check("...and it is NOT announced as done", "local work done" not in err and "NOT met" in err, err[-300:])
+    rc, err = ended("plain", "false")
+    check("ended without quota, stop condition failing -> rc 7", rc == 7, f"rc={rc}\n{err[-300:]}")
+    rc, err = ended("plain", "true")
+    check("stop condition met -> rc 0, announced as done", rc == 0 and "local work done" in err, f"rc={rc}\n{err[-300:]}")
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -392,6 +443,7 @@ def main() -> int:
     test_auto_continue_answers_the_stall_and_stops_on_the_fact()
     test_teamwork_draft_approval_does_not_end_the_run()
     test_relay_changes_reach_the_manager()
+    test_dead_is_not_done()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))
