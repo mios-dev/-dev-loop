@@ -311,6 +311,75 @@ def test_teamwork_draft_approval_does_not_end_the_run() -> None:
     check("...and the external done-cmd still stops it", n == 1, f"got {n} turns")
 
 
+RELAY_FAKE = r"""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+relay = Path(os.environ["FAKE_RELAY"]) if os.environ.get("FAKE_RELAY") else None
+log = open(os.environ["FAKE_MSGS"], "a")
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}), flush=True)
+n = 0
+for line in sys.stdin:
+    n += 1
+    log.write(json.dumps(json.loads(line)) + "\n"); log.flush()
+    if relay is not None and n == 2:
+        relay.write_text(relay.read_text() + "item 2: new finding\n")   # the monitor edits it
+    if relay is not None and n == 3:
+        relay.write_text(relay.read_text())                              # touched, NOT changed
+    print(json.dumps({"event": "result", "result": {"status": "ok", "num_turns": n,
+          "response": "Does this draft look good to run?"}}), flush=True)
+"""
+
+
+def relay_messages(with_relay: bool) -> list[str]:
+    """Drive a 4-turn session and return the text of every user message the manager got."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(RELAY_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("read the relay first")
+        relay = tmp / "monitor-relay.md"
+        relay.write_text("item 1: old finding\n")
+        msgs = tmp / "msgs.ndjson"
+        extra = ["--relay-file", str(relay)] if with_relay else []
+        subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                        "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3", *extra],
+                       capture_output=True, text=True, timeout=120,
+                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            "FAKE_MSGS": str(msgs), "FAKE_RELAY": str(relay)})
+        out = []
+        for line in msgs.read_text().splitlines() if msgs.is_file() else []:
+            m = json.loads(line)
+            c = m.get("message", {}).get("content", m)
+            out.append(json.dumps(c))
+        return out
+
+
+def test_relay_changes_reach_the_manager() -> None:
+    """The monitor relays findings by editing a file, and turn 1 is the only turn whose text the
+    manager chose to read it in. Every later turn is text the driver injects, so a relay edit
+    made mid-run was invisible unless the manager happened to remember the file (measured
+    2026-09-24: a teamwork run started before two research docs landed, and nothing pointed
+    it back). Both sides: a CONTENT change is announced exactly once; a touch that changes
+    nothing is not news; no --relay-file, no note."""
+    print("relay changes reach the manager:")
+    got = relay_messages(True)
+    check("4 turns ran", len(got) == 4, f"got {len(got)}")
+    if len(got) == 4:
+        says = ["CHANGED since your last turn" in m for m in got]
+        check("unchanged relay: turn 2 carries no note", not says[1], got[1][:200])
+        check("changed relay: turn 3 tells the manager to re-read it", says[2], got[2][:300])
+        check("touched but identical: turn 4 carries no note (content, not mtime)",
+              not says[3], got[3][:300])
+    got = relay_messages(False)
+    check("without --relay-file no turn mentions a relay",
+          len(got) == 4 and not any("relay" in m for m in got[1:]), str(got)[:300])
+    src = HOST.read_text()
+    check("agy_host.sh forwards AGY_HOST_RELAY_FILE at both session call sites",
+          src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -322,6 +391,7 @@ def main() -> int:
     test_the_driver_writes_its_own_run_marker()
     test_auto_continue_answers_the_stall_and_stops_on_the_fact()
     test_teamwork_draft_approval_does_not_end_the_run()
+    test_relay_changes_reach_the_manager()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))

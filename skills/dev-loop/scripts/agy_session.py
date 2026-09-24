@@ -350,6 +350,37 @@ CONTINUE_MESSAGE = (
     "on what, write it to your results file, and stop.")
 
 
+class RelayWatch:
+    """Points the manager back at the monitor's relay file when, and only when, it changed.
+
+    A monitor that relays findings by editing a file has no channel into a running session:
+    the manager read the relay once, in turn 1, and every later turn is text this driver
+    injects. Without this the relay is read only if the manager happens to remember it.
+    Change is decided by CONTENT (sha256), not mtime: a touched-but-unchanged file is not
+    news, and an edit inside the same mtime tick still is."""
+
+    def __init__(self, path: str | None):
+        self.path = Path(path) if path else None
+        self.seen = self._digest()   # turn 1's prompt already points at it
+
+    def _digest(self) -> str | None:
+        if self.path is None:
+            return None
+        try:
+            import hashlib
+            return hashlib.sha256(self.path.read_bytes()).hexdigest()
+        except OSError:
+            return None               # absent: its later creation is a change
+
+    def note(self) -> str:
+        now = self._digest()
+        if self.path is None or now is None or now == self.seen:
+            return ""
+        self.seen = now
+        return (f" The monitor relay {self.path} CHANGED since your last turn. Re-read it now, "
+                "before anything else, and act on its open items.")
+
+
 def done_by(cmd: str | None, cwd: str) -> bool:
     """The EXTERNAL stop signal for --auto-continue. A shell command, run by the driver, never
     by the model: the model saying it is finished is a claim; this exiting 0 is the fact."""
@@ -501,6 +532,8 @@ def main() -> int:
                          "exactly as long as this process")
     ap.add_argument("--teamwork", action="store_true",
                     help="supervise an Antigravity /teamwork-preview multi-agent session")
+    ap.add_argument("--relay-file", help="the monitor's relay file; when its content changes, the "
+                    "next injected turn tells the manager to re-read it")
     a = ap.parse_args()
 
     argv = session_argv(a.model, a.effort, a.yolo, a.remote_control)
@@ -555,6 +588,7 @@ def main() -> int:
     last_result: dict | None = None
     turns_sent = 1
     auto_left = max(0, a.auto_continue)
+    relay = RelayWatch(a.relay_file)
     teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
@@ -645,7 +679,8 @@ def main() -> int:
                     print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
                     proc.stdin.write(ndjson_user(
                         f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
-                        "Continue monitoring until auditor handoff is produced, then report DONE."))
+                        "Continue monitoring until auditor handoff is produced, then report DONE."
+                        + relay.note()))
                     proc.stdin.flush()
                     turns_sent += 1
                     continue
@@ -657,7 +692,7 @@ def main() -> int:
                     print(f"agy_session: turn {turns_sent} ended with work outstanding by "
                           f"{'--done-cmd' if a.done_cmd else 'default'}; auto-continue "
                           f"({auto_left} left)", file=sys.stderr)
-                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE))
+                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE + relay.note()))
                     proc.stdin.flush()
                     turns_sent += 1
                     continue
@@ -674,7 +709,7 @@ def main() -> int:
                 print(f"agy_session: {len(subagent_steps)} subagent(s) dispatched for "
                       f"{len(lane_ids)} lane(s) — {short} never started", file=sys.stderr)
             proc.stdin.write(ndjson_user(
-                poll_message(native_dir, outstanding, subagent_steps, lane_ids)))
+                poll_message(native_dir, outstanding, subagent_steps, lane_ids) + relay.note()))
             proc.stdin.flush()
             turns_sent += 1
 

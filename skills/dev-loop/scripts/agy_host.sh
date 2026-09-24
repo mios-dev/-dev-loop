@@ -162,6 +162,7 @@ case "$MODE" in
         # Unattended runs stall on any turn that ends with a question. The stop signal for
         # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
         [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
+        [ -n "${AGY_HOST_RELAY_FILE:-}" ] && set -- "$@" --relay-file "$AGY_HOST_RELAY_FILE"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             HOLD_FILE=${AGY_HOST_HOLD_FILE:-$(dirname "$EVENTS_FILE")/STOP}
@@ -248,6 +249,7 @@ case "$MODE" in
         # Unattended runs stall on any turn that ends with a question. The stop signal for
         # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
         [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
+        [ -n "${AGY_HOST_RELAY_FILE:-}" ] && set -- "$@" --relay-file "$AGY_HOST_RELAY_FILE"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             # Registering the session and then exiting is the phantom this pairing exists to
