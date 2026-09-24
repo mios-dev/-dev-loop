@@ -250,6 +250,52 @@ def test_the_driver_writes_its_own_run_marker() -> None:
               not list(tmp.rglob("session.status")), "a marker was written with nowhere to put it")
 
 
+
+COUNTING_FAKE = r'''#!/usr/bin/env python3
+import json, os, sys
+n = 0
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}), flush=True)
+for line in sys.stdin:
+    n += 1
+    open(os.environ["FAKE_AGY_TURNS"], "w").write(str(n))
+    print(json.dumps({"event": "result", "result": {"status": "ok", "num_turns": n,
+          "response": "Does this draft look good to run?"}}), flush=True)
+'''
+
+
+def turns_taken(extra: list[str]) -> int:
+    """Run the driver against a manager that ends EVERY turn with a question (the measured
+    /teamwork-preview behaviour) and return how many turns it was given."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(COUNTING_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("draft a plan")
+        turns = tmp / "turns"
+        subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                        "--run-root", str(tmp), "--poll-max", "0", *extra],
+                       capture_output=True, text=True, timeout=120,
+                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            "FAKE_AGY_TURNS": str(turns)})
+        return int(turns.read_text()) if turns.is_file() else 0
+
+
+def test_auto_continue_answers_the_stall_and_stops_on_the_fact() -> None:
+    """Measured stall: /teamwork-preview ends its turn asking 'does this draft look good?' and an
+    unattended session waits forever. Auto-continue answers it -- and must STOP on an external
+    fact, or it is a loop with no end that burns turns."""
+    print("auto-continue:")
+    check("off by default: one turn, then the stall", turns_taken([]) == 1)
+    n = turns_taken(["--auto-continue", "3"])
+    check("--auto-continue 3 answers three turn-ends", n == 4, f"got {n} turns")
+    n = turns_taken(["--auto-continue", "3", "--done-cmd", "true"])
+    check("a done-cmd that already passes stops it at once", n == 1, f"got {n} turns")
+    n = turns_taken(["--auto-continue", "3", "--done-cmd", "false"])
+    check("a done-cmd that fails lets it run the full budget", n == 4, f"got {n} turns")
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -259,6 +305,7 @@ def main() -> int:
     test_no_hold_means_no_hold()
     test_hold_warns_when_it_is_pointless()
     test_the_driver_writes_its_own_run_marker()
+    test_auto_continue_answers_the_stall_and_stops_on_the_fact()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))

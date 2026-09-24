@@ -157,7 +157,11 @@ case "$MODE" in
                --teamwork \
                --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" \
                --effort "${AGY_HOST_EFFORT:-high}" \
-               --poll-max "${AGY_HOST_POLL_MAX:-8}"
+               --poll-max "${AGY_HOST_POLL_MAX:-8}" \
+               --auto-continue "${AGY_HOST_AUTO_CONTINUE:-0}"
+        # Unattended runs stall on any turn that ends with a question. The stop signal for
+        # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
+        [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             HOLD_FILE=${AGY_HOST_HOLD_FILE:-$(dirname "$EVENTS_FILE")/STOP}
@@ -239,7 +243,11 @@ case "$MODE" in
                --jobs-root "$JOBS_ROOT" \
                --model "${AGY_HOST_MODEL:-gemini-3.1-pro-high}" \
                --effort "${AGY_HOST_EFFORT:-high}" \
-               --poll-max "${AGY_HOST_POLL_MAX:-8}"
+               --poll-max "${AGY_HOST_POLL_MAX:-8}" \
+               --auto-continue "${AGY_HOST_AUTO_CONTINUE:-0}"
+        # Unattended runs stall on any turn that ends with a question. The stop signal for
+        # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
+        [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             # Registering the session and then exiting is the phantom this pairing exists to

@@ -343,6 +343,25 @@ def antigravity_lane_ids(lanes_path: Path) -> list[str]:
     return out
 
 
+CONTINUE_MESSAGE = (
+    "Continue autonomously. Anything you drafted or proposed is APPROVED: do not ask for "
+    "confirmation, do not wait for a reply -- nobody is watching this turn. Take the next step "
+    "yourself (dispatch, implement, gate, report). If you are genuinely blocked, state exactly "
+    "on what, write it to your results file, and stop.")
+
+
+def done_by(cmd: str | None, cwd: str) -> bool:
+    """The EXTERNAL stop signal for --auto-continue. A shell command, run by the driver, never
+    by the model: the model saying it is finished is a claim; this exiting 0 is the fact."""
+    if not cmd:
+        return False
+    try:
+        return subprocess.run(["sh", "-c", cmd], cwd=cwd, capture_output=True,
+                              timeout=1800).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
               poll_s: float = 5.0) -> str:
     """Keep a finished session ALIVE and streaming, so a remote operator can drive it.
@@ -469,6 +488,13 @@ def main() -> int:
     ap.add_argument("--hold-max-s", type=float, default=3600.0,
                     help="wall-clock ceiling on --hold-file, so a stop file nobody writes cannot "
                          "hold a session open forever")
+    ap.add_argument("--auto-continue", type=int, default=0,
+                    help="answer up to N turn-ends with a pre-approved continue message. "
+                         "A manager that ends its turn with a question otherwise stalls "
+                         "forever in an unattended run (measured: /teamwork-preview stops "
+                         "to ask for draft approval)")
+    ap.add_argument("--done-cmd", help="shell command checked after every turn; exit 0 ends "
+                    "--auto-continue. Run by the driver, never by the model")
     ap.add_argument("--remote-control", action="store_true",
                     help="register this session with Antigravity Remote Control so it can be "
                          "watched and driven from antigravity.google.com; the connection lasts "
@@ -528,6 +554,7 @@ def main() -> int:
 
     last_result: dict | None = None
     turns_sent = 1
+    auto_left = max(0, a.auto_continue)
     teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
@@ -614,7 +641,19 @@ def main() -> int:
                 turns_sent += 1
                 continue
 
-            if not outstanding or turns_sent > a.poll_max:
+            if not outstanding:
+                if (auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists())
+                        and not done_by(a.done_cmd, a.run_root)):
+                    auto_left -= 1
+                    print(f"agy_session: turn {turns_sent} ended with work outstanding by "
+                          f"{'--done-cmd' if a.done_cmd else 'default'}; auto-continue "
+                          f"({auto_left} left)", file=sys.stderr)
+                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE))
+                    proc.stdin.flush()
+                    turns_sent += 1
+                    continue
+                break
+            if turns_sent > a.poll_max:
                 break
             # The manager's turn ended but native lanes have not reported. In a held
             # session the process is still alive, so ask it to wait rather than
