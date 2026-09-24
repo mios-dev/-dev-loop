@@ -631,15 +631,24 @@ def main() -> int:
                     harvest_teamwork_receipt(a.run_root, tw_state["terminal_handoff"], Path(a.prompt_file))
                     teamwork_harvested = True
                     break
-                if not tw_state["live"] or turns_sent > a.poll_max:
+                if not tw_state["live"]:
+                    # NOTHING LIVE is not the same as FINISHED. /teamwork-preview's first turn
+                    # ends by asking "does this draft look good to run?" -- before any agent is
+                    # live. Breaking here ended every unattended teamwork run at that question
+                    # (measured: 1 invoke_subagent in 100 turns). Fall through to the
+                    # auto-continue decision below, which answers it and still stops on the
+                    # EXTERNAL done-cmd or an exhausted budget.
+                    pass
+                elif turns_sent > a.poll_max:
                     break
-                print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
-                proc.stdin.write(ndjson_user(
-                    f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
-                    "Continue monitoring until auditor handoff is produced, then report DONE."))
-                proc.stdin.flush()
-                turns_sent += 1
-                continue
+                else:
+                    print(f"agy_session: teamwork in progress ({len(tw_state['agents'])} agent(s)) — polling turn {turns_sent}", file=sys.stderr)
+                    proc.stdin.write(ndjson_user(
+                        f"Teamwork subagents are still in progress. Active agents: {', '.join(tw_state['agents'].keys())}. "
+                        "Continue monitoring until auditor handoff is produced, then report DONE."))
+                    proc.stdin.flush()
+                    turns_sent += 1
+                    continue
 
             if not outstanding:
                 if (auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists())

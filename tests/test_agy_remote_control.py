@@ -296,6 +296,21 @@ def test_auto_continue_answers_the_stall_and_stops_on_the_fact() -> None:
     check("a done-cmd that fails lets it run the full budget", n == 4, f"got {n} turns")
 
 
+
+def test_teamwork_draft_approval_does_not_end_the_run() -> None:
+    """Measured: in --teamwork mode the driver broke the moment no teamwork agent was live. But
+    /teamwork-preview's FIRST turn ends asking 'does this draft look good to run?' -- before
+    any agent exists -- so every unattended teamwork run ended right there (1 invoke_subagent in
+    100 turns). Nothing live is not the same as finished."""
+    print("teamwork draft-approval turn-end:")
+    n = turns_taken(["--teamwork"])
+    check("teamwork without auto-continue: one turn, then the stall", n == 1, f"got {n}")
+    n = turns_taken(["--teamwork", "--auto-continue", "2"])
+    check("teamwork + auto-continue answers the approval question", n == 3, f"got {n} turns")
+    n = turns_taken(["--teamwork", "--auto-continue", "2", "--done-cmd", "true"])
+    check("...and the external done-cmd still stops it", n == 1, f"got {n} turns")
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -306,6 +321,7 @@ def main() -> int:
     test_hold_warns_when_it_is_pointless()
     test_the_driver_writes_its_own_run_marker()
     test_auto_continue_answers_the_stall_and_stops_on_the_fact()
+    test_teamwork_draft_approval_does_not_end_the_run()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))
