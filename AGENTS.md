@@ -44,6 +44,15 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   `agy_host.sh --session --remote-control`, which also passes `--hold-file`/`--hold-max-s`
   so the session stays attachable after its local work ends and is stopped with
   `touch <run>/.devloop/native/STOP`. Controls: `tests/test_agy_remote_control.py`.
+- **Unattended `/teamwork-preview` needs `artifactReviewPolicy: "turbo"`.** The built-in's own
+  protocol forbids invoking the team "before explicit user approval", and a brief that says "do not
+  ask" is not approval. Measured: a manager told not to ask did the whole job solo (100 responses,
+  1 subagent). `turbo` is the approval; `agy_session.py --auto-continue` answers the draft turn.
+  agy VALIDATES the value, and an unrecognized one (e.g. `ARTIFACT_REVIEW_MODE_TURBO`) makes it
+  load DEFAULTS for everything, dropping every permission grant. So
+  `scripts/env/agy_settings.py` is the one settings writer and refuses any value outside
+  always/auto/turbo. Set `DEVLOOP_AGY_ARTIFACT_REVIEW` (the SessionStart hook defaults it to
+  `turbo`). Controls: `tests/test_agy_settings.py`.
 - **The stray base-tree guard is scoped to lane runs.** `agy_session.py` fails closed (exit 6)
   on a manager editing the base tree outside a lane worktree. That question presupposes
   worktrees, so a LANE-LESS session (one manager doing the work itself -- an AGY teamwork run)
