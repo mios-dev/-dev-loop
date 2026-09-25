@@ -79,10 +79,11 @@ The environment layer ships **inside the skill** (`skills/dev-loop/scripts/env/`
 package manager (dnf5/dnf/microdnf, else apt-get) rather than assuming one — idempotent, and
 location-independent.
 
-**Devcontainers:** `.devcontainer/devcontainer.json` is **Fedora 44** (this repo's default
-image); `.devcontainer/ubuntu/` is the Ubuntu 24.04 variant. Both bake the keyring stack plus
-Node + Claude Code for `claude-code` lanes, provision at `postCreateCommand`, and re-arm the
-keyring at `postStartCommand` — after a container restart no new login is needed.
+**Devcontainer:** `.devcontainer/devcontainer.json` builds MiOS's one development image
+(`../MiOS/.devcontainer/Containerfile`, Fedora 44, cloned as a sibling by `initializeCommand`)
+and runs MiOS's lifecycle, so it is identical to every other MiOS dev environment. It bakes
+`agy`, the keyring stack and Node + Claude Code for `claude-code` lanes, and re-arms the keyring
+on every start — after a container restart no new login is needed.
 
 **Claude Code on the web:** the SessionStart hook (`.claude/settings.json` →
 `.claude/hooks/session-start.sh`) runs the same provisioning on every remote session.

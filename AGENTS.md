@@ -130,7 +130,11 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 
 Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`; there is
 no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
-`.devcontainer/` defaults to **Fedora 44**; `.devcontainer/ubuntu/` is the apt variant.
+`.devcontainer/` builds **MiOS's one dev image** (`../MiOS/.devcontainer/Containerfile`, a sibling
+checkout cloned by `initializeCommand`; packages from MiOS `mios.toml [packages.devcontainer]`) and
+runs MiOS's lifecycle. Operator decision (2026-09-25): every MiOS dev environment -- the three
+repos' devcontainers, Codespaces, Cloud Shell, the cloud-session projection -- builds that one
+file; none keeps a copy. The Ubuntu variant was removed.
 
 - `bash skills/dev-loop/scripts/env/setup-antigravity.sh` — idempotent provisioning (also run
   by the SessionStart hook in `.claude/settings.json` and devcontainer `postCreateCommand`).
@@ -146,6 +150,11 @@ no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubun
   With `FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS` it instead projects MiOS's
   `.devcontainer/Containerfile` (built unedited on a locally shadowed, CA-trusting fedora:44)
   and installs `/usr/local/bin/mios-dev` (+ `fedora`). Measured 3m32s first run, 1.45s cold.
+  It now also provisions the HOST (agy, keyring, grants; the plugin's SessionStart hook revives
+  the keyring per session). It builds with the Dev Containers CLI (features included) and commits
+  the devcontainer.json lifecycle into the image (miosd, root overlay). Measured 452s cold, over the
+  ~5 min budget; `FEDORA_SETUP_BUDGET_S` defers the lifecycle if that stops the cache building.
+  Its image and a mios-bootstrap `devcontainer build` compared identical (574-line package census).
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
 - **In a cloud session, a detached job does not outlive the container.** `job.py spawn` survives
   the monitor's turn, but not the container, and an idle session's container is reclaimed.

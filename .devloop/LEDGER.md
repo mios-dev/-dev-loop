@@ -116,3 +116,10 @@
 - next: operator: sign in at the agy-login URL and run agy-login.sh --code '<code>'; then agy-doctor.sh --probe; then pick the run objective
 - blockers: agy authentication (operator)
 - unverified: Dockerfile change not built (no image build here); install.sh's own tarball fetch is sha512-checked so it fails loudly, not silently, if gzip-encoded
+
+## 2026-09-25 16:18 · 8c552ef · done
+- objective: every MiOS dev environment builds MiOS's one SSOT image; the cloud env comes fully provisioned (operator, 2026-09-25)
+- done: MiOS Containerfile resolves its dnf set from mios.toml [packages.devcontainer] (69/69 equal to the old list) and bakes agy fail-closed; bootstrap + -dev-loop devcontainers build it from a sibling checkout via initializeCommand and run MiOS's lifecycle; their copies and the Ubuntu variant are deleted. cloud-fedora-setup.sh: provisions the host (agy/keyring/grants/skill), builds with the Dev Containers CLI (features), commits the devcontainer.json lifecycle (miosd, overlay, /opt/mios/bin), status file + wrapper warning, FEDORA_SETUP_BUDGET_S defer + --lifecycle (both sides tested). Plugin SessionStart revives the keyring into CLAUDE_ENV_FILE in any repo; format.sh parses by shebang. Identity: cloud image vs mios-bootstrap devcontainer build, 574-line census identical; the plain build differed by 16 RPMs. validate.sh rc 0; MiOS manpages + manual ledger regenerated and green
+- next: operator: review and merge the three PRs (MiOS first, since bootstrap/-dev-loop build its Containerfile); rebuild the cloud environment's cache and watch whether a 452s setup still snapshots, and set FEDORA_SETUP_BUDGET_S if it does not
+- blockers: -
+- unverified: platform behaviour of a setup script over ~5 min; Codespaces honouring initializeCommand + out-of-repo build context; Windows cmd.exe initializeCommand; Cloud Shell path; MiOS gate tier is red on main for pre-existing checks (legibility ratchet already over: +1 file/+27 shell lines added, not raised)
