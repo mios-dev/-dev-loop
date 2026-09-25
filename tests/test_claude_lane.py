@@ -859,7 +859,8 @@ def test_template_and_host(c: Ctx) -> None:
     agents = (ROOT / "AGENTS.md").read_text()
     check("AGENTS.md names the tool and cites this control",
           "claude_lane.py" in agents and "tests/test_claude_lane.py" in agents)
-    check("AGENTS.md does not claim a real AGY run proved it", "not yet observed" in agents)
+    check("AGENTS.md scopes the real AGY run to the protocol, not the work",
+          "proves the protocol, not the work" in agents)
 
 
 def cleanup(c: Ctx) -> None:

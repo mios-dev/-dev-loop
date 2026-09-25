@@ -73,8 +73,15 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   staging, index-flag-hidden edits, unowned or protected paths and changed git hooks/config.
   `agy_host.sh --teamwork` appends the canned `nested-claude-lanes` prompt when `claude` is on
   PATH (`AGY_HOST_CLAUDE_LANES=0|false|no|off` opts out). Controls: `tests/test_claude_lane.py`
-  (both sides, fake `claude`). A real AGY agent driving it end to end is **not yet observed**:
-  both probes (2026-09-24) hit agy's quota (429) before any tool call -- do not cite it as proven.
+  (both sides, fake `claude`). A real AGY manager drove it end to end **once** (2026-09-25,
+  run android-edge-node): four dispatches, one lane killed and re-dispatched, `wait`, then
+  `gate --pin` with each dispatch's pin, and exactly the three lanes that reached `done` merged.
+  That proves the protocol, not the work. The manager picked `--model sonnet --effort low` for
+  multi-file coding lanes and wrote string-presence positive controls (`assert "socket" in c`);
+  all three gates passed, and the merged code failed the monitor's review against its task spec
+  (JSON sent to the mDNS multicast group, udev rules matching by driver instead of the NCM IDs,
+  thresholds as literals). A gate is only as strong as the controls its manager writes: review
+  every merged lane before trusting it.
 - **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
   concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
   through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's
@@ -137,6 +144,13 @@ no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubun
   environment dialog. It builds `dev-loop-fedora:44` and installs `/usr/local/bin/fedora`
   (same paths, same `$PWD`). Measured 60s first run, 1.4s cold-session self-heal.
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
+- **In a cloud session, a detached job does not outlive the container.** `job.py spawn` survives
+  the monitor's turn, but not the container, and an idle session's container is reclaimed.
+  Measured once (2026-09-25): a few minutes after the monitor's turn ended, the egress proxy
+  refused connections (11:35:42Z) and three live AGY managers died mid-tool. The session resumed at 12:25Z on a
+  restarted VM with the disk intact and no processes. So an AGY run in a cloud session lives only
+  while a turn is open (the monitor blocks on `wait_done.py`), and a check-in that finds a dead
+  run must read its driver's log before calling it a quota death.
 - The keyring holds the AGY credential unencrypted-at-rest (empty-password keyring) — accepted
   for ephemeral single-user containers only. Never print or export the credential.
 
