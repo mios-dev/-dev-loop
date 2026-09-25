@@ -123,3 +123,10 @@
 - next: operator: review and merge the three PRs (MiOS first, since bootstrap/-dev-loop build its Containerfile); rebuild the cloud environment's cache and watch whether a 452s setup still snapshots, and set FEDORA_SETUP_BUDGET_S if it does not
 - blockers: -
 - unverified: platform behaviour of a setup script over ~5 min; Codespaces honouring initializeCommand + out-of-repo build context; Windows cmd.exe initializeCommand; Cloud Shell path; MiOS gate tier is red on main for pre-existing checks (legibility ratchet already over: +1 file/+27 shell lines added, not raised)
+
+## 2026-09-25 17:33 · c41efb2 · partial
+- objective: /dev-loop:init + podman-first cloud projection, review-fixed; ports SSOT fix in MiOS/bootstrap; Codespaces web-safe settings; -dev-loop self-improvement research (operator, 2026-09-25)
+- done: -dev-loop: init skill (skills/init, mios-init.sh, 32 tests), FEDORA_RUNTIME auto/podman/docker with image-home + usability rule (27 tests), hook no longer clobbers the projection wrapper, plugin SessionStart revives the keyring, format.sh parses by shebang; adversarial review round applied (F1-F12, R1-R4); validate.sh rc 0; pushed c41efb2, draft PR opened. MiOS/bootstrap: whisper/piper ports registered in the SSOT (97-ssot-lint 0 orphans, lint tier 6/6, verifier not refuted), PRs #36/#9 ready. Workflows used for every substantive step (lanes with exclusive owned_paths + adversarial reviewers)
+- next: re-review verdict -> mark the -dev-loop PR ready; Codespaces lane (worktrees /root/.cache/wt on lane/dotfiles-web: desktop-only VS Code keys out of the API-applied surfaces) -> merge, push, PRs; research SPIKE -> backlog the accepted items and run implementation lanes; operator: agy-login.sh --code with a fresh code
+- blockers: agy authentication (operator code expired; fresh URL issued)
+- unverified: re-review of the fix commits; projection under podman end to end; a bare Fedora install path; the ~5 min cache budget overrun behaviour
