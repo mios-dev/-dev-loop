@@ -61,6 +61,20 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   named on every turn, prefixed `UNGATED`. The cost is real and is not hidden -- a lane-less
   run carries no worktree gate and its changes must be reviewed before they are trusted.
   Controls: `tests/test_base_tree_guard.py::TestGuardScope` (both sides).
+- **AGY teamwork runs may spawn nested Claude Code CLI subagents** through
+  `scripts/claude_lane.py`, each one a full dev-loop lane: its own worktree and branch
+  (`.devloop/worktrees/claude-<id>`, `devloop/claude-<id>`), exclusive `owned_paths`,
+  `adapters.py run` spawned detached through `job.py` so it outlives the agent's
+  `run_command` and turn, and the two-sided gate. A bare `claude -p` from run_command does
+  not qualify: it is backgrounded after ~10s and dies with the turn. The tool never merges;
+  the AGY manager gates each lane (`claude_lane.py gate --pin <pin from dispatch>`) and merges
+  only lanes that reached `done` -- a timeout is never a pass. The gate is a detector, not an
+  OS boundary (a lane runs as the same uid): it refuses a rewritten gate definition, commits,
+  staging, index-flag-hidden edits, unowned or protected paths and changed git hooks/config.
+  `agy_host.sh --teamwork` appends the canned `nested-claude-lanes` prompt when `claude` is on
+  PATH (`AGY_HOST_CLAUDE_LANES=0|false|no|off` opts out). Controls: `tests/test_claude_lane.py`
+  (both sides, fake `claude`). A real AGY agent driving it end to end is **not yet observed**:
+  both probes (2026-09-24) hit agy's quota (429) before any tool call -- do not cite it as proven.
 - **Lanes: any mix, multiple instances allowed.** Native Antigravity subagents and multiple
   concurrent Claude Code lanes (`claude -p`) run side by side; other harnesses stay available
   through the orchestrator. Harness-native loop commands (`/dev-loop` shims, Claude Code's

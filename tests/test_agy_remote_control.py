@@ -293,7 +293,13 @@ def test_auto_continue_answers_the_stall_and_stops_on_the_fact() -> None:
     n = turns_taken(["--auto-continue", "3", "--done-cmd", "true"])
     check("a done-cmd that already passes stops it at once", n == 1, f"got {n} turns")
     n = turns_taken(["--auto-continue", "3", "--done-cmd", "false"])
-    check("a done-cmd that fails lets it run the full budget", n == 4, f"got {n} turns")
+    check("a done-cmd failing IDENTICALLY stops at the convergence limit (3), not the budget",
+          n == 3, f"got {n} turns")
+    with tempfile.TemporaryDirectory() as td:
+        ctr = Path(td) / "n"
+        progressing = f'n=$(cat {ctr} 2>/dev/null || echo 0); n=$((n+1)); echo $n > {ctr}; echo "gap $n"; exit 1'
+        n = turns_taken(["--auto-continue", "3", "--done-cmd", progressing])
+    check("a done-cmd whose output CHANGES (progress) runs the full budget", n == 4, f"got {n} turns")
 
 
 
@@ -380,6 +386,109 @@ def test_relay_changes_reach_the_manager() -> None:
           src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
 
 
+# Modelled on a REAL quota death (2026-09-24, agy 1.2.7): two bare error lines, then a result event
+# with status "ERROR" and the reset time; the next turn finds the process gone.
+QUOTA_FAKE = r"""#!/usr/bin/env python3
+import json, os, sys
+mode = os.environ.get("FAKE_MODE", "quota")
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "model": "m", "tools": [], "permission_mode": "always-proceed"}}), flush=True)
+for n, line in enumerate(sys.stdin, 1):
+    if n > 1:
+        sys.exit(1)            # the second turn finds agy already gone
+    if mode == "quota":
+        print("error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 2h44m46s.", flush=True)
+        print('AGY_ERROR: {"short_error":"RESOURCE_EXHAUSTED (code 429): Individual quota reached.","status":"RESOURCE_EXHAUSTED","error_code":429,"retryable":true}', flush=True)
+        print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "ERROR", "response": "", "error": "Individual quota reached. Resets in 2h44m46s.", "duration_seconds": 1.0, "num_turns": 1}}), flush=True)
+    else:
+        print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "SUCCESS", "response": "ok", "duration_seconds": 1.0, "num_turns": 1}}), flush=True)
+"""
+
+
+def ended(mode: str, done_cmd: str) -> tuple[int, str]:
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(QUOTA_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("do the work")
+        cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                             "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3",
+                             "--done-cmd", done_cmd, "--hold-file", str(tmp / "STOP"),
+                             "--hold-max-s", "3"],
+                            capture_output=True, text=True, timeout=120,
+                            env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                                 "FAKE_MODE": mode})
+        return cp.returncode, cp.stderr
+
+
+def test_dead_is_not_done() -> None:
+    """Measured 2026-09-24: 11 nested AGY instances hit a quota 429, exited after two turns, and
+    the driver printed "local work done" and returned 0 -- with not one deliverable written. The
+    external stop condition must decide the exit code, whatever ended the session."""
+    print("a session that ends without the work is not done:")
+    rc, err = ended("quota", "false")
+    check("quota death -> rc 75 (retry after reset)", rc == 75, f"rc={rc}\n{err[-400:]}")
+    check("...and the reset time is carried", "Resets in 2h44m46s" in err, err[-300:])
+    check("...and it is NOT announced as done", "local work done" not in err and "NOT met" in err, err[-300:])
+    rc, err = ended("plain", "false")
+    check("ended without quota, stop condition failing -> rc 7", rc == 7, f"rc={rc}\n{err[-300:]}")
+    rc, err = ended("plain", "true")
+    check("stop condition met -> rc 0, announced as done", rc == 0 and "local work done" in err, f"rc={rc}\n{err[-300:]}")
+
+
+MSG_FAKE = r"""#!/usr/bin/env python3
+import json, os, sys
+log = open(os.environ["FAKE_MSGS"], "a")
+mode = os.environ.get("FAKE_MODE", "claims-done")
+print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "model": "m", "tools": [], "permission_mode": "always-proceed"}}), flush=True)
+for n, line in enumerate(sys.stdin, 1):
+    log.write(json.dumps(json.loads(line)) + "\n"); log.flush()
+    if mode == "refused":
+        print(json.dumps({"event": "result", "result": {"conversation_id": "", "status": "ERROR", "response": "", "error": "invalid model selection: --effort is not supported", "duration_seconds": 0, "num_turns": 0}}), flush=True)
+    else:
+        print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "SUCCESS", "response": "The job is done.", "duration_seconds": 1.0, "num_turns": n}}), flush=True)
+"""
+
+
+def drive(mode: str, done_cmd: str, auto: str = "30") -> tuple[int, str, list[str]]:
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "bin").mkdir()
+        fake = tmp / "bin" / "agy"
+        fake.write_text(MSG_FAKE)
+        fake.chmod(0o755)
+        (tmp / "p.txt").write_text("do the work")
+        msgs = tmp / "msgs.ndjson"
+        cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
+                             "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", auto,
+                             "--done-cmd", done_cmd],
+                            capture_output=True, text=True, timeout=120,
+                            env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                                 "FAKE_MSGS": str(msgs), "FAKE_MODE": mode})
+        got = [json.dumps(json.loads(l).get("message", {}).get("content", ""))
+               for l in (msgs.read_text().splitlines() if msgs.is_file() else [])]
+        return cp.returncode, cp.stderr, got
+
+
+def test_continue_says_why_and_stops_when_stuck() -> None:
+    """Measured 2026-09-24: a research manager reported "done" 30 times while its stop condition
+    failed on thin notes, because every continue said only "continue" -- 30 turns of quota, no
+    information. The continue must carry the stop condition's own output, and the same failure
+    repeated CONVERGE_LIMIT times must stop the loop (SKILL §12), not spend the budget."""
+    print("continue carries the gap; identical failures stop the loop:")
+    rc, err, msgs = drive("claims-done", "echo 'notes.md: 4 distinct URLs < 12'; exit 1")
+    check("the next turn is told the stop condition's output",
+          len(msgs) >= 2 and "4 distinct URLs < 12" in msgs[1], str(msgs[1:2])[:300])
+    check("a manager that only says 'done' is stopped after 3 identical failures, not 30",
+          len(msgs) == 3 and "NOT CONVERGING" in err, f"turns={len(msgs)}\n{err[-300:]}")
+    check("...exit 8 (not converging), never 0", rc == 8, f"rc={rc}")
+    rc, err, msgs = drive("refused", "false")
+    check("an invocation agy refused (ERROR, 0 turns) is not auto-continued",
+          len(msgs) == 1 and "not auto-continuing" in err, f"turns={len(msgs)}\n{err[-300:]}")
+    check("...exit 7, the work was never done", rc == 7, f"rc={rc}")
+
+
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
@@ -392,6 +501,8 @@ def main() -> int:
     test_auto_continue_answers_the_stall_and_stops_on_the_fact()
     test_teamwork_draft_approval_does_not_end_the_run()
     test_relay_changes_reach_the_manager()
+    test_dead_is_not_done()
+    test_continue_says_why_and_stops_when_stuck()
     print()
     if FAILURES:
         print(f"FAILED ({len(FAILURES)}): " + ", ".join(FAILURES))

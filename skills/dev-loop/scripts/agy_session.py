@@ -37,6 +37,10 @@ Wire protocol (all measured, see references/translation-layer.md 5.1a)
 Exit codes: 0 ok · 3 no terminal envelope / session produced nothing · 4 agy missing
             5 lane reports still missing when the poll budget ran out
             6 the manager left the base tree dirty outside every lane worktree
+            7 --done-cmd still FAILS when the session ended (it ended without doing the work)
+            8 not converging: the stop condition failed with IDENTICAL output on CONVERGE_LIMIT
+              consecutive turn-ends -- repeating "continue" would only burn quota
+            75 (EX_TEMPFAIL) as 7, and agy reported RESOURCE_EXHAUSTED: a quota, retry after reset
 
 STATUS OF THE POLL LOOP: UNEXERCISED as of the first end-to-end run (2026-09-19). The manager
 dispatched both native lanes, gated them and merged them inside a SINGLE turn, so `missing_reports`
@@ -381,16 +385,42 @@ class RelayWatch:
                 "before anything else, and act on its open items.")
 
 
-def done_by(cmd: str | None, cwd: str) -> bool:
-    """The EXTERNAL stop signal for --auto-continue. A shell command, run by the driver, never
-    by the model: the model saying it is finished is a claim; this exiting 0 is the fact."""
+def done_check(cmd: str | None, cwd: str) -> tuple[bool, str]:
+    """The EXTERNAL stop signal for --auto-continue, plus WHY it failed. A shell command, run by
+    the driver, never by the model: the model saying it is finished is a claim; this exiting 0 is
+    the fact. The output tail is what the next turn is told, because a manager that is only told
+    "continue" can do nothing but repeat "done" (measured 2026-09-24: 30 turns, quota burnt)."""
     if not cmd:
-        return False
+        return False, ""
     try:
-        return subprocess.run(["sh", "-c", cmd], cwd=cwd, capture_output=True,
-                              timeout=1800).returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        return False
+        cp = subprocess.run(["sh", "-c", cmd], cwd=cwd, capture_output=True, text=True,
+                            timeout=1800)
+    except subprocess.TimeoutExpired:
+        return False, "the stop condition timed out after 1800 s"
+    except OSError as e:
+        return False, f"the stop condition could not run: {e}"
+    out = ((cp.stdout or "") + (cp.stderr or "")).strip()
+    return cp.returncode == 0, out[-1500:] if out else f"(no output; exit {cp.returncode})"
+
+
+def done_by(cmd: str | None, cwd: str) -> bool:
+    return done_check(cmd, cwd)[0]
+
+
+# The same failure output this many turn-ends in a row means the manager is not converging
+# (SKILL §12). Continuing past it only spends quota.
+CONVERGE_LIMIT = 3
+
+
+def fatal_result(result: dict | None, quota: str | None) -> str | None:
+    """A turn-end that no "continue" can fix: a quota, or an invocation agy refused outright
+    (status ERROR with zero turns -- measured: an --effort the model does not support)."""
+    if quota:
+        return "agy hit its quota"
+    r = result or {}
+    if r.get("status") == "ERROR" and not r.get("num_turns"):
+        return "agy refused the invocation: " + str(r.get("error", ""))[:300]
+    return None
 
 
 def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
@@ -589,6 +619,10 @@ def main() -> int:
     turns_sent = 1
     auto_left = max(0, a.auto_continue)
     relay = RelayWatch(a.relay_file)
+    quota = None   # agy's RESOURCE_EXHAUSTED line, kept verbatim: it carries the reset time
+    stuck = None   # set when the stop condition fails identically CONVERGE_LIMIT times running
+    last_why, same_why = None, 0
+    ended_why = None   # why auto-continue stopped, for the pre-hold line
     teamwork_harvested = False
     try:
         proc.stdin.write(ndjson_user(Path(a.prompt_file).read_text()))
@@ -606,6 +640,8 @@ def main() -> int:
                 evt = json.loads(line)
             except json.JSONDecodeError:
                 print(line, file=sys.stderr)  # warnings/errors arrive as bare text
+                if "RESOURCE_EXHAUSTED" in line and quota is None:
+                    quota = line[:400]
                 continue
 
             kind = evt.get("event")
@@ -686,13 +722,32 @@ def main() -> int:
                     continue
 
             if not outstanding:
-                if (auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists())
-                        and not done_by(a.done_cmd, a.run_root)):
+                ok, why = done_check(a.done_cmd, a.run_root)
+                if auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists()) and not ok:
+                    fatal = fatal_result(last_result, quota)
+                    if fatal:
+                        print(f"agy_session: turn {turns_sent} ended on something no continue can "
+                              f"fix ({fatal}); not auto-continuing", file=sys.stderr)
+                        ended_why = fatal
+                        break
+                    same_why = same_why + 1 if (a.done_cmd and why == last_why) else 1
+                    last_why = why
+                    if same_why >= CONVERGE_LIMIT:
+                        stuck = why
+                        print(f"agy_session: NOT CONVERGING -- the stop condition failed with the "
+                              f"same output {same_why} turn-ends in a row; stopping instead of "
+                              f"spending more turns", file=sys.stderr)
+                        ended_why = "not converging"
+                        break
                     auto_left -= 1
                     print(f"agy_session: turn {turns_sent} ended with work outstanding by "
                           f"{'--done-cmd' if a.done_cmd else 'default'}; auto-continue "
                           f"({auto_left} left)", file=sys.stderr)
-                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE + relay.note()))
+                    feedback = (f"\n\nYour stop condition still FAILS. It is `{a.done_cmd}`, run by "
+                                f"the driver, and it printed:\n{why}\nClose exactly these gaps. "
+                                f"Saying the work is done does not change the check."
+                                if a.done_cmd else "")
+                    proc.stdin.write(ndjson_user(CONTINUE_MESSAGE + feedback + relay.note()))
                     proc.stdin.flush()
                     turns_sent += 1
                     continue
@@ -714,7 +769,15 @@ def main() -> int:
             turns_sent += 1
 
         if a.hold_file:
-            print(f"agy_session: local work done after {turns_sent} turn(s); HOLDING the session "
+            # Say which of the two states this is. "local work done" used to be printed
+            # unconditionally, so an agy that died on a quota 429 after two turns was announced
+            # as finished (measured 2026-09-24: 11 nested instances, 0 deliverables, rc 0).
+            met = (not a.done_cmd) or done_by(a.done_cmd, a.run_root)
+            state = ("local work done" if met else
+                     "stop condition NOT met (%s)" % (ended_why or
+                                                      ("agy exited" if proc.poll() is not None
+                                                       else "turn budget spent")))
+            print(f"agy_session: {state} after {turns_sent} turn(s); HOLDING the session "
                   f"open (stop file: {a.hold_file}, ceiling {a.hold_max_s:.0f}s). "
                   f"{'It is attachable from Remote Control.' if a.remote_control else 'NOT registered with Remote Control -- pass --remote-control for that.'}",
                   file=sys.stderr)
@@ -752,6 +815,21 @@ def main() -> int:
     if a.envelope_out:
         Path(a.envelope_out).write_text(text + "\n")
     print(text)
+
+    # The EXTERNAL stop condition decides the exit code, whatever ended the session. Without
+    # this a lane-less run that produced any result event returned 0 -- dead reported as done.
+    if a.done_cmd and not done_by(a.done_cmd, a.run_root):
+        if quota:
+            print("agy_session: --done-cmd still FAILS and agy hit its quota -- retry after the "
+                  "reset: %s" % quota, file=sys.stderr)
+            return 75
+        if stuck is not None:
+            print("agy_session: --done-cmd still FAILS and the run stopped converging; last "
+                  "output: %s" % stuck[-400:], file=sys.stderr)
+            return 8
+        print("agy_session: --done-cmd still FAILS -- the session ended without doing the work",
+              file=sys.stderr)
+        return 7
 
     if base_before is not None:
         strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)
