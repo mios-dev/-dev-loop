@@ -529,9 +529,16 @@ def write_status(events_out: str | None, **fields) -> None:
 
 
 def session_argv(model: str | None = None, effort: str | None = None,
-                 yolo: bool = False, remote_control: bool = False) -> list[str]:
+                 yolo: bool = False, remote_control: bool = False,
+                 conversation: str | None = None) -> list[str]:
     """The held-session command line. Factored out so both sides can be asserted:
     a flag that is always present is not a flag, it is a constant.
+
+    `conversation` resumes an existing agy conversation by id (`agy --conversation ID`,
+    "Resume a previous conversation by ID", agy 1.2.11 --help) instead of starting a fresh
+    one. A relaunch of a run whose manager died MUST resume: a fresh conversation re-reads
+    only the objective and re-plans work already on disk (observed 2026-09-25: a37caaad
+    re-dispatched M1 over a7417589's four merged milestones).
 
     `--remote-control` ("Create a remote connection for the CLI session on start up")
     is what puts THIS session in the Remote Control list at antigravity.google.com.
@@ -557,6 +564,8 @@ def session_argv(model: str | None = None, effort: str | None = None,
         argv.append("--dangerously-skip-permissions")
     if remote_control:
         argv.append("--remote-control")
+    if conversation:
+        argv += ["--conversation", conversation]
     argv.append("-p=")  # MUST be the attached-empty form; a bare -p eats the next flag
     return argv
 
@@ -599,9 +608,12 @@ def main() -> int:
                          "session continues; a later reset ends it with rc 75 (default 300)")
     ap.add_argument("--relay-file", help="the monitor's relay file; when its content changes, the "
                     "next injected turn tells the manager to re-read it")
+    ap.add_argument("--conversation", help="resume this agy conversation id instead of starting a "
+                    "fresh one; --prompt-file is then the first NEW turn of that conversation "
+                    "(a resume note), not the run's kickoff prompt")
     a = ap.parse_args()
 
-    argv = session_argv(a.model, a.effort, a.yolo, a.remote_control)
+    argv = session_argv(a.model, a.effort, a.yolo, a.remote_control, a.conversation)
 
     native_dir = Path(a.run_root) / ".devloop" / "native"
     jobs_dir = Path(a.jobs_root) if a.jobs_root else None
