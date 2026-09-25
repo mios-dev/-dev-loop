@@ -66,6 +66,7 @@ diff -r -x __pycache__ "$REF/.gemini/config/skills" "$HOME/.gemini/config/skills
 
 ## Use
 
+- `/dev-loop:init` — first command in a fresh environment (a rebuilt cloud container, a new devcontainer, a bare Fedora box): finds or clones the four MiOS repos side by side, installs the MiOS package set (`dnf` on Fedora; the identical Fedora userspace projected from MiOS's devcontainer anywhere else, podman first), provisions `agy`, fetches the Global MiOS System Prompt (`usr/share/mios/ai/system.md`) and adopts it, then orients on the MiOS ledger and proposes the next task. Wraps `scripts/env/mios-init.sh` (`--plan`, `--no-packages`, `--prompt-only`); idempotent.
 - `/dev-loop <objective>` — one task through the loop. `/dev-loop lanes:<lanes.json>` — parallel lanes in any mix of harnesses (schema: `assets/lane-schema.json`, example: `assets/lanes.example.json`).
 - `/goal dev <objective>` — define stopping conditions, decompose into tasks, iterate until `goal.py eval` passes.
 - `/research …` → `/dev-loop …` → `/review` → `/ship <branch>`; `/triage <failing cmd>` before touching code.

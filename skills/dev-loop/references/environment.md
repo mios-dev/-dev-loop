@@ -220,6 +220,33 @@ only runs in sessions rooted in this repo, which is why a session opened at `/ho
 had no agy. Sign-in is still `agy-login.sh` once per container: the credential is
 written after the snapshot, so a new session starts without it, and it is never baked.
 
+**Podman first.** MiOS is Podman-native; Docker is for cloud providers that ship nothing
+else. `FEDORA_RUNTIME` (`auto`, the default; `podman`; `docker`) picks the container
+runtime for the build, the lifecycle prebuild and the generated wrapper, which bakes its
+runtime in the way it bakes the image name. `auto` takes podman when it is on PATH and
+docker otherwise, so this cloud VM (docker only) keeps working unchanged. An explicit
+runtime that is not installed, or any other value, logs an error naming it and builds
+nothing (the setup-script contract still exits 0); it never falls back on its own. The
+Dev Containers CLI build gets `--docker-path podman` under podman, and podman is never
+started as a service (it has none). `--print-runtime` prints the choice.
+**Measured (podman 4.9.3, this VM, generic mode):** image built in 55s, the wrapper ran
+through podman, cold start after `podman rm -f` 0.38s. Projection mode under podman (the
+CLI build with `--docker-path`, the local `fedora:44` shadow tag, `podman commit`) has
+not been run end to end; rootless podman has not been tried.
+
+**First command in a fresh environment: `/dev-loop:init`.** It wraps
+`scripts/env/mios-init.sh`: the four repos side by side, the MiOS package set (`dnf` on a
+Fedora host from `mios.toml [packages.devcontainer]` through MiOS's own
+`packages.sh`; the projection above anywhere else, without rebuilding an existing image),
+`setup-antigravity.sh`, and the Global MiOS System Prompt fetched from the deployed
+`/usr/share/mios/ai/system.md`, else the local MiOS checkout, else MiOS `main` on
+GitHub, written to `${XDG_CACHE_HOME:-~/.cache}/mios/system.md` with its sha256 and source
+printed; the skill then has the agent read and adopt it, report agy auth, and orient on
+the MiOS ledger. Idempotent; `--plan` changes nothing. Found while building it: sourcing
+MiOS's `packages.sh` from a MiOS checkout inside the Fedora image resets `MIOS_TOML` to
+`/usr/share/mios/mios.toml` (its `userenv.sh` twin exports it), so `mios-init.sh` sources
+the resolver from `/` and sets `MIOS_TOML` again afterwards.
+
 **Commit from the host, not the container.** A cloud session signs commits
 through a platform helper (`gpg.ssh.program=/tmp/code-sign`, a symlink into
 `/opt/env-runner/`), and neither path is mounted into the container. So
