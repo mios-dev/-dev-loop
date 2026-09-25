@@ -81,10 +81,32 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   `/loop`-style commands, AGY workflows) are allowed inside lanes — they map onto loop stages
   and never replace the gates. Every lane keeps the dev-loop lane contract: exclusive
   `owned_paths`, its own two-sided gate, no `git add/commit/push`, no edits to this file.
-- **Model policy (operator, 2026-09):** Claude Code lanes default to the newest Opus
-  (`--model opus --effort xhigh`); the manager may assign lower tiers (sonnet, haiku, lower
-  effort) to light lanes. Antigravity lanes default to `gemini-3.8-flash-high`; the manager
-  itself runs `gemini-3.1-pro-high`.
+- **Model policy (operator, 2026-09-25, from a sourced stats study:
+  `reports/Coding agent model and harness stats.md` in the monitor's workspace).** Every Gemini tier
+  draws ONE shared pool (Ultra plan; >= 4,192 responses per five-hour slot measured, while one
+  teamwork tree burns 31-47 a minute), so tier choice sets quality and per-task tokens, never
+  availability. AGY manager: `gemini-3.1-pro-high`; coding workers `gemini-3.8-flash-high`;
+  general and research-synthesis runs `-medium` (research fan-out <= 3); harvest `-low`, solo. No
+  `claude-*` through AGY. `gpt-oss-120b-medium` only as solo-harvest overflow while the Gemini
+  pool is dry. Nested Claude Code lanes (Max 5x plan): heavy coding `opus --effort xhigh`, one at
+  a time; research and read-only lanes `sonnet --effort low|medium`. No API lanes (subscription
+  only).
+- **Fleet limits (operator, 2026-09-25):** at most **4** AGY managers live at once on one box, and
+  at most **2** of them teamwork trees (the rest solo); a held session counts. Waves launch right
+  after a pool refill. Launchers refuse a fifth and callers wait for a slot. A held session is
+  stopped (its STOP file, never a kill) as soon as the monitor has reviewed and committed its work.
+- **Pull requests (operator, 2026-09-25):** verified work goes up as a PR ready for review; the
+  operator reviews and merges from the GitHub app. The monitor never merges.
+- **Test doubles (operator, 2026-09-25):** tests replay REAL captured agy/claude transcripts;
+  hand-written fakes are being removed, and live-harness runs happen on demand only. Scenarios
+  no real transcript contains (a lane that tampers with its gate, hangs, or forges a receipt) are
+  dropped with the fakes, so the detection code they exercised becomes **untested** -- say so
+  wherever it is described, never "proven".
+- **Claude Code <-> AGY translation bridge (operator, 2026-09-25):** an MCP server written as a
+  Rust static binary, source and OCI image in THIS repo (vendor names are allowed here; MiOS runs
+  the image through a vendor-neutral, function-named Quadlet). Credentials reach it by
+  bind-mounting the existing agy/claude keyring and config directories; it is reachable across
+  the MiOS mesh VPN, authenticated per the MCP authorization spec.
 - **The manager is the only writer to shared state** (`AGENTS.md`, `.devloop/`, merges). Lanes
   report `contract_updates`; the manager writes them here.
 - **Fallback:** when `agy` is unavailable or unauthenticated, a Claude Code session may host the

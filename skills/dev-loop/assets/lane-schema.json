@@ -123,7 +123,7 @@
         },
         "permission_mode": {
           "type": "string",
-          "description": "claude-code: --permission-mode (default dontAsk). codex: --ask-for-approval value (default never)."
+          "description": "claude-code: --permission-mode (default dontAsk). codex: approval_policy config value, passed as -c approval_policy=<value> (default never)."
         },
         "sandbox": {
           "type": "string",

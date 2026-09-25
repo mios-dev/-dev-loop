@@ -412,11 +412,43 @@ def done_by(cmd: str | None, cwd: str) -> bool:
 CONVERGE_LIMIT = 3
 
 
-def fatal_result(result: dict | None, quota: str | None) -> str | None:
-    """A turn-end that no "continue" can fix: a quota, or an invocation agy refused outright
-    (status ERROR with zero turns -- measured: an --effort the model does not support)."""
+_RESET_RE = re.compile(r"Resets in\s+((?:\d+h)?(?:\d+m)?(?:\d+s)?)")
+
+
+def reset_seconds(text: str | None) -> int | None:
+    """Seconds until a quota resets, from agy's "Resets in 3h4m58s." text; None if absent."""
+    m = _RESET_RE.search(text or "")
+    if not m or not m.group(1):
+        return None
+    part = lambda u: int(re.search(r"(\d+)" + u, m.group(1)).group(1)) if re.search(r"(\d+)" + u, m.group(1)) else 0
+    return part("h") * 3600 + part("m") * 60 + part("s")
+
+
+def quota_in_result(result: dict | None) -> str | None:
+    """The quota text when agy reports it INSIDE a result (status ERROR) rather than as a bare
+    RESOURCE_EXHAUSTED line -- measured both ways, depending on whether stderr was merged."""
+    r = result or {}
+    err = str(r.get("error") or "")
+    if r.get("status") == "ERROR" and ("RESOURCE_EXHAUSTED" in err or "quota" in err.lower()):
+        return err[:400]
+    return None
+
+
+def fatal_result(result: dict | None, quota: str | None, wait_max_s: float = 300) -> str | None:
+    """A turn-end that no "continue" can fix: a quota that resets later than wait_max_s, or an
+    invocation agy refused outright (status ERROR with zero turns -- measured: an --effort the
+    model does not support). A quota that resets within wait_max_s is NOT fatal: the driver waits
+    it out and continues (operator, 2026-09-25: a manager kept doing real work across 31
+    turn-ends that each said "Resets in 16s").
+
+    UNTESTED: the operator allows no hand-written fakes, and the transcript that forced this
+    rule was overwritten before it was frozen. The wait path gets its control when a real
+    short-reset turn is captured (the --events-out tee records one) and frozen as a recording."""
     if quota:
-        return "agy hit its quota"
+        rs = reset_seconds(quota)
+        if rs is not None and rs <= wait_max_s:
+            return None
+        return "agy hit its quota" + (f" (resets in {rs}s)" if rs is not None else "")
     r = result or {}
     if r.get("status") == "ERROR" and not r.get("num_turns"):
         return "agy refused the invocation: " + str(r.get("error", ""))[:300]
@@ -562,6 +594,9 @@ def main() -> int:
                          "exactly as long as this process")
     ap.add_argument("--teamwork", action="store_true",
                     help="supervise an Antigravity /teamwork-preview multi-agent session")
+    ap.add_argument("--quota-wait-max-s", type=float, default=300.0,
+                    help="a quota that resets within this many seconds is waited out and the "
+                         "session continues; a later reset ends it with rc 75 (default 300)")
     ap.add_argument("--relay-file", help="the monitor's relay file; when its content changes, the "
                     "next injected turn tells the manager to re-read it")
     a = ap.parse_args()
@@ -664,6 +699,8 @@ def main() -> int:
                 continue
 
             last_result = evt.get("result", {})
+            if quota is None:
+                quota = quota_in_result(last_result)
             if base_before is not None:
                 strays = stray_base_edits(base_before, base_tree_state(Path(a.run_root)), allowed)
             fresh = [x for x in strays if x not in stray_warned]
@@ -724,7 +761,7 @@ def main() -> int:
             if not outstanding:
                 ok, why = done_check(a.done_cmd, a.run_root)
                 if auto_left > 0 and not (a.hold_file and Path(a.hold_file).exists()) and not ok:
-                    fatal = fatal_result(last_result, quota)
+                    fatal = fatal_result(last_result, quota, a.quota_wait_max_s)
                     if fatal:
                         print(f"agy_session: turn {turns_sent} ended on something no continue can "
                               f"fix ({fatal}); not auto-continuing", file=sys.stderr)
@@ -739,6 +776,12 @@ def main() -> int:
                               f"spending more turns", file=sys.stderr)
                         ended_why = "not converging"
                         break
+                    if quota:
+                        wait_s = (reset_seconds(quota) or 0) + 2
+                        print(f"agy_session: turn {turns_sent} hit a short quota ({quota[:160]}); "
+                              f"waiting {wait_s}s, then continuing", file=sys.stderr)
+                        time.sleep(wait_s)
+                        quota = None   # waited out: a later turn's quota is judged on its own
                     auto_left -= 1
                     print(f"agy_session: turn {turns_sent} ended with work outstanding by "
                           f"{'--done-cmd' if a.done_cmd else 'default'}; auto-continue "

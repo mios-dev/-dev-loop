@@ -384,6 +384,8 @@ def test_relay_changes_reach_the_manager() -> None:
     src = HOST.read_text()
     check("agy_host.sh forwards AGY_HOST_RELAY_FILE at both session call sites",
           src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
+    check("agy_host.sh forwards AGY_HOST_QUOTA_WAIT_MAX_S at both session call sites",
+          src.count('--quota-wait-max-s "$AGY_HOST_QUOTA_WAIT_MAX_S"') == 2)
 
 
 # Modelled on a REAL quota death (2026-09-24, agy 1.2.7): two bare error lines, then a result event

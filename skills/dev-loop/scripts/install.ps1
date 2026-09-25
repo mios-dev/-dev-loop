@@ -1,10 +1,18 @@
 #Requires -Version 7.0
 # Install dev-loop into every harness found (or -All): all 7 skills (+scripts/references/assets) and every command shim. Project scope by default.
 # Claude Code: prefer `claude plugin marketplace add <repo>` + `claude plugin install dev-loop@dev-loop-marketplace`, or `claude --plugin-dir <repo>`.
-param([switch]$All, [switch]$User, [switch]$Global, [switch]$Project, [switch]$DryRun, [switch]$Scaffold, [string[]]$Harness)
+# -Harness gemini-spark is a PACKAGE target (never detected, never part of -All): it emits dist/dev-loop-web.zip (or -Out),
+# SKILL.md at the zip root, plain text only, gated by skill_package.py before it lands; the operator uploads it to Spark.
+param([switch]$All, [switch]$User, [switch]$Global, [switch]$Project, [switch]$DryRun, [switch]$Scaffold, [string[]]$Harness, [string]$Out)
 if ($Global) { $User = $true }; if ($Project) { $User = $false }
 $Src = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path; $Plug = (Resolve-Path (Join-Path $Src '../..')).Path
 $Root = (git rev-parse --show-toplevel 2>$null); if (-not $Root) { $Root = (Get-Location).Path }; $H = $HOME
+if ($Harness -contains 'gemini-spark') {
+  if (-not $Out) { $Out = Join-Path $Root 'dist/dev-loop-web.zip' }
+  Write-Host "[gemini-spark] package -> $Out (upload it on the Spark Skills page)"
+  if (-not $DryRun) { & python3 (Join-Path $Src 'scripts/skill_package.py') pack (Join-Path $Plug 'skills/dev-loop-web') --out $Out; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+  $Harness = @($Harness | Where-Object { $_ -ne 'gemini-spark' }); if ($Harness.Count -eq 0) { exit 0 }
+}
 $Table = @(
   @{n='claude';      d='claude';   ps='.claude/skills';   us="$H/.claude/skills";               pc='.claude/commands';   uc="$H/.claude/commands";              x=@{}},
   @{n='antigravity'; d='agy';      ps='.agents/skills';   us="$H/.gemini/config/skills";        pc='.agents/workflows';  uc="$H/.gemini/config/workflows";       x=@{}},
