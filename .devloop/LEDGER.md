@@ -95,3 +95,10 @@
 - next: -
 - blockers: -
 - unverified: a real codex turn with this argv (no codex auth here; live-harness runs are on demand only)
+
+## 2026-09-25 13:39 · 06445b1 · PR #17 review before ready
+- objective: review PR #17 before marking it ready (operator: refine with AGY if needed)
+- done: agy unauthenticated after the container restart -> reviewed as Claude Code (topology B fallback); no correctness findings in the script or adapters diff. Root-caused the 4 suites that error inside mios-dev: git commit exits 128 because the host signs commits via gpg.ssh.program=/tmp/code-sign (-> /opt/env-runner), which is not mounted; documented 'commit from the host'. Mounting the helper was denied by the permission classifier and not pursued. validate.sh rc 0
+- next: operator: finish agy login (agy-login.sh --code) if an AGY review pass is still wanted; review and merge #17
+- blockers: -
+- unverified: no AGY review ran (no auth); signing inside the container untested (helper mount not permitted)

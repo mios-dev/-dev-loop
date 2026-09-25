@@ -173,6 +173,15 @@ devcontainer's own user instead. `/home` is mounted per entry, never whole —
 mounting it whole hides the image's `/home/mios-dev/.local/bin`, where MiOS
 installs `agy`.
 
+**Commit from the host, not the container.** A cloud session signs commits
+through a platform helper (`gpg.ssh.program=/tmp/code-sign`, a symlink into
+`/opt/env-runner/`), and neither path is mounted into the container. So
+`git commit` inside `mios-dev` fails (`cannot exec '/tmp/code-sign'`, exit
+128), and so does any test suite that makes commits in a temp repo: this is
+why `validate.sh` errors in four suites inside the container and passes on the
+host. Build, test and run inside `mios-dev`; stage, commit and push on the
+host, where the files are the same files.
+
 Why the devcontainer and not MiOS's own image: `ghcr.io/mios-dev/mios:latest`
 is a bootc OCI image of 22.8 GB compressed in 79 layers — too big for the
 setup budget or the VM's disk. The devcontainer is MiOS's build and dev
