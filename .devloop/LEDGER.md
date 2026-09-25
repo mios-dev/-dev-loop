@@ -109,3 +109,10 @@
 - next: operator: add CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop and the new setup script to the environment, then open a new session and type /dev-loop
 - blockers: -
 - unverified: not yet observed in a freshly started cloud session (verified with claude -p in this container); /opt/dev-loop refreshes only when the environment cache is rebuilt
+
+## 2026-09-25 15:15 · 1d4d179 · partial
+- objective: provision AGY in this cloud container (operator pick, topology A prerequisite)
+- done: setup-antigravity.sh failed rc 126 'cannot execute binary file' twice: antigravity.google's CDN sends Content-Encoding: gzip unsolicited from one cache node (~1 in 3 responses; 2/6 measured) and plain curl -fsSL writes the gzip bytes. New scripts/env/fetch-installer.sh (curl --compressed + #! check) used by setup-antigravity.sh; .devcontainer/Dockerfile gets the same flag and check inline. tests/test_agy_installer_fetch.py: local always-gzip server; positive decodes byte-exact and runs; negatives (--compressed stripped, HTML body) fail naming 'not a shell script'; two mutants turn it red. Real CDN 6/6 identical via helper. agy 1.2.11 installed, keyring + grants + skill PASS. validate.sh rc 0
+- next: operator: sign in at the agy-login URL and run agy-login.sh --code '<code>'; then agy-doctor.sh --probe; then pick the run objective
+- blockers: agy authentication (operator)
+- unverified: Dockerfile change not built (no image build here); install.sh's own tarball fetch is sha512-checked so it fails loudly, not silently, if gzip-encoded

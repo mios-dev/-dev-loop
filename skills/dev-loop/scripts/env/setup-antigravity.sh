@@ -86,9 +86,8 @@ if ! command -v agy >/dev/null 2>&1; then
     log "installing the Antigravity CLI from antigravity.google (→ ~/.local/bin/agy)"
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
-    # Download-then-run (never pipe-to-shell) so a truncated transfer fails loudly.
-    curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmpdir/install.sh"
-    [ -s "$tmpdir/install.sh" ] || { echo "[antigravity-setup] ERROR: downloaded installer is empty" >&2; exit 1; }
+    # Download-then-run (never pipe-to-shell); the helper decodes gzip and refuses a non-script.
+    bash "$SCRIPT_DIR/fetch-installer.sh" "${AGY_INSTALLER_URL:-https://antigravity.google/cli/install.sh}" "$tmpdir/install.sh"
     bash "$tmpdir/install.sh"
 fi
 command -v agy >/dev/null 2>&1 || { echo "[antigravity-setup] ERROR: agy still not on PATH after install" >&2; exit 1; }

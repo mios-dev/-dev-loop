@@ -34,8 +34,8 @@ RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
 # 4. Antigravity CLI (baked into image with error-tolerant fallback)
 USER mios-dev
 RUN set -u; tmp="$(mktemp -d)"; \
-    if curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh" \
-       && [ -s "$tmp/install.sh" ] && bash "$tmp/install.sh" >/dev/null 2>&1; then \
+    if curl -fsSL --compressed --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh" \
+       && [ "$(head -c 2 "$tmp/install.sh")" = '#!' ] && bash "$tmp/install.sh" >/dev/null 2>&1; then \
          /home/mios-dev/.local/bin/agy --version; \
     else \
          echo "WARNING: Antigravity CLI not installed at build time" >&2; \
