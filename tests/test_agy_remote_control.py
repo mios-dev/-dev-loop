@@ -115,6 +115,24 @@ def test_flag_order_survives() -> None:
     check("no bare -p anywhere", "-p" not in argv, str(argv))
 
 
+def test_resume_is_a_switch() -> None:
+    """Both sides. A relaunch of a manager that died must RESUME its conversation: a fresh
+    one re-plans work already on disk (2026-09-25, a37caaad redid a7417589's M1-M4). And a
+    resume flag that leaked into every launch would glue unrelated runs together."""
+    print("--conversation is a real switch:")
+    on = session_argv(remote_control=True, conversation="a7417589-8ebe-4711-aa44-5e3864f58021")
+    off = session_argv(remote_control=True)
+    check("on  -> --conversation <id> present, as two tokens",
+          "--conversation" in on and on[on.index("--conversation") + 1] == "a7417589-8ebe-4711-aa44-5e3864f58021", str(on))
+    check("off -> --conversation ABSENT", "--conversation" not in off, str(off))
+    check("an empty id is no resume", "--conversation" not in session_argv(conversation=""), "")
+    check("-p= stays last when resuming", on[-1] == "-p=", str(on))
+    fwd = 'set -- "$@" --conversation "$AGY_HOST_CONVERSATION"'
+    src = HOST.read_text()
+    check("agy_host.sh forwards AGY_HOST_CONVERSATION on both session paths (teamwork, lanes)",
+          src.count(fwd) == 2, f"found {src.count(fwd)} forwarding line(s)")
+
+
 def test_reaches_the_binary() -> None:
     """The builder is only half the claim; the flag has to survive subprocess launch."""
     print("the flag reaches the agy binary:")
@@ -494,6 +512,7 @@ def test_continue_says_why_and_stops_when_stuck() -> None:
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
+    test_resume_is_a_switch()
     test_reaches_the_binary()
     test_host_passes_it_through()
     test_hold_keeps_the_session_alive()
