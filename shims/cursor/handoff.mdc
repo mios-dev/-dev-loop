@@ -1,0 +1,19 @@
+---
+description: End a session on disk — flip the task with evidence, park uncommitted work as a patch, append a ledger entry pinned to HEAD stating what is still unverified
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /handoff
+
+When stopping with work unfinished — budget exhausted, blocked, converged-stuck, context nearly full, or simply ending the session:
+
+- The next session's first step reads `AGENTS.md`, the **last `.devloop/LEDGER.md` entry**, `TASKS.md` and recent history. This command writes them. **Never merge, commit, push or `git add`.** Four steps, in order.
+- **1. FLIP THE TASK** — `python3 <scripts>/artifacts.py tasks set <T-0NN> <status> --root . --evidence "pos: <cmd> -> passed; neg: <plant> -> <cmd> failed naming <expect>"`. Status ∈ `open · in_progress · blocked · done · cancelled` (else `status must be one of [...]`, exit 1; unknown id ⇒ `no task <id>`, exit 1). `done` with no evidence is refused, exit 1: `done requires --evidence (both controls, exact commands)`. That is two-sided verification in code — a check that cannot fail passes identically on correct and on broken code, so `done` needs a positive control that passed **and** a negative control that failed naming the plant. Cannot cite both ⇒ `in_progress` or `blocked`; never work around the refusal. **Measured caveat:** the guard accepts `--evidence` *or* an already-stored `verification_evidence`, so a task that carried evidence earlier can be re-set to `done` with none — stale evidence rubber-stamps new work. Pass fresh evidence every time.
+- **2. RENDER** — `python3 <scripts>/artifacts.py tasks render --root .` rewrites `TASKS.md` from `.devloop/tasks.jsonl` and refuses an invalid JSONL, naming the errors. `TASKS.md` is generated; never hand-edit it.
+- **3. PARK** — `mkdir -p .devloop/run-handoff-$(date +%Y%m%d-%H%M%S)`, `git diff HEAD > .devloop/run-<stamp>/<task-id>.patch`, `git status --porcelain -uall`. Measured: `git diff` = tracked-unstaged only, `git diff HEAD` adds staged, **untracked files are in neither** — list them and name them in the ledger or the next session restores the patch and loses them. Exclude run dirs narrowly (`.devloop/run-*/` in `.git/info/exclude`), **never `.devloop/` wholesale**: `LEDGER.md` and `tasks.jsonl` live there and are the handoff itself.
+- **4. LEDGER** — `python3 <scripts>/adapters.py ledger --root . --status S --objective O --done ... --next ... --blockers ... --unverified ...`. `--status` and `--objective` required (missing ⇒ exit 2); the other four optional, omitted ones written as `-`, so a partial call is still well formed. Appends **newest last** under a heading stamped with `git rev-parse --short HEAD` — pinned to a commit, not a remembered one. One list item per field; keep values single-line. With no commits (or outside a repo) the commit field is written **empty** while the command still exits 0 — that entry is unanchored, say so.
+- **`--unverified` IS THE POINT** — it takes **content, what was claimed but not measured**, never a count: "the retry path was never exercised; no test covers it". A dirty-path count is a proxy, and a proxy lets an unproven claim travel another session as fact. `-` means nothing outstanding, not "did not check".
+- The `PreCompact` hook (`hooks/hooks.json` → `hooks/pre-compact.sh`) calls the same `adapters.py ledger` with a **stub** (`--done "see git log -5"`, `--unverified` a dirty-path count) and is Claude-Code-only — `install.sh` installs skills and shims, never hooks. A floor, not a substitute.
+- Not `/ship` — that merges a finished branch and writes `CHANGELOG.md` after `/review` passed. `/handoff` is the unfinished case and merges nothing.
+- Report: task id + new status, any refusal text, the patch path and the untracked files it does not contain, the ledger heading line (date · commit · status), and the `--unverified` value verbatim.

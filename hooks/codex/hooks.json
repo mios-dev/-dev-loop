@@ -1,0 +1,26 @@
+{
+  "description": "dev-loop enforcement for Codex: block sweeping git adds / secret writes / pipe-to-shell, refuse to stop without a true devloop_report, inject project state.",
+  "hooks": {
+    "SessionStart": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" session-start", "timeout": 15}]}
+    ],
+    "UserPromptSubmit": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" prompt-context", "timeout": 15}]}
+    ],
+    "PreToolUse": [
+      {"matcher": ".*", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" pretool", "timeout": 10}]}
+    ],
+    "PostToolUse": [
+      {"matcher": ".*", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" format", "timeout": 60}]}
+    ],
+    "PreCompact": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" pre-compact", "timeout": 20}]}
+    ],
+    "Stop": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" stop-gate", "timeout": 20}]}
+    ],
+    "SubagentStop": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "python3 \"${DEVLOOP_HOOKS}/codex/devloop-hook.py\" stop-gate", "timeout": 20}]}
+    ]
+  }
+}

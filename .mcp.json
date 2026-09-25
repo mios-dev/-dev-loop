@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "dev-loop": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/skills/dev-loop/scripts/devloop_mcp.py"],
+      "env": {"CI": "1", "GIT_TERMINAL_PROMPT": "0"}
+    }
+  }
+}

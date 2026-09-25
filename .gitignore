@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.bundle
+*.patch
+
+# Lane worktrees are provisioned per run and pruned after the merge gates;
+# the lane plan and its findings under .devloop/ stay tracked.
+/.worktrees/

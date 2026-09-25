@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"name": "dev-loop-session-start", "type": "command", "description": "inject constitution pointer, ledger tail and unblocked tasks", "command": "python3 \"${DEVLOOP_HOOKS}/gemini/devloop-hook.py\" session-start", "timeout": 15000}]}
+    ],
+    "BeforeTool": [
+      {"matcher": ".*", "hooks": [{"name": "dev-loop-guard", "type": "command", "description": "deny sweeping git add / force-push / pipe-to-shell / secret printing / secret-file writes", "command": "python3 \"${DEVLOOP_HOOKS}/gemini/devloop-hook.py\" pretool", "timeout": 10000}]}
+    ],
+    "AfterTool": [
+      {"matcher": ".*", "hooks": [{"name": "dev-loop-format", "type": "command", "description": "non-truncation and parse check on the written file", "command": "python3 \"${DEVLOOP_HOOKS}/gemini/devloop-hook.py\" format", "timeout": 60000}]}
+    ],
+    "PreCompress": [
+      {"hooks": [{"name": "dev-loop-pre-compact", "type": "command", "description": "write a handoff ledger entry before context is compressed", "command": "python3 \"${DEVLOOP_HOOKS}/gemini/devloop-hook.py\" pre-compact", "timeout": 20000}]}
+    ]
+  }
+}
