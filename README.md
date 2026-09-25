@@ -23,6 +23,23 @@ pwsh skills/dev-loop/scripts/install.ps1 -Harness antigravity,gemini,codex,curso
 sh skills/dev-loop/scripts/install.sh --harness antigravity --user
 ```
 
+### Gemini Spark (upload package): `dev-loop-web`
+
+Spark has no install path: it takes a skill only as an uploaded `SKILL.md` or a `.zip` with `SKILL.md` at its
+root, plain text only. `skills/dev-loop-web/` is the web-only variant of the loop (no shell, no checkout: fetch the
+task's contract at a pinned commit, prove bytes by git blob SHA, check both ways, end on the contract's verdict line),
+written in the portable Agent Skills subset and holding no project values. Package it, then upload
+`dist/dev-loop-web.zip` on Spark's Skills page:
+
+```sh
+sh skills/dev-loop/scripts/install.sh --harness gemini-spark            # -> dist/dev-loop-web.zip (or --out PATH/dev-loop-web.zip)
+python3 skills/dev-loop/scripts/skill_package.py check dist/dev-loop-web.zip   # the same gate validate.sh runs
+```
+
+The package is gated before it lands (portable keys only, description ≤ 1024, body < 500 lines, plain-text files
+only, no `.pyc`, name = folder); controls: `tests/test_dev_loop_web_package.py`. Nothing in it has run on a live
+Spark yet; its capability preflight (SKILL.md §2) is what the first run settles.
+
 Required Claude Code settings: `"worktree": {"baseRef": "head"}`; version ≥ 2.1.219. Run `python3 skills/dev-loop/scripts/adapters.py probe` after installing or upgrading any harness CLI.
 
 ### Verify the install is registered *and current*

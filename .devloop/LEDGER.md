@@ -53,3 +53,23 @@
   rewrite the existing tests to replay real transcripts (task #8); run 3 relaunch is queued
 - blockers: -
 - unverified: F16 (a real AGY agent driving claude_lane.py) -- a live-harness run, on demand only
+
+## 2026-09-25 07:49 · 48e0f49+1 · dev-loop-web: the Spark skill, its package target and gate
+- objective: a web-only dev-loop skill the operator uploads to Gemini Spark for the MiOS daily out-of-loop
+  artifact task (design: research note devloop_spark_skill_design.md Q4), packaged and gated here
+- done: skills/dev-loop-web/ (SKILL.md 258-line body, portable keys only, no project values; references
+  verification.md, fetch-paths.md, reply-skeleton.md; six offline stdlib scripts, each --self-test and
+  --two-sided); skill_package.py pack/check; install.sh + install.ps1 `--harness gemini-spark` ->
+  dist/dev-loop-web.zip (37620 bytes, sha256 12ff547c..., reproducible); validate.sh 1b gates the EMITTED
+  zip (section 1 strips Claude-only keys from sub-skills first, so alone it passes `context: fork`)
+- controls: tests/test_dev_loop_web_package.py -- 17 plants into a copy of the emitted zip, each grepped
+  back out and failing by name; 1024 chars / 499 lines pass; 12 gate mutants all turn the suite red; real
+  validate.sh with `context: fork` planted into the real SKILL.md rc 1 naming it, restored (sha256 equal);
+  scripts on real MiOS main data (contract blob 4017c85d proven, exemplar datasets, the contract's strict
+  schema, a two-build OCI layout byte-identical); validate.sh rc 0
+- next: operator uploads dist/dev-loop-web.zip; first live Spark run records preflight A-D and the fetch
+  path table; MiOS-side template rewording + optional [artifacts.daily] task_skill (proposed, not made)
+- blockers: -
+- unverified: everything on a live Spark (bundled scripts run? bytes reach the runner unchanged? which
+  GitHub URL forms are readable? binary attachment?); install.ps1 target never executed (no pwsh here);
+  the agentskills.io reference validator (skills-ref) is not installed -- structural checks only

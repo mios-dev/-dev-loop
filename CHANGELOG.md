@@ -3,6 +3,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 
 ## [Unreleased]
 ### Added
+- `skills/dev-loop-web/`: web-only variant of the loop for scheduled out-of-loop agents (Gemini Spark), portable Agent Skills subset, no project values; offline stdlib scripts (`bytes_proof`, `digest`, `jsonl_check`, `oci_closure`, `schema_check`, `secret_scan`), each with `--self-test` and `--two-sided`.
+- `install.sh` / `install.ps1` `gemini-spark` package target and `skill_package.py` (pack + gate); `validate.sh` gates the emitted zip; controls in `tests/test_dev_loop_web_package.py`.
 ### Changed
 ### Fixed
 ### Removed

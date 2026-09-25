@@ -6,3 +6,6 @@ __pycache__/
 # Lane worktrees are provisioned per run and pruned after the merge gates;
 # the lane plan and its findings under .devloop/ stay tracked.
 /.worktrees/
+
+# install.sh --harness gemini-spark emits the Spark upload package here; a build output, never tracked.
+/dist/

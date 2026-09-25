@@ -2,15 +2,27 @@
 # Install dev-loop into every harness found (or --all): the skill (+scripts/references/assets) and ALL command shims
 # (/dev-loop /goal /research /review /ship /triage /websearch), project scope by default.
 #   sh skills/dev-loop/scripts/install.sh [--all] [--user|--global] [--project] [--dry-run] [--scaffold]
-#                                            [--harness claude,antigravity,gemini,codex,cursor,copilot,opencode,hermes]
+#                                            [--harness claude,antigravity,gemini,codex,cursor,copilot,opencode,hermes,gemini-spark]
+#                                            [--out PATH/dev-loop-web.zip]
+# gemini-spark is a PACKAGE target, never detected and never part of --all: Spark takes a skill only as an
+# uploaded SKILL.md or .zip, so this emits dist/dev-loop-web.zip (SKILL.md at the zip root, plain text only,
+# no __pycache__/.pyc/.DS_Store), gated by skill_package.py before it lands. The operator uploads it on the
+# Skills page (no install API exists). Control: tests/test_dev_loop_web_package.py.
 # Claude Code: prefer the plugin —  claude plugin marketplace add <path-or-repo> && claude plugin install dev-loop@dev-loop-marketplace
 #              (or `claude --plugin-dir <this repo>` for local dev). The copy below is the fallback for skills-only setups.
 set -eu
 SRC=$(cd "$(dirname "$0")/.." && pwd)            # skills/dev-loop
 PLUG=$(cd "$SRC/../.." && pwd)                    # plugin root (shims/, agents/, hooks/)
-ALL=0; USER_SCOPE=0; DRY=0; ONLY=""; SCAF=0
-while [ $# -gt 0 ]; do case "$1" in --all) ALL=1;; --user|--global) USER_SCOPE=1;; --project) USER_SCOPE=0;; --dry-run) DRY=1;; --scaffold) SCAF=1;; --harness) ONLY=$2; shift;; *) echo "unknown $1" >&2; exit 64;; esac; shift; done
+ALL=0; USER_SCOPE=0; DRY=0; ONLY=""; SCAF=0; OUT=""
+while [ $# -gt 0 ]; do case "$1" in --all) ALL=1;; --user|--global) USER_SCOPE=1;; --project) USER_SCOPE=0;; --dry-run) DRY=1;; --scaffold) SCAF=1;; --harness) ONLY=$2; shift;; --out) OUT=$2; shift;; *) echo "unknown $1" >&2; exit 64;; esac; shift; done
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); H=${HOME:-~}
+case ",$ONLY," in *",gemini-spark,"*)
+  OUT=${OUT:-$ROOT/dist/dev-loop-web.zip}
+  echo "[gemini-spark] package -> $OUT (upload it on the Spark Skills page)"
+  [ "$DRY" = 1 ] || python3 "$SRC/scripts/skill_package.py" pack "$PLUG/skills/dev-loop-web" --out "$OUT"
+  ONLY=$(printf ',%s,' "$ONLY" | sed -e 's/,gemini-spark,/,/g' -e 's/^,*//' -e 's/,*$//')
+  [ -n "$ONLY" ] || exit 0;;
+esac
 # name | detect | project skills root | user skills root | project cmd dir | user cmd dir | extra routes (ext=dir;...) — cmd dirs relative to ROOT / absolute for user
 # Antigravity: its skills dirs give first-class /<name> slash commands on their own, so the
 # shims are belt-and-braces. Upstream calls workflows deprecated (its own `migrate-workflows`
