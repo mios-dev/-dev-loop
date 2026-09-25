@@ -99,9 +99,13 @@ One script, absolute path, every subcommand prints ONE JSON object on stdout:
 
 ## Model policy
 
-Claude lanes default to --model opus --effort xhigh (the newest Opus). The manager may assign
-lower tiers to light lanes: --model sonnet --effort high for routine edits, a haiku model for
-mechanical ones. Say in your report which tier each lane ran.
+Operator policy (2026-09-25, from a sourced stats study):
+- Heavy coding lanes: --model opus --effort xhigh (the newest Opus), and ONE at a time: every
+  lane shares the operator's one five-hour Claude window, and N concurrent xhigh lanes shorten it
+  roughly N-fold. Queue the next heavy lane until the running one is gated.
+- Research, read-only and short single-file lanes: --model sonnet --effort low or medium.
+- Do not pin a haiku model: it has no effort control and may be retired.
+Say in your report which model and effort each lane ran.
 
 ## Gate, then merge -- the AGY MANAGER ONLY
 

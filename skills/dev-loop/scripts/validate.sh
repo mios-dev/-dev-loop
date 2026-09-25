@@ -15,6 +15,12 @@ assert not bad, f"non-spec keys {bad}"; assert re.fullmatch(r'[a-z0-9]+(-[a-z0-9
 print("skill",name,": ok (structural; pip install skills-ref for the reference validator)")
 PY
   fi; done; rm -rf "$T"
+# 1b. the Gemini Spark upload package: pack skills/dev-loop-web exactly as `install.sh --harness gemini-spark` does and gate the
+#     EMITTED zip (non-portable keys, description > 1024, body >= 500 lines, non-plain-text or .pyc files, name != folder), not
+#     the source folder -- the write hook leaves __pycache__ there, and the zip is what gets uploaded. Each planted violation
+#     failing by name: tests/test_dev_loop_web_package.py (run in 3b).
+Z=$(mktemp -d); O=""; if O=$("$PY" "$PLUG/skills/dev-loop/scripts/skill_package.py" pack "$PLUG/skills/dev-loop-web" --out "$Z/dev-loop-web.zip" 2>&1) \
+  && "$PY" "$PLUG/skills/dev-loop/scripts/skill_package.py" check "$Z/dev-loop-web.zip"; then :; else printf '%s\n' "$O"; note "skill package dev-loop-web: FAIL (not uploadable)"; FAIL=1; fi; rm -rf "$Z"
 # 2. plugin manifest + hooks shape + agents frontmatter
 "$PY" - "$PLUG" <<'PY' || FAIL=1
 import json,sys,glob,re; P=sys.argv[1]
@@ -59,6 +65,8 @@ for t in json.load(open(f"{A}/openai-tools.json")):
 print("openai-tools strict: ok")
 PY
 for f in "$PLUG"/skills/dev-loop/scripts/*.py; do "$PY" -m py_compile "$f" || FAIL=1; done; rm -rf "$PLUG"/skills/dev-loop/scripts/__pycache__
+# dev-loop-web ships as an upload package: compile() in memory, so no .pyc is ever written next to its scripts
+for f in "$PLUG"/skills/dev-loop-web/scripts/*.py; do "$PY" -c 'import sys; compile(open(sys.argv[1], encoding="utf-8").read(), sys.argv[1], "exec")' "$f" || { note "syntax: $f"; FAIL=1; }; done
 for f in "$PLUG"/skills/dev-loop/scripts/*.sh "$PLUG"/skills/dev-loop/scripts/env/*.sh "$PLUG"/hooks/*.sh; do sh -n "$f" || { note "syntax: $f"; FAIL=1; }; done; note "python/shell syntax: ok"
 # 3b. behavioural tests — syntax checks above cannot see a criterion that reports PASSED unmeasured
 for t in "$PLUG"/tests/test_*.py; do

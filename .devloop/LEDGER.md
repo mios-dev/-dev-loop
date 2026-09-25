@@ -42,9 +42,56 @@
 - blockers: -
 - unverified: no mutant for the wait-blocked span check (the rc/state checks also catch an early wait)
 
+## 2026-09-25 02:50 · c6266e7 · monitor session: operator decisions, caps, PRs
+- objective: act on the operator's 24 answers (decisions file: ~/.devloop-runtime/operator-decisions-2026-09-25.md)
+- done: 4-manager cap (live_managers.py, launcher refuses a 5th; both sides); quota probe/wait
+  require the assigned tier (stub controls 6/6); -dev-loop main squashed to 46b325c (tree
+  identical) and #14 replaced by #15 (GitHub closed #14 on the base rewrite); AGENTS.md records
+  the decisions; MiOS#32 (generated ARTIFACT-PROMPT.md + run 4 ToC + T-1104..T-1111, drift
+  236 -> 217 vs a same-binaries baseline) and mios-bootstrap#7; 4-hourly routine armed
+- next: replay-only revision of the role-symmetry build (wf_e487f7e3-399), then its AGY build;
+  rewrite the existing tests to replay real transcripts (task #8); run 3 relaunch is queued
+- blockers: -
+- unverified: F16 (a real AGY agent driving claude_lane.py) -- a live-harness run, on demand only
+
 ## 2026-09-25 07:29 · f909dfe · cloud session: MiOS devcontainer projection
 - objective: make a cloud session a Fedora container projected from MiOS's devcontainer, with a reusable setup script
 - done: cloud-fedora-setup.sh FEDORA_DEVCONTAINER_REPO mode: shallow clone, unedited build of .devcontainer/Containerfile on a locally shadowed CA-trusting repo-pinned fedora:44 (FROM resolved to the shadow digest), inherited CA env incl. PIP_CERT, wrapper baked + installed as mios-dev and fedora, per-entry /home mounts (whole /home hid agy), concurrent cold-start race fixed. Measured 3m32s first run, 0.36s re-run, 1.45s cold, 3m14s first-use build from baked values. adapters.validate_spec fallback now enforces the schema's numeric worker bounds (host lacks jsonschema; test_claude_lane timeout check was red on HEAD). validate.sh rc 0
 - next: operator: paste the script + the two FEDORA_DEVCONTAINER_* vars into a cloud environment and make it the default; decide whether validate.sh should also pass inside mios-dev (4 suites error there)
 - blockers: -
 - unverified: the platform snapshot of a pasted setup-script run was not observed from a fresh session; 3m32s leaves ~1.5 min of the ~5 min budget; node reached github.com with NODE_EXTRA_CA_CERTS unset, so that var is belt-and-braces there
+
+## 2026-09-25 07:49 · 48e0f49+1 · dev-loop-web: the Spark skill, its package target and gate
+- objective: a web-only dev-loop skill the operator uploads to Gemini Spark for the MiOS daily out-of-loop
+  artifact task (design: research note devloop_spark_skill_design.md Q4), packaged and gated here
+- done: skills/dev-loop-web/ (SKILL.md 258-line body, portable keys only, no project values; references
+  verification.md, fetch-paths.md, reply-skeleton.md; six offline stdlib scripts, each --self-test and
+  --two-sided); skill_package.py pack/check; install.sh + install.ps1 `--harness gemini-spark` ->
+  dist/dev-loop-web.zip (37620 bytes, sha256 12ff547c..., reproducible); validate.sh 1b gates the EMITTED
+  zip (section 1 strips Claude-only keys from sub-skills first, so alone it passes `context: fork`)
+- controls: tests/test_dev_loop_web_package.py -- 17 plants into a copy of the emitted zip, each grepped
+  back out and failing by name; 1024 chars / 499 lines pass; 12 gate mutants all turn the suite red; real
+  validate.sh with `context: fork` planted into the real SKILL.md rc 1 naming it, restored (sha256 equal);
+  scripts on real MiOS main data (contract blob 4017c85d proven, exemplar datasets, the contract's strict
+  schema, a two-build OCI layout byte-identical); validate.sh rc 0
+- next: operator uploads dist/dev-loop-web.zip; first live Spark run records preflight A-D and the fetch
+  path table; MiOS-side template rewording + optional [artifacts.daily] task_skill (proposed, not made)
+- blockers: -
+- unverified: everything on a live Spark (bundled scripts run? bytes reach the runner unchanged? which
+  GitHub URL forms are readable? binary attachment?); install.ps1 target never executed (no pwsh here);
+  the agentskills.io reference validator (skills-ref) is not installed -- structural checks only
+
+## 2026-09-25 08:10 · fedbd2c+1 · codex lanes: approval policy as a config override
+- objective: every codex lane died at argument parsing -- `codex exec` (codex-cli 0.155.1) rejects
+  `--ask-for-approval` ("unexpected argument", rc 2); it is a top-level `codex` flag. Found by the
+  upstream-APIs report (defect D1); `adapters.py probe --harness codex` already reported the drift (rc 1)
+- done: build_argv passes `-c approval_policy=<permission_mode, default never>`; PROBE_FLAGS for codex
+  now names the exec flags actually used (--config, --ephemeral); harness-adapters.md row and the
+  lane-schema permission_mode description updated
+- controls: tests/test_codex_argv.py against the REAL binary (`--help` in the prompt's place, so no model
+  call): the adapter argv parses rc 0; the old flag spliced back in fails and names it. Mutant (old flag
+  restored in adapters.py) turns 4 tests red. Config layer, both sides: `-c approval_policy=bogus` ->
+  "unknown variant `bogus` ... in `approval_policy`"; `never` loads and starts a thread. probe rc 0
+- next: -
+- blockers: -
+- unverified: a real codex turn with this argv (no codex auth here; live-harness runs are on demand only)
