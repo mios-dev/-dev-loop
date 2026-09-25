@@ -43,6 +43,13 @@
 #   FEDORA_PROVISION_HOST=0  skip provisioning the VM itself (agy, keyring,
 #                     grants, dev-loop skill via setup-antigravity.sh), which
 #                     otherwise runs first so Claude Code has agy on the host
+#   FEDORA_RUNTIME    auto|podman|docker                 (default auto)
+#                     MiOS is Podman-native: auto takes podman when it is on
+#                     PATH, else docker (Anthropic's cloud VM ships only docker).
+#                     An explicit runtime that is missing, or any other value,
+#                     logs an error and skips the Fedora build -- never a silent
+#                     fallback. `--print-runtime` prints the choice and exits.
+#   FEDORA_BUILD_CTX  build context + script cache dir   (default /opt/dev-loop-fedora)
 #
 # DEVCONTAINER PROJECTION MODE (worked example: MiOS)
 #   Set FEDORA_DEVCONTAINER_REPO and the session becomes a projection of that
@@ -95,7 +102,7 @@ set -u
 
 FEDORA_VERSION="${FEDORA_VERSION:-44}"
 FEDORA_BASE="registry.fedoraproject.org/fedora:${FEDORA_VERSION}"
-BUILD_CTX=/opt/dev-loop-fedora
+BUILD_CTX="${FEDORA_BUILD_CTX:-/opt/dev-loop-fedora}"
 # Where update-ca-trust writes the merged bundle (egress CA included).
 CA_PEM=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
 SELF=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")
@@ -126,10 +133,15 @@ else
 fi
 WRAPPER_ONLY=0
 LIFECYCLE_ONLY=0
+PRINT_RUNTIME=0
 case "${1:-}" in
     --wrapper-only) WRAPPER_ONLY=1 ;;
     --lifecycle) LIFECYCLE_ONLY=1 ;;
+    --print-runtime) PRINT_RUNTIME=1 ;;
 esac
+FEDORA_RUNTIME="${FEDORA_RUNTIME:-auto}"
+# The chosen container runtime binary; set by select_runtime, used by every call.
+RT=""
 
 # The generic (non-projection) image only. A MiOS session uses projection mode,
 # which builds MiOS's one dev Containerfile instead of this list.
@@ -138,7 +150,40 @@ FEDORA_PACKAGES="${FEDORA_PACKAGES:-git tmux jq curl wget ripgrep python3 python
 
 log() { printf '[fedora-env] %s\n' "$*"; }
 
-# --- 1. the Docker daemon -----------------------------------------------------
+# --- 0. the container runtime ---------------------------------------------------
+# MiOS is Podman-native; Docker is only for hosts that ship Docker exclusively
+# (Anthropic's cloud VM). An explicit choice is honoured or refused, never
+# swapped: a silent fallback would build into the other runtime's image store,
+# where the wrapper baked for the requested one can never find it.
+select_runtime() {
+    case "$FEDORA_RUNTIME" in
+        auto)
+            if command -v podman >/dev/null 2>&1; then RT=podman
+            elif command -v docker >/dev/null 2>&1; then RT=docker
+            else log "FEDORA_RUNTIME=auto: neither podman nor docker is on PATH"; return 1
+            fi ;;
+        podman|docker)
+            command -v "$FEDORA_RUNTIME" >/dev/null 2>&1 || {
+                log "FEDORA_RUNTIME=$FEDORA_RUNTIME: $FEDORA_RUNTIME is not on PATH -- refusing to fall back to another runtime"
+                return 1; }
+            RT=$FEDORA_RUNTIME ;;
+        *)
+            log "FEDORA_RUNTIME=$FEDORA_RUNTIME is not a supported runtime (auto|podman|docker)"
+            return 1 ;;
+    esac
+}
+
+# Podman is daemonless: nothing to start, only check that it works.
+ensure_runtime() {
+    if [ "$RT" = podman ]; then
+        podman info >/dev/null 2>&1 && return 0
+        log "podman info failed -- podman cannot run here"
+        return 1
+    fi
+    ensure_dockerd
+}
+
+# --- 1. the Docker daemon (docker runtime only) ----------------------------------
 # Present but not started: the environment cache restores files, never running
 # processes, so this is also what /usr/local/bin/fedora does on a cold session.
 ensure_dockerd() {
@@ -271,15 +316,22 @@ install_wrapper() {
         printf 'IMAGE="${FEDORA_IMAGE:-%s}"\n' "$FEDORA_IMAGE"
         printf 'CONTAINER="${FEDORA_CONTAINER:-%s}"\n' "$FEDORA_CONTAINER"
         printf 'EXEC_USER="${FEDORA_EXEC_USER:-%s}"\n' "$FEDORA_EXEC_USER"
+        # Baked, not read from the env: each runtime has its own image store, so
+        # the image only exists in the runtime that built it.
+        printf 'RUNTIME=%q\n' "$RT"
         printf 'SETUP_SCRIPT=%q\n' "$SCRIPT_CACHE"
         printf 'LIFECYCLE_STATUS=%q\n' "$BUILD_CTX/${DC_NAME:-none}.lifecycle"
         printf 'BUILD_ENV=(FEDORA_VERSION=%q FEDORA_IMAGE="$IMAGE" FEDORA_CONTAINER="$CONTAINER"' "$FEDORA_VERSION"
+        printf ' FEDORA_RUNTIME="$RUNTIME" FEDORA_BUILD_CTX=%q' "$BUILD_CTX"
         printf ' FEDORA_DEVCONTAINER_REPO=%q FEDORA_DEVCONTAINER_FILE=%q' "$DC_REPO" "$DC_FILE"
         printf ' FEDORA_DEVCONTAINER_REF=%q FEDORA_DEVCONTAINER_NAME=%q)\n' "$DC_REF" "$DC_NAME"
         cat <<'WRAPPER'
 die() { printf '%s: %s\n' "${0##*/}" "$*" >&2; exit 1; }
 
-ensure_dockerd() {
+# Podman is daemonless; only docker needs its daemon started on a cold session.
+ensure_runtime() {
+    command -v "$RUNTIME" >/dev/null 2>&1 || die "$RUNTIME (the runtime this wrapper was built for) is not on PATH"
+    [ "$RUNTIME" = docker ] || return 0
     docker info >/dev/null 2>&1 && return 0
     command -v dockerd >/dev/null 2>&1 || die "dockerd is not installed"
     ( dockerd >/var/log/dev-loop-dockerd.log 2>&1 & ) >/dev/null 2>&1
@@ -312,7 +364,7 @@ run_args() {
 }
 
 ensure_image() {
-    docker image inspect "$IMAGE" >/dev/null 2>&1 && return 0
+    "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1 && return 0
     # FEDORA_NO_AUTOBUILD guards the recursion: the setup script verifies itself
     # by calling this wrapper, and a failed build must not bounce the two off
     # each other forever.
@@ -321,12 +373,12 @@ ensure_image() {
     [ -r "$SETUP_SCRIPT" ] || die "image $IMAGE is missing — re-run $SETUP_SCRIPT"
     printf '%s: first use — building %s, this takes a few minutes…\n' "${0##*/}" "$IMAGE" >&2
     env "${BUILD_ENV[@]}" FEDORA_NO_AUTOBUILD=1 bash "$SETUP_SCRIPT" >&2
-    docker image inspect "$IMAGE" >/dev/null 2>&1 ||
+    "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1 ||
         die "build failed (see /var/log/dev-loop-fedora-build.log)"
 }
 
 ensure_container() {
-    state=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null) || state=""
+    state=$("$RUNTIME" inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null) || state=""
     case "$state" in
         running) return 0 ;;
         "")
@@ -337,15 +389,15 @@ ensure_container() {
             fi
             mapfile -t args < <(run_args)
             # A concurrent first call may win the name; its container is as good.
-            docker run -d --name "$CONTAINER" "${args[@]}" "$IMAGE" sleep infinity >/dev/null 2>&1 ||
-                [ "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" = running ] ||
+            "$RUNTIME" run -d --name "$CONTAINER" "${args[@]}" "$IMAGE" sleep infinity >/dev/null 2>&1 ||
+                [ "$("$RUNTIME" inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" = running ] ||
                 die "could not start the Fedora container"
             ;;
-        *) docker start "$CONTAINER" >/dev/null || die "could not restart $CONTAINER" ;;
+        *) "$RUNTIME" start "$CONTAINER" >/dev/null || die "could not restart $CONTAINER" ;;
     esac
 }
 
-ensure_dockerd
+ensure_runtime
 # Before ensure_container, never after: an on-demand build runs the setup
 # script, which verifies itself through this same wrapper and may create the
 # container — so any container state read earlier would already be stale.
@@ -366,9 +418,9 @@ fi
 [ -t 0 ] && [ -t 1 ] && exec_flags+=(-t)
 
 if [ "$#" -eq 0 ]; then
-    exec docker exec "${exec_flags[@]}" "$CONTAINER" bash -l
+    exec "$RUNTIME" exec "${exec_flags[@]}" "$CONTAINER" bash -l
 fi
-exec docker exec "${exec_flags[@]}" "$CONTAINER" "$@"
+exec "$RUNTIME" exec "${exec_flags[@]}" "$CONTAINER" "$@"
 WRAPPER
     } > "$tmp" || { rm -f "$tmp"; return 1; }
     chmod 0755 "$tmp" || { rm -f "$tmp"; return 1; }
@@ -421,15 +473,15 @@ build_devcontainer() {
             tag=${from##*:}
             upstream="dev-loop-fedora-upstream:$tag"
             log "pulling $from"
-            if docker pull "$from" >/dev/null 2>&1 && docker tag "$from" "$upstream"; then :
-            elif docker image inspect "$upstream" >/dev/null 2>&1; then
+            if "$RT" pull "$from" >/dev/null 2>&1 && "$RT" tag "$from" "$upstream"; then :
+            elif "$RT" image inspect "$upstream" >/dev/null 2>&1; then
                 log "pull failed — reusing the cached $upstream"
             else
                 log "pull failed — is registry.fedoraproject.org allowed by this environment's network policy?"
                 return 1
             fi
             log "building the base and tagging it locally as $from"
-            docker build --network host -f "$BUILD_CTX/Dockerfile.base" \
+            "$RT" build --network host -f "$BUILD_CTX/Dockerfile.base" \
                 --build-arg "FEDORA_BASE=$upstream" \
                 -t "dev-loop-fedora-base:$tag" -t "$from" \
                 "$BUILD_CTX" >>/var/log/dev-loop-fedora-build.log 2>&1 || return 1
@@ -438,11 +490,13 @@ build_devcontainer() {
     esac
     if [ -f "$DC_SRC/$DC_JSON" ] && cli=$(dc_cli); then
         log "building $DC_BASE with the Dev Containers CLI ($DC_JSON: Containerfile + features)"
-        "$cli" build --workspace-folder "$DC_SRC" --config "$DC_SRC/$DC_JSON" \
-            --image-name "$DC_BASE" >>/var/log/dev-loop-fedora-build.log 2>&1 || return 1
+        set -- "$cli" build --workspace-folder "$DC_SRC" --config "$DC_SRC/$DC_JSON" --image-name "$DC_BASE"
+        # The CLI shells out to `docker` unless told otherwise.
+        [ "$RT" = podman ] && set -- "$@" --docker-path podman
+        "$@" >>/var/log/dev-loop-fedora-build.log 2>&1 || return 1
     else
         log "building $DC_BASE from $DC_REPO:$DC_FILE (Containerfile only: no features applied)"
-        docker build --network host -f "$cf" -t "$DC_BASE" \
+        "$RT" build --network host -f "$cf" -t "$DC_BASE" \
             "$DC_SRC" >>/var/log/dev-loop-fedora-build.log 2>&1 || return 1
     fi
     run_lifecycle
@@ -502,14 +556,14 @@ run_lifecycle() {
     budget=${FEDORA_SETUP_BUDGET_S:-0}
     if [ "$LIFECYCLE_ONLY" = 0 ] && [ "${FEDORA_NO_AUTOBUILD:-0}" != 1 ] && [ "$budget" -gt 0 ] && [ $((SECONDS - SETUP_T0)) -ge "$budget" ]; then
         echo "deferred: ${budget}s setup budget spent before it started; run: bash $SCRIPT_CACHE --lifecycle" > "$status_file"
-        docker tag "$DC_BASE" "$FEDORA_IMAGE"
+        "$RT" tag "$DC_BASE" "$FEDORA_IMAGE"
         log "lifecycle: $(cat "$status_file")"
         return
     fi
     if [ "${FEDORA_DEVCONTAINER_LIFECYCLE:-1}" = 0 ] || [ ! -f "$DC_SRC/$DC_JSON" ]; then
         log "no lifecycle prebuild ($DC_JSON absent or FEDORA_DEVCONTAINER_LIFECYCLE=0)"
         echo "skipped" > "$status_file"
-        docker tag "$DC_BASE" "$FEDORA_IMAGE"
+        "$RT" tag "$DC_BASE" "$FEDORA_IMAGE"
         return
     fi
     user=$(dc_json_get remoteUser); user=${user:-root}
@@ -520,16 +574,16 @@ run_lifecycle() {
         [ -n "$c" ] && cmds="${cmds:+$cmds && }{ $c; }"
     done
     if [ -z "$cmds" ]; then
-        echo "skipped" > "$status_file"; docker tag "$DC_BASE" "$FEDORA_IMAGE"; return
+        echo "skipped" > "$status_file"; "$RT" tag "$DC_BASE" "$FEDORA_IMAGE"; return
     fi
     # The lifecycle writes build output into the workspace as the devcontainer user.
-    uid=$(docker run --rm --entrypoint id "$DC_BASE" -u "$user" 2>/dev/null) &&
+    uid=$("$RT" run --rm --entrypoint id "$DC_BASE" -u "$user" 2>/dev/null) &&
         chown -R "$uid:$uid" "$DC_SRC"
     pc="$DC_NAME-prebuild"
-    docker rm -f "$pc" >/dev/null 2>&1
+    "$RT" rm -f "$pc" >/dev/null 2>&1
     # Argument list via `set --`, not an array: validate.sh parses every env
     # script with `sh -n`, as fetch_devcontainer_src above already respects.
-    set -- docker run -d --name "$pc" --network host -v "$DC_SRC:$wsf"
+    set -- "$RT" run -d --name "$pc" --network host -v "$DC_SRC:$wsf"
     for v in HTTPS_PROXY https_proxy NO_PROXY no_proxy HTTP_PROXY http_proxy; do
         val=$(printenv "$v") && [ -n "$val" ] && set -- "$@" -e "$v=$val"
     done
@@ -537,17 +591,17 @@ run_lifecycle() {
     lc_started=$SECONDS
     if ! "$@" "$DC_BASE" sleep infinity >/dev/null 2>>/var/log/dev-loop-fedora-build.log; then
         echo "failed: could not start the prebuild container" > "$status_file"
-    elif timeout "${FEDORA_LIFECYCLE_TIMEOUT_S:-900}" docker exec -u "$user" -w "$wsf" "$pc" \
+    elif timeout "${FEDORA_LIFECYCLE_TIMEOUT_S:-900}" "$RT" exec -u "$user" -w "$wsf" "$pc" \
             bash -lc "$cmds" >>/var/log/dev-loop-fedora-build.log 2>&1; then
-        docker commit --change 'CMD ["/usr/bin/zsh"]' "$pc" "$FEDORA_IMAGE" >/dev/null &&
+        "$RT" commit --change 'CMD ["/usr/bin/zsh"]' "$pc" "$FEDORA_IMAGE" >/dev/null &&
             echo "ok" > "$status_file"
     else
         echo "failed: rc=$? (see /var/log/dev-loop-fedora-build.log)" > "$status_file"
     fi
-    docker rm -f "$pc" >/dev/null 2>&1
+    "$RT" rm -f "$pc" >/dev/null 2>&1
     # A failed lifecycle degrades to the bare Containerfile image, never to none,
     # and says so: the status file is what `mios-dev` reports on a cold start.
-    docker image inspect "$FEDORA_IMAGE" >/dev/null 2>&1 || docker tag "$DC_BASE" "$FEDORA_IMAGE"
+    "$RT" image inspect "$FEDORA_IMAGE" >/dev/null 2>&1 || "$RT" tag "$DC_BASE" "$FEDORA_IMAGE"
     log "lifecycle: $(cat "$status_file") in $((SECONDS - lc_started))s"
 }
 
@@ -574,10 +628,10 @@ provision_host() {
 
 build_generic() {
     log "pulling $FEDORA_BASE"
-    docker pull "$FEDORA_BASE" >/dev/null 2>&1 || { log "pull failed — is registry.fedoraproject.org allowed by this environment's network policy?"; return 1; }
+    "$RT" pull "$FEDORA_BASE" >/dev/null 2>&1 || { log "pull failed — is registry.fedoraproject.org allowed by this environment's network policy?"; return 1; }
     log "building $FEDORA_IMAGE"
     # --network host so the build itself reaches the proxy on 127.0.0.1.
-    docker build --network host \
+    "$RT" build --network host \
         --build-arg "FEDORA_BASE=$FEDORA_BASE" \
         -t "$FEDORA_IMAGE" "$BUILD_CTX" >>/var/log/dev-loop-fedora-build.log 2>&1
 }
@@ -586,9 +640,15 @@ build_generic() {
 main() {
     SETUP_T0=$SECONDS
     first=${WRAPPER_NAMES%% *}
+    if [ "$PRINT_RUNTIME" = 1 ]; then
+        # The log line goes to stderr so stdout is the runtime name or nothing.
+        select_runtime >&2 && printf '%s\n' "$RT"
+        return 0
+    fi
     cache_self || log "could not cache this script at $SCRIPT_CACHE — first-use builds need a manual re-run"
 
     if [ "$WRAPPER_ONLY" = 1 ]; then
+        select_runtime || { log "no wrapper installed"; return 0; }
         install_wrapper && log "installed $WRAPPER_NAMES in /usr/local/bin (builds $FEDORA_IMAGE on first use)" ||
             log "could not install the wrapper"
         return 0
@@ -596,10 +656,10 @@ main() {
 
     if [ "$LIFECYCLE_ONLY" = 1 ]; then
         [ -n "$DC_REPO" ] || { log "--lifecycle needs FEDORA_DEVCONTAINER_REPO (projection mode)"; return 0; }
-        ensure_dockerd || return 0
-        docker image inspect "$DC_BASE" >/dev/null 2>&1 || { log "$DC_BASE is missing -- run this script without --lifecycle first"; return 0; }
+        select_runtime && ensure_runtime || return 0
+        "$RT" image inspect "$DC_BASE" >/dev/null 2>&1 || { log "$DC_BASE is missing -- run this script without --lifecycle first"; return 0; }
         run_lifecycle
-        docker rm -f "$FEDORA_CONTAINER" >/dev/null 2>&1
+        "$RT" rm -f "$FEDORA_CONTAINER" >/dev/null 2>&1
         return 0
     fi
 
@@ -607,9 +667,10 @@ main() {
     # cheapest and most essential piece, so a later overrun cannot cost it.
     [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ] || provision_host
 
-    ensure_dockerd || { log "skipping Fedora provisioning"; return 0; }
+    select_runtime && ensure_runtime || { log "skipping Fedora provisioning"; return 0; }
+    log "container runtime: $RT"
 
-    if [ "${FEDORA_REBUILD:-0}" != "1" ] && docker image inspect "$FEDORA_IMAGE" >/dev/null 2>&1; then
+    if [ "${FEDORA_REBUILD:-0}" != "1" ] && "$RT" image inspect "$FEDORA_IMAGE" >/dev/null 2>&1; then
         log "$FEDORA_IMAGE already present — skipping build"
     else
         started=$SECONDS
@@ -621,7 +682,7 @@ main() {
               return 0; }
         log "built $FEDORA_IMAGE in $((SECONDS - started))s"
         # A rebuilt image leaves the old container on the old image.
-        docker rm -f "$FEDORA_CONTAINER" >/dev/null 2>&1
+        "$RT" rm -f "$FEDORA_CONTAINER" >/dev/null 2>&1
     fi
 
     if [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ]; then
