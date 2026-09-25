@@ -5,7 +5,9 @@
 case "$P" in
   *.py) python3 -m py_compile "$P" 2>/tmp/devloop-fmt.err || { printf '{"decision":"block","reason":"dev-loop: %s does not compile: %s"}\n' "$P" "$(tr '\n' ' ' </tmp/devloop-fmt.err | sed 's/"/\\"/g' | tail -c 300)"; exit 0; }
         R=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$R" ] && { [ -f "$R/ruff.toml" ] || grep -q '\[tool.ruff\]' "$R/pyproject.toml" 2>/dev/null; } && command -v ruff >/dev/null && ruff format -q "$P" 2>/dev/null;;
-  *.sh) sh -n "$P" 2>/tmp/devloop-fmt.err || { printf '{"decision":"block","reason":"dev-loop: %s has a shell syntax error: %s"}\n' "$P" "$(tr '\n' ' ' </tmp/devloop-fmt.err | sed 's/"/\\"/g' | tail -c 300)"; exit 0; };;
+  # Parse with the interpreter the shebang names: `sh -n` rejects valid bash (declare -A, arrays).
+  *.sh) SH=sh; case "$(head -n 1 "$P")" in '#!'*bash*) SH=bash;; '#!'*zsh*) SH=zsh;; esac; command -v "$SH" >/dev/null || SH=sh
+        "$SH" -n "$P" 2>/tmp/devloop-fmt.err || { printf '{"decision":"block","reason":"dev-loop: %s has a shell syntax error: %s"}\n' "$P" "$(tr '\n' ' ' </tmp/devloop-fmt.err | sed 's/"/\\"/g' | tail -c 300)"; exit 0; };;
   *.json) python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$P" 2>/dev/null || { printf '{"decision":"block","reason":"dev-loop: %s is not valid JSON"}\n' "$P"; exit 0; };;
   *.ts|*.tsx|*.js|*.jsx) R=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$R" ] && [ -f "$R/.prettierrc" -o -f "$R/prettier.config.js" ] && command -v prettier >/dev/null && prettier --log-level silent -w "$P" 2>/dev/null;;
   *.rs) command -v rustfmt >/dev/null && rustfmt --edition 2021 -q "$P" 2>/dev/null;;
