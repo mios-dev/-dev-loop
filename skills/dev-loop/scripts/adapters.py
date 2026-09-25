@@ -69,6 +69,25 @@ REPORT_KEYS = ["status", "objective", "summary", "changed_paths", "positive_cont
 STATUSES = {"done", "partial", "blocked", "converged_stuck", "budget", "halted"}
 NONINTERACTIVE = {"CI": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_PAGER": "cat", "PAGER": "cat", "NO_COLOR": "1",
                   "DEBIAN_FRONTEND": "noninteractive", "PIP_NO_INPUT": "1", "npm_config_yes": "true"}
+# A claude-code lane started from inside a Claude Code session inherits that session's IDENTITY
+# through the environment, and a nested `claude -p` then runs under the PARENT's session id
+# (measured: the lane's result envelope carried the dispatcher's own session_id). These name the
+# parent session, its messaging channel and its transcript ingress; none of them authenticates
+# the child (measured 2.1.282: a nested `claude -p` with all of them removed ran rc 0, success,
+# with a fresh session id). Stripped for claude-code lanes only; values are never logged.
+CLAUDE_SESSION_IDENTITY = ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_REMOTE_SESSION_ID",
+                           "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_PID",
+                           "CLAUDE_SESSION_INGRESS_TOKEN_FILE", "CLAUDE_CODE_POST_FOR_SESSION_INGRESS_V2",
+                           "CLAUDE_CODE_TEE_SDK_STDOUT", "CLAUDE_CODE_WORKER_EPOCH",
+                           "CLAUDE_AFTER_LAST_COMPACT", "CLAUDE_CODE_DIAGNOSTICS_FILE",
+                           "CLAUDE_CODE_SYNC_SESSION_REFS")
+CLAUDE_SESSION_IDENTITY_PREFIXES = ("CLAUDE_CODE_MESSAGING_",)
+
+
+def without_parent_session(env: dict) -> dict:
+    """`env` minus the parent Claude Code session's identity (see CLAUDE_SESSION_IDENTITY)."""
+    return {k: v for k, v in env.items()
+            if k not in CLAUDE_SESSION_IDENTITY and not k.startswith(CLAUDE_SESSION_IDENTITY_PREFIXES)}
 # Keyword assignments AND bare value formats: a planted AWS key carries no
 # keyword in front of it, so a keyword-only gate waves it through (proved by
 # negative control against the review engine, 2026-09).
@@ -617,6 +636,54 @@ def changed_paths(wt: Path) -> list[str]:
     return [line[3:].strip().strip('"') for line in git(wt, "status", "--porcelain", "--untracked-files=all").stdout.splitlines()]
 
 
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+
+def full_patch(wt: Path) -> str:
+    """The worktree's whole change against HEAD -- staged, unstaged AND untracked -- as a binary
+    patch, without touching the lane's real index.
+
+    `git diff` + `git diff --cached` leaves untracked files out, and a lane is forbidden to run
+    `git add`, so EVERY file a lane creates is untracked. Parking only the diff therefore parked
+    nothing of a new-file lane: measured, a negative control that deleted the lane's only file
+    left a 0-byte lane-<id>.patch behind while the gate said "pre-control diff parked". A
+    throwaway copy of the index (it carries the stat cache, so only changed files are hashed) is
+    staged with --all instead, diffed, and discarded."""
+    import tempfile
+    base = {**os.environ, **NONINTERACTIVE}
+    ip = subprocess.run(["git", "-C", str(wt), "rev-parse", "--git-path", "index"],
+                        capture_output=True, text=True, env=base).stdout.strip()
+    idx = Path(ip) if Path(ip).is_absolute() else Path(wt) / ip
+    fd, tmp = tempfile.mkstemp(prefix="devloop-park-index-")
+    os.close(fd)
+    try:
+        if idx.is_file():
+            shutil.copyfile(idx, tmp)
+        else:
+            os.unlink(tmp)
+        env = {**base, "GIT_INDEX_FILE": tmp}
+        head = subprocess.run(["git", "-C", str(wt), "rev-parse", "--verify", "--quiet", "HEAD"],
+                              capture_output=True, text=True, env=base).stdout.strip() or EMPTY_TREE
+        if not idx.is_file() and head != EMPTY_TREE:
+            subprocess.run(["git", "-C", str(wt), "read-tree", head], capture_output=True, env=env)
+        subprocess.run(["git", "-C", str(wt), "add", "--all", "--", "."], capture_output=True, env=env)
+        return subprocess.run(["git", "-C", str(wt), "diff", "--cached", "--binary", head],
+                              capture_output=True, text=True, env=env).stdout
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def park(run: Path, lid: str, patch: str) -> str:
+    """Write lane-<id>.patch (always, so its presence is predictable) and say what it holds."""
+    (run / f"lane-{lid}.patch").write_text(patch, "utf-8")
+    if not patch.strip():
+        return "nothing to park: the worktree had no changes before the control ran"
+    return f"pre-control diff parked in lane-{lid}.patch ({len(patch.encode('utf-8'))} bytes, untracked files included)"
+
+
 def is_owned(path: str, owned: list[str]) -> bool:
     p = path.replace("\\", "/")
     for o in owned:
@@ -682,6 +749,7 @@ def cmd_run(a):
         rep["unverified"].append(f"harness binary not found: {argv[0]}")
         report.write_text(json.dumps(rep, indent=2), "utf-8"); die(f"[{lane['id']}] {argv[0]} not found", 1)
     env = {**os.environ, **NONINTERACTIVE, **w.get("env", {})}
+    if h == "claude-code": env = without_parent_session(env)
     if h == "openai-compatible" and w.get("base_url"): env["OPENAI_BASE_URL"] = w["base_url"]
     if w.get("model"): env.setdefault("DEVLOOP_MODEL", w["model"])
     log = Path(a.log).resolve() if a.log else report.with_name(f"worker-{lane['id']}.log")
@@ -734,7 +802,6 @@ def cmd_gate(a):
     wt_prefix = str(wt_root_dir).strip().lstrip("./").rstrip("/") + "/"
     allowed = BASE_TREE_ALWAYS_ALLOWED + (wt_prefix,)
     base_before = base_tree_state(base_root)
-    pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
 
     code, out, _ = run_shell(lane["positive_cmd"], wt, t, prefer=a.shell)
     (run / f"pos-{lid}.log").write_text(out, "utf-8")
@@ -743,8 +810,9 @@ def cmd_gate(a):
     before = tree_snapshot(wt)
     # Park the lane's work BEFORE the control runs: a broken control can wipe
     # uncommitted lane edits (e.g. a `git checkout -- <file>` trap restores from
-    # the INDEX, i.e. the seed), and a post-control diff would park nothing.
-    pre_patch = git(wt, "diff").stdout + git(wt, "diff", "--cached").stdout
+    # the INDEX, i.e. the seed), and a post-control diff would park nothing. Untracked files
+    # included (full_patch): a lane never stages, so its new files exist nowhere else.
+    pre_patch = full_patch(wt)
     # A sentinel control works by citing a path that does NOT exist. The lane can SEE its own
     # negative_control_cmd (it is in the lane prompt, line 163), so a lane that creates that
     # path -- deliberately, or by naming a fixture after a string it read in its own contract
@@ -763,12 +831,12 @@ def cmd_gate(a):
     (run / f"neg-{lid}.log").write_text(out, "utf-8")
     after = tree_snapshot(wt)
     if before != after:
-        (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
-        die("negative control did not restore the tree — control is broken (SKILL §6); pre-control diff parked", 2)
+        die("negative control did not restore the tree — control is broken (SKILL §6); "
+            + park(run, lid, pre_patch), 2)
     if base_before is not None:
         strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
         if strays:
-            (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+            print(park(run, lid, pre_patch), file=sys.stderr)
             stray_list = ", ".join(strays)
             print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
             die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
@@ -783,7 +851,7 @@ def cmd_gate(a):
         if base_before is not None:
             strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
             if strays:
-                (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+                print(park(run, lid, pre_patch), file=sys.stderr)
                 stray_list = ", ".join(strays)
                 print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
                 die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
@@ -795,7 +863,7 @@ def cmd_gate(a):
         if base_before is not None:
             strays = stray_base_edits(base_before, base_tree_state(base_root), allowed)
             if strays:
-                (run / f"lane-{lid}.patch").write_text(pre_patch, "utf-8")
+                print(park(run, lid, pre_patch), file=sys.stderr)
                 stray_list = ", ".join(strays)
                 print(f"BASE TREE LEAKAGE DETECTED: {stray_list}", file=sys.stderr)
                 die(f"BASE TREE LEAKAGE DETECTED: {stray_list}", 2)
