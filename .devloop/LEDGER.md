@@ -27,3 +27,17 @@
 - next: launch the next AGY manager with AGY_HOST_RELAY_FILE=<run>/.devloop/native/monitor-relay.md; exercise the held-session poll loop past a turn end (still unproven)
 - blockers: -
 - unverified: --relay-file has never run against real agy (only the fake); the live manager was started before it existed
+
+## 2026-09-25 01:45 · d261371+1 · monitor session: test_claude_lane.py flake
+- objective: make tests/test_claude_lane.py pass reliably under load (validate.sh went red intermittently)
+- done: the real flake was a test race, not timing -- hooklane planted a hook in the git dir both
+  lanes share while escape ran, so escape's gate stopped at git_meta_changed before computing
+  base_moved (failed 2 of 3 full runs); the two lanes now run one after the other. Timing checks
+  now read each lane's own [start, end] span from the fake: dispatch returns before its lane
+  ends, the lanes' spans overlap, wait returns after both end
+- controls: mutants red for the named reason (dispatch that blocks 9s: +2.82s after the lane
+  ended; flock-serialised lanes: alpha end == beta start); 4 full runs, 2 at a time, 245/245
+  each; validate.sh rc 0
+- next: role-symmetry build on the robust gate; F16 once Gemini quota is back
+- blockers: -
+- unverified: no mutant for the wait-blocked span check (the rc/state checks also catch an early wait)

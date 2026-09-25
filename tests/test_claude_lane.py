@@ -74,7 +74,9 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 # the argv it was given and the NAMES (never values) of the CLAUDE* variables it inherited, and
 # then behaves according to:
 #   FAKE_CLAUDE_MODE    ok (default) | stray (also edits README.md, which no lane owns) | hang
-#   FAKE_CLAUDE_SLEEP   seconds to sleep first
+#   FAKE_CLAUDE_SLEEP   seconds to sleep first; the lane's [start, end] wall-clock span is then
+#                       written to $FAKE_CLAUDE_LOG/<lane>.span, so a test can ask whether two lanes
+#                       ran AT THE SAME TIME rather than infer it from a load-sensitive total
 #   FAKE_CLAUDE_NOWORK  set: do NOT write DONE into src/<id>.txt
 #   FAKE_CLAUDE_SH      a shell snippet run in the worktree (env: LANE, STATE = abs state dir)
 #   FAKE_CLAUDE_PY      python exec'd in-process with `lane`, `state` (Path), json, Path
@@ -93,9 +95,12 @@ if log:
     (Path(log) / (lane + ".argv.json")).write_text(json.dumps(argv))
     (Path(log) / (lane + ".env.json")).write_text(json.dumps(sorted(k for k in os.environ if k.startswith("CLAUDE"))))
 mode = os.environ.get("FAKE_CLAUDE_MODE", "ok")
+t_span0 = time.time()
 time.sleep(float(os.environ.get("FAKE_CLAUDE_SLEEP", "0")))
 if mode == "hang":
     time.sleep(3600)
+if log:
+    (Path(log) / (lane + ".span")).write_text(f"{t_span0} {time.time()}")
 if not os.environ.get("FAKE_CLAUDE_NOWORK"):
     Path("src").mkdir(exist_ok=True)
     Path("src", lane + ".txt").write_text("DONE\n")
@@ -231,6 +236,13 @@ class Ctx:
         f = self.log / f"{lid}.argv.json"
         return json.loads(f.read_text()) if f.is_file() else []
 
+    def span_of(self, lid: str) -> tuple[float, float] | None:
+        try:
+            t0, t1 = (self.log / f"{lid}.span").read_text().split()
+            return float(t0), float(t1)
+        except (OSError, ValueError):
+            return None
+
     def env_of(self, lid: str) -> list[str]:
         f = self.log / f"{lid}.env.json"
         return json.loads(f.read_text()) if f.is_file() else ["<fake never ran>"]
@@ -290,19 +302,21 @@ IDENTITY = {"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "parent-session-sentine
 
 
 def test_dispatch_is_non_blocking_and_lanes_overlap(c: Ctx) -> None:
+    # Every timing property here is read off the lanes' own [start, end] spans, never off a
+    # wall-clock total: under load (a validate.sh run beside live managers) dispatch overhead
+    # grows, and a "serial would take >= 12s" budget went red on a correct tool.
     print("dispatch returns at once; lanes run in parallel; wait blocks until done:")
-    t_first = time.monotonic()
     rc, da, el_a, err = c.dispatch("alpha", env={"FAKE_CLAUDE_SLEEP": "6", **IDENTITY,
                                                  "CLAUDE_CODE_PASSTHROUGH_PROBE": "1"})
+    ret_a = time.time()
     check("alpha dispatch exits 0", rc == 0 and da.get("ok") is True, f"rc={rc} {da} {err[-300:]}")
-    check("alpha dispatch returned well inside the lane's 6s runtime", el_a < 3.0, f"{el_a:.2f}s")
     rc, d, _, _ = c.run("status", "--root", str(c.repo), "--id", "alpha")
     check("right after dispatch the lane is RUNNING (it was not run inline)",
           d.get("state") == "running", str(d))
     rc, db, el_b, err = c.dispatch("beta", "--model", "sonnet", "--effort", "high",
                                    env={"FAKE_CLAUDE_SLEEP": "6"})
-    check("beta dispatch exits 0 and returns at once", rc == 0 and el_b < 3.0,
-          f"rc={rc} {el_b:.2f}s {db} {err[-300:]}")
+    ret_b = time.time()
+    check("beta dispatch exits 0", rc == 0 and db.get("ok") is True, f"rc={rc} {db} {err[-300:]}")
     for key in ("id", "job", "worktree", "branch", "report", "log", "pin"):
         check(f"dispatch JSON carries {key}", key in da, str(sorted(da)))
     check("the pin is a sha256", len(str(da.get("pin", ""))) == 64, str(da.get("pin")))
@@ -314,15 +328,25 @@ def test_dispatch_is_non_blocking_and_lanes_overlap(c: Ctx) -> None:
 
     rc, d, el_w, _ = c.run("wait", "--root", str(c.repo), "--id", "alpha", "--id", "beta",
                            "--budget-s", "90", "--interval-s", "0.5", timeout=150)
-    total = time.monotonic() - t_first
+    ret_w = time.time()
     check("wait on both exits 0", rc == 0 and d.get("ok") is True, f"rc={rc} {d}")
     for lid in ("alpha", "beta"):
         ln = lane_of(d, lid)
         check(f"{lid}: state done, report status done",
               ln.get("state") == "done" and ln.get("report_status") == "done", str(ln))
-    check("wait really blocked (it did not return a pass before the work ended)", el_w >= 3.0,
-          f"{el_w:.1f}s")
-    check("the two 6s lanes OVERLAPPED (serial would take >= 12s)", total < 11.0, f"{total:.1f}s")
+    sa, sb = c.span_of("alpha"), c.span_of("beta")
+    check("both lanes recorded their run span", sa is not None and sb is not None, f"{sa} {sb}")
+    if sa and sb:
+        check("alpha dispatch returned BEFORE its lane finished (non-blocking)", ret_a < sa[1],
+              f"returned {ret_a - sa[1]:+.2f}s after the lane ended ({el_a:.2f}s)")
+        check("beta dispatch returned BEFORE its lane finished (non-blocking)", ret_b < sb[1],
+              f"returned {ret_b - sb[1]:+.2f}s after the lane ended ({el_b:.2f}s)")
+        check("the two lanes OVERLAPPED: each started before the other ended",
+              max(sa[0], sb[0]) < min(sa[1], sb[1]),
+              f"alpha {sa[0]:.2f}-{sa[1]:.2f}, beta {sb[0]:.2f}-{sb[1]:.2f}")
+        check("wait really blocked: it returned only after BOTH lanes ended",
+              ret_w >= max(sa[1], sb[1]), f"returned {ret_w - max(sa[1], sb[1]):+.2f}s vs the last end "
+              f"({el_w:.1f}s)")
     a, b = c.argv_of("alpha"), c.argv_of("beta")
     check("model policy default reached the binary: --model opus --effort xhigh",
           has_pair(a, "--model", "opus") and has_pair(a, "--effort", "xhigh"), str(a)[:300])
@@ -554,10 +578,13 @@ def test_owned_patterns(c: Ctx) -> None:
 def test_git_metadata_and_base_escape(c: Ctx) -> None:
     print("writes outside the worktree -- a shared git hook, the base tree:")
     hook = Path(git(c.repo, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()) / "hooks" / "pre-commit"
+    # One lane at a time, NOT in parallel: the hook lives in the git dir every lane shares, so a
+    # second lane whose baseline was taken after the plant sees the cleanup below as its OWN git
+    # metadata change -- and its gate rightly stops there, before base_moved is ever computed.
+    # (Measured 2026-09-25: that order won in 2 of 3 full runs beside other test load.)
     c.lanes([{"id": "hooklane", "env": {"FAKE_CLAUDE_SH":
               'H=$(git rev-parse --path-format=absolute --git-common-dir)/hooks/pre-commit; '
-              'printf "#!/bin/sh\\necho HOOK-RAN\\n" > "$H"; chmod +x "$H"'}},
-             {"id": "escape", "env": {"FAKE_CLAUDE_SH": "echo ESCAPED >> ../../../README.md"}}])
+              'printf "#!/bin/sh\\necho HOOK-RAN\\n" > "$H"; chmod +x "$H"'}}])
     try:
         check("precondition: the hook was planted", hook.is_file())
         rc, d, _, _ = c.gate("hooklane")
@@ -567,6 +594,7 @@ def test_git_metadata_and_base_escape(c: Ctx) -> None:
         check("...before anything ran in the lane's worktree", "audit" not in d and "gate" not in d, str(sorted(d)))
     finally:
         hook.unlink(missing_ok=True)
+    c.lanes([{"id": "escape", "env": {"FAKE_CLAUDE_SH": "echo ESCAPED >> ../../../README.md"}}])
     rc, d, _, _ = c.gate("escape")
     check("a lane that wrote into the BASE tree: base_moved names the path",
           "README.md" in d.get("base_moved", []), str(d.get("base_moved")))
