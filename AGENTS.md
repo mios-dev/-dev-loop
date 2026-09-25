@@ -155,6 +155,16 @@ file; none keeps a copy. The Ubuntu variant was removed.
   the devcontainer.json lifecycle into the image (miosd, root overlay). Measured 452s cold, over the
   ~5 min budget; `FEDORA_SETUP_BUDGET_S` defers the lifecycle if that stops the cache building.
   Its image and a mios-bootstrap `devcontainer build` compared identical (574-line package census).
+- **Operator principle (2026-09-25): MiOS and devcontainers are equivalent.** Every container,
+  devcontainer, image and OCI artifact in the ecosystem is a MiOS image driven by the SSOT
+  (`mios.toml`). The devcontainer is therefore an artifact of the `mios-dev` variant
+  (`[variants.entries.mios-dev]`), its `Containerfile` RENDERED from the SSOT by a generator and
+  guarded by regenerate-and-diff, never hand-authored with its own package list; every MiOS repo
+  carries that file as a byte-identical, gated mirror (`.devcontainer/Containerfile`) and builds it
+  from its own root -- no sibling-checkout pointer, no `initializeCommand`. Deleting a repo's
+  devcontainer file was a misreading of "one image" and is being reversed (restore lane in flight;
+  the Ubuntu variant stays removed). The generic `FEDORA_PACKAGES` list in `cloud-fedora-setup.sh`
+  is the remaining hand-authored image and must go the same way. Design: task #11 (SPIKE in flight).
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
 - **In a cloud session, a detached job does not outlive the container.** `job.py spawn` survives
   the monitor's turn, but not the container, and an idle session's container is reclaimed.
