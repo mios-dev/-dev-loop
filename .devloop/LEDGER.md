@@ -41,3 +41,10 @@
 - next: role-symmetry build on the robust gate; F16 once Gemini quota is back
 - blockers: -
 - unverified: no mutant for the wait-blocked span check (the rc/state checks also catch an early wait)
+
+## 2026-09-25 07:29 · f909dfe · cloud session: MiOS devcontainer projection
+- objective: make a cloud session a Fedora container projected from MiOS's devcontainer, with a reusable setup script
+- done: cloud-fedora-setup.sh FEDORA_DEVCONTAINER_REPO mode: shallow clone, unedited build of .devcontainer/Containerfile on a locally shadowed CA-trusting repo-pinned fedora:44 (FROM resolved to the shadow digest), inherited CA env incl. PIP_CERT, wrapper baked + installed as mios-dev and fedora, per-entry /home mounts (whole /home hid agy), concurrent cold-start race fixed. Measured 3m32s first run, 0.36s re-run, 1.45s cold, 3m14s first-use build from baked values. adapters.validate_spec fallback now enforces the schema's numeric worker bounds (host lacks jsonschema; test_claude_lane timeout check was red on HEAD). validate.sh rc 0
+- next: operator: paste the script + the two FEDORA_DEVCONTAINER_* vars into a cloud environment and make it the default; decide whether validate.sh should also pass inside mios-dev (4 suites error there)
+- blockers: -
+- unverified: the platform snapshot of a pasted setup-script run was not observed from a fresh session; 3m32s leaves ~1.5 min of the ~5 min budget; node reached github.com with NODE_EXTRA_CA_CERTS unset, so that var is belt-and-braces there
