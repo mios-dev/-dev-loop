@@ -57,7 +57,7 @@ V1_HARNESS = {"claude": "claude-code", "gemini": "gemini-cli", "cloudcode": "ant
 BINARY = {"claude-code": "claude", "codex": "codex", "gemini-cli": "gemini", "antigravity": "agy", "antigravity-teamwork": "agy", "copilot": "copilot", "opencode": "opencode", "cursor": "agent"}
 # flags the adapter relies on, probed with `<bin> --help` by `probe`; a miss means the CLI moved under us
 PROBE_FLAGS = {"claude-code": ["--output-format", "--max-budget-usd", "--permission-mode", "--allowedTools", "--json-schema", "--effort", "--model"],
-               "codex": ["exec", "--json", "--cd", "--sandbox", "--ask-for-approval", "--output-schema"],
+               "codex": ["--json", "--cd", "--sandbox", "--config", "--ephemeral", "--output-schema"],
                "gemini-cli": ["-p", "--output-format", "--yolo"],
                "antigravity": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
                "antigravity-teamwork": ["-p", "--output-format", "--print-timeout", "--dangerously-skip-permissions"],
@@ -245,9 +245,11 @@ def build_argv(lane: dict, wt: Path, report: Path, lane_json: Path, skill: Path,
         if w.get("max_turns"): argv += ["--max-turns", str(w["max_turns"])]
         if w.get("max_budget_usd"): argv += ["--max-budget-usd", str(w["max_budget_usd"])]
     elif h == "codex":
-        # --cd is the real write fence (issue #24214: --add-dir is not); never --full-auto (it overrides --sandbox)
+        # --cd is the real write fence (issue #24214: --add-dir is not); never --full-auto (it overrides --sandbox).
+        # The approval policy goes in as a config override: --ask-for-approval is a top-level `codex` flag that
+        # `codex exec` rejects (codex-cli 0.155.1: "unexpected argument"), so every codex lane died at parse time.
         argv = ["codex", "exec", "--json", "--cd", str(wt), "--sandbox", w.get("sandbox", "workspace-write"),
-                "--ask-for-approval", w.get("permission_mode", "never"), "--ephemeral"]
+                "-c", f"approval_policy={w.get('permission_mode', 'never')}", "--ephemeral"]
         if structured:
             sf = report.with_name(f"schema-{lane['id']}.json"); sf.write_text(json.dumps(report_schema()), "utf-8")
             argv += ["--output-schema", str(sf), "-o", str(report.with_name(f"last-{lane['id']}.txt"))]

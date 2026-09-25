@@ -73,3 +73,18 @@
 - unverified: everything on a live Spark (bundled scripts run? bytes reach the runner unchanged? which
   GitHub URL forms are readable? binary attachment?); install.ps1 target never executed (no pwsh here);
   the agentskills.io reference validator (skills-ref) is not installed -- structural checks only
+
+## 2026-09-25 08:10 · fedbd2c+1 · codex lanes: approval policy as a config override
+- objective: every codex lane died at argument parsing -- `codex exec` (codex-cli 0.155.1) rejects
+  `--ask-for-approval` ("unexpected argument", rc 2); it is a top-level `codex` flag. Found by the
+  upstream-APIs report (defect D1); `adapters.py probe --harness codex` already reported the drift (rc 1)
+- done: build_argv passes `-c approval_policy=<permission_mode, default never>`; PROBE_FLAGS for codex
+  now names the exec flags actually used (--config, --ephemeral); harness-adapters.md row and the
+  lane-schema permission_mode description updated
+- controls: tests/test_codex_argv.py against the REAL binary (`--help` in the prompt's place, so no model
+  call): the adapter argv parses rc 0; the old flag spliced back in fails and names it. Mutant (old flag
+  restored in adapters.py) turns 4 tests red. Config layer, both sides: `-c approval_policy=bogus` ->
+  "unknown variant `bogus` ... in `approval_policy`"; `never` loads and starts a thread. probe rc 0
+- next: -
+- blockers: -
+- unverified: a real codex turn with this argv (no codex auth here; live-harness runs are on demand only)
