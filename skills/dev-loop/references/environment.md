@@ -223,12 +223,24 @@ written after the snapshot, so a new session starts without it, and it is never 
 **Podman first.** MiOS is Podman-native; Docker is for cloud providers that ship nothing
 else. `FEDORA_RUNTIME` (`auto`, the default; `podman`; `docker`) picks the container
 runtime for the build, the lifecycle prebuild and the generated wrapper, which bakes its
-runtime in the way it bakes the image name. `auto` takes podman when it is on PATH and
-docker otherwise, so this cloud VM (docker only) keeps working unchanged. An explicit
+runtime in the way it bakes the image name. `auto` decides in order: (1) **image home**:
+with both runtimes installed, the runtime whose store already holds `FEDORA_IMAGE` wins
+(docker's daemon is brought up first for that check, since a cold session has it down; the
+log says `auto: <image> already lives in <rt> -- keeping it there`), so an image built
+under docker is never silently rebuilt under podman; (2) **usability**: a runtime that is
+on PATH but cannot run (`podman info` fails, `dockerd` will not start) is skipped with a
+log line naming why; (3) podman. So this cloud VM (docker only) keeps working unchanged,
+and a VM where podman was installed later keeps its docker-held image. An explicit
 runtime that is not installed, or any other value, logs an error naming it and builds
 nothing (the setup-script contract still exits 0); it never falls back on its own. The
 Dev Containers CLI build gets `--docker-path podman` under podman, and podman is never
 started as a service (it has none). `--print-runtime` prints the choice.
+`FEDORA_WRAPPER_DIR` (default `/usr/local/bin`) governs every wrapper write and is baked
+into the wrapper for its on-demand build; the repo's SessionStart hook installs the
+generic wrapper only when none exists there, so an environment's own projection wrapper
+is never rewritten by a session start. Cost of the image-home rule: in auto mode with both
+runtimes installed, even `--print-runtime` and `--wrapper-only` start `dockerd` on a cold
+session when podman's store lacks the image.
 **Measured (podman 4.9.3, this VM, generic mode):** image built in 55s, the wrapper ran
 through podman, cold start after `podman rm -f` 0.38s. Projection mode under podman (the
 CLI build with `--docker-path`, the local `fedora:44` shadow tag, `podman commit`) has
