@@ -81,10 +81,29 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   `/loop`-style commands, AGY workflows) are allowed inside lanes — they map onto loop stages
   and never replace the gates. Every lane keeps the dev-loop lane contract: exclusive
   `owned_paths`, its own two-sided gate, no `git add/commit/push`, no edits to this file.
-- **Model policy (operator, 2026-09):** Claude Code lanes default to the newest Opus
-  (`--model opus --effort xhigh`); the manager may assign lower tiers (sonnet, haiku, lower
-  effort) to light lanes. Antigravity lanes default to `gemini-3.8-flash-high`; the manager
-  itself runs `gemini-3.1-pro-high`.
+- **Model policy (operator, 2026-09-25): set by a stats study, not by default.** The operator
+  asked for sourced upstream stats (benchmarks, quotas, prices) plus this box's own measured runs
+  to decide the model for the AGY manager, AGY lanes and Claude Code lanes; until that study
+  lands, the standing rules are: no `claude-*` model through AGY (that quota refreshes in 4h+ and
+  stranded a batch of instances); nested AGY work runs on Gemini Flash 3.8 -- research and harvest
+  on `gemini-3.8-flash-low`, coding on `-medium` -- and a queued wave waits for ITS tier, never
+  borrowing another; Claude Code lanes keep `--model opus --effort xhigh` with lower tiers for
+  light lanes.
+- **Fleet limits (operator, 2026-09-25):** at most **4** AGY managers live at once on one box; a
+  held session counts. Launchers refuse a fifth and callers wait for a slot. A held session is
+  stopped (its STOP file, never a kill) as soon as the monitor has reviewed and committed its work.
+- **Pull requests (operator, 2026-09-25):** verified work goes up as a PR ready for review; the
+  operator reviews and merges from the GitHub app. The monitor never merges.
+- **Test doubles (operator, 2026-09-25):** tests replay REAL captured agy/claude transcripts;
+  hand-written fakes are being removed, and live-harness runs happen on demand only. Scenarios
+  no real transcript contains (a lane that tampers with its gate, hangs, or forges a receipt) are
+  dropped with the fakes, so the detection code they exercised becomes **untested** -- say so
+  wherever it is described, never "proven".
+- **Claude Code <-> AGY translation bridge (operator, 2026-09-25):** an MCP server written as a
+  Rust static binary, source and OCI image in THIS repo (vendor names are allowed here; MiOS runs
+  the image through a vendor-neutral, function-named Quadlet). Credentials reach it by
+  bind-mounting the existing agy/claude keyring and config directories; it is reachable across
+  the MiOS mesh VPN, authenticated per the MCP authorization spec.
 - **The manager is the only writer to shared state** (`AGENTS.md`, `.devloop/`, merges). Lanes
   report `contract_updates`; the manager writes them here.
 - **Fallback:** when `agy` is unavailable or unauthenticated, a Claude Code session may host the
