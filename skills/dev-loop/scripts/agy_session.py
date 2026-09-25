@@ -439,7 +439,11 @@ def fatal_result(result: dict | None, quota: str | None, wait_max_s: float = 300
     invocation agy refused outright (status ERROR with zero turns -- measured: an --effort the
     model does not support). A quota that resets within wait_max_s is NOT fatal: the driver waits
     it out and continues (operator, 2026-09-25: a manager kept doing real work across 31
-    turn-ends that each said "Resets in 16s")."""
+    turn-ends that each said "Resets in 16s").
+
+    UNTESTED: the operator allows no hand-written fakes, and the transcript that forced this
+    rule was overwritten before it was frozen. The wait path gets its control when a real
+    short-reset turn is captured (the --events-out tee records one) and frozen as a recording."""
     if quota:
         rs = reset_seconds(quota)
         if rs is not None and rs <= wait_max_s:
