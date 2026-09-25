@@ -11,6 +11,9 @@
 #                                                                # unattended, HELD SESSION
 #   sh scripts/agy_host.sh --teamwork "<objective>" [--yolo] [--tmux] [--remote-control]
 #                                                                # unattended, TEAMWORK SESSION
+#       (when `claude` is on PATH the objective gains the nested-claude-lanes section, so the
+#        team can run Claude Code subagents as gated lanes via scripts/claude_lane.py;
+#        AGY_HOST_CLAUDE_LANES=0, false, no or off leaves it out)
 #   sh scripts/agy_host.sh <lanes.json> --print-prompt           # just emit the manager prompt
 #
 # --headless vs --session is about PROCESS LIFETIME, not about being unattended.
@@ -138,6 +141,29 @@ if [ "$TEAMWORK" = 0 ]; then
         echo "agy_host: manager prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
     rm -f "$PROMPT_ERR"
 else
+    # NESTED CLAUDE CODE LANES. A teamwork run is lane-less, and its agents have run_command
+    # but no safe way to start a Claude Code subagent: a bare `claude -p` is backgrounded after
+    # ~10s (WaitMsBeforeAsync is clamped) and dies with the turn, in the base tree, ungated.
+    # scripts/claude_lane.py makes each one a full dev-loop lane (worktree, owned paths,
+    # detached job + receipt, two-sided gate); this section tells the team how to use it. Only
+    # offered when a `claude` binary exists -- instructions for a tool that cannot run are a
+    # capability the run can express but never serve. Opt out: AGY_HOST_CLAUDE_LANES=0 (also
+    # false/no/off, any case -- measured: `=false` used to leave the section IN, because only
+    # the literal 0 was recognised).
+    case "$(printf '%s' "${AGY_HOST_CLAUDE_LANES:-1}" | tr '[:upper:]' '[:lower:]')" in
+        0|false|no|off) CLAUDE_LANES=0 ;;
+        *)              CLAUDE_LANES=1 ;;
+    esac
+    if [ "$CLAUDE_LANES" = 1 ] && command -v claude >/dev/null 2>&1; then
+        PROMPT_ERR=$(mktemp)
+        CLAUDE_SECTION=$(python3 "$SKILL_DIR/scripts/prompt.py" render nested-claude-lanes \
+            --var "CLAUDE_LANE=$SKILL_DIR/scripts/claude_lane.py" \
+            --var "ADAPTERS=$SKILL_DIR/scripts/adapters.py" \
+            --var "RUN_ROOT=$RUN_ROOT" 2>"$PROMPT_ERR") || {
+            echo "agy_host: nested-claude-lanes prompt failed to render:" >&2; cat "$PROMPT_ERR" >&2; exit 70; }
+        rm -f "$PROMPT_ERR"
+        OBJECTIVE=$(printf '%s\n\n%s' "$OBJECTIVE" "$CLAUDE_SECTION")
+    fi
     PROMPT="/teamwork-preview $OBJECTIVE"
 fi
 

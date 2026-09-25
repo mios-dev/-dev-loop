@@ -99,7 +99,7 @@ vendor ACP adapter and get the same `devloop_report`.
 | Link | A — Antigravity host | B — Claude Code host | C — Codex / OpenAI-compatible host |
 |---|---|---|---|
 | Host → same-vendor sub-agents | **native** `invoke_subagent` (Gemini-model only; `workspace: branch` = worktree; depth ≤ 10) | **native** `.claude/agents/*.md`, Agent tool, `isolation: worktree`, depth ≤ 5 | partial: `codex agents` / `codex queue` (`[features] multi_agent=true`); worktrees manual |
-| Host → Claude Code lanes | **glue**: `run_command` → `claude -p …` (Terminal policy "Proceed in Sandbox" + `claude` on Allow list) | native (subagents) or glue for parallel CLI instances | **glue**: subprocess |
+| Host → Claude Code lanes | **glue**: `run_command` → `python3 scripts/claude_lane.py dispatch …` (a detached, gated `claude -p` lane in its own worktree; `wait`/`gate` before merge; a bare `claude -p` is backgrounded after ~10s and dies with the turn) — offered to `/teamwork-preview` by `agy_host.sh --teamwork` (`nested-claude-lanes` prompt; controls `tests/test_claude_lane.py`). Terminal policy "Proceed in Sandbox" + `claude`/`python3` on the Allow list | native (subagents) or glue for parallel CLI instances | **glue**: subprocess |
 | Host → Codex lanes | **glue** | **glue**: Bash → `codex exec --json` | native-ish + glue |
 | Host → Gemini / `agy` lanes | native for `agy` subagents; glue for `gemini` | **glue** (e.g. the `antigravity-for-claude-code` plugin) | **glue** |
 | Host → Copilot / OpenCode / Cursor lanes | **glue** (`run_command`) | **glue** (Bash) | **glue** |
