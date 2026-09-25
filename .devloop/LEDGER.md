@@ -102,3 +102,10 @@
 - next: operator: finish agy login (agy-login.sh --code) if an AGY review pass is still wanted; review and merge #17
 - blockers: -
 - unverified: no AGY review ran (no auth); signing inside the container untested (helper mount not permitted)
+
+## 2026-09-25 14:54 · dc34601 · cloud session: dev-loop plugin commands
+- objective: make /dev-loop:* commands available in cloud sessions of the MiOS Fedora environment
+- done: cloud sessions load no marketplace, enabledPlugins or project skills-dir plugin (trust dialog never shown); CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop + setup-script clone loads dev-loop@inline: 15 /dev-loop:* commands, 5 agents, plugin MCP connected (measured from init events, both sides, from an unrelated repo). Documented in environment.md with the setup snippet. validate.sh rc 0
+- next: operator: add CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop and the new setup script to the environment, then open a new session and type /dev-loop
+- blockers: -
+- unverified: not yet observed in a freshly started cloud session (verified with claude -p in this container); /opt/dev-loop refreshes only when the environment cache is rebuilt

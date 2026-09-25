@@ -255,3 +255,58 @@ Network access: `registry.fedoraproject.org` and `dl.fedoraproject.org` both
 resolved under this account's **Trusted** Default environment, though neither
 appears in the published default allowlist. Under a **Custom** policy, allow
 those two hosts explicitly (keeping the defaults on).
+
+### The dev-loop plugin in a cloud session (`/dev-loop:*` commands)
+
+A cloud session loads none of the ways this repo normally ships the plugin:
+marketplace plugins and a repository's `enabledPlugins`/`extraKnownMarketplaces`
+are not loaded, and adding a marketplace or loading a project-scope
+`.claude/skills/<name>/.claude-plugin/` plugin both need the workspace trust
+dialog, which a cloud session never shows (code.claude.com/docs/en/plugins/loading).
+`~/.claude/skills/` is not read in cloud sessions either.
+
+What does load is a plugin directory named in the `CLAUDE_CODE_PLUGIN_DIRS`
+environment variable (Claude Code 2.1.280+; project settings cannot set it,
+but a cloud environment's variables are the session's process environment).
+So the environment clones the plugin to a fixed path and points the variable
+at it, which works in sessions for any repository, not only this one:
+
+Setup script:
+
+```bash
+#!/bin/bash
+# MiOS Fedora dev environment + the dev-loop plugin (/dev-loop:*) in every session.
+export FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS
+export FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile
+# dev-loop plugin checkout; loaded by CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop
+if [ -d /opt/dev-loop/.git ]; then
+  git -C /opt/dev-loop pull -q --ff-only || true
+else
+  git clone -q --depth 1 https://github.com/mios-dev/-dev-loop /opt/dev-loop || true
+fi
+[ -f /opt/dev-loop/skills/dev-loop/scripts/env/cloud-fedora-setup.sh ] &&
+  bash /opt/dev-loop/skills/dev-loop/scripts/env/cloud-fedora-setup.sh
+exit 0
+```
+
+Environment variables:
+
+```
+FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS
+FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile
+CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop
+```
+
+**Measured (2026-09-25, Claude Code 2.1.282),** reading the `init` event of
+`claude -p --output-format stream-json`: without the variable, 0 `dev-loop:`
+commands and no plugin; with it, from an unrelated repository, the plugin loads
+as `dev-loop@inline` with 15 commands (`/dev-loop:dev-loop`, `/dev-loop:review`,
+`/dev-loop:ship`, `/dev-loop:goal`, …), 5 agents (`dev-loop:auditor`, …) and its
+MCP server `plugin:dev-loop:dev-loop` connected. Plugin commands carry the
+`dev-loop:` prefix; there is no bare `/review`.
+
+The checkout refreshes each time the setup script runs (a new environment
+cache), not every session. The repo-root `.mcp.json` also reads as a
+project MCP config in sessions of this repo, where `${CLAUDE_PLUGIN_ROOT}` is
+empty and the `dev-loop` server fails to start; the plugin's copy is the one
+that connects (see `scripts/register-mcp.sh` for per-harness registration).
