@@ -384,6 +384,8 @@ def test_relay_changes_reach_the_manager() -> None:
     src = HOST.read_text()
     check("agy_host.sh forwards AGY_HOST_RELAY_FILE at both session call sites",
           src.count('--relay-file "$AGY_HOST_RELAY_FILE"') == 2)
+    check("agy_host.sh forwards AGY_HOST_QUOTA_WAIT_MAX_S at both session call sites",
+          src.count('--quota-wait-max-s "$AGY_HOST_QUOTA_WAIT_MAX_S"') == 2)
 
 
 # Modelled on a REAL quota death (2026-09-24, agy 1.2.7): two bare error lines, then a result event
@@ -393,6 +395,21 @@ import json, os, sys
 mode = os.environ.get("FAKE_MODE", "quota")
 print(json.dumps({"event": "init", "conversation_id": "c", "init": {"cwd": os.getcwd(), "model": "m", "tools": [], "permission_mode": "always-proceed"}}), flush=True)
 for n, line in enumerate(sys.stdin, 1):
+    if mode == "short":
+        # Result-embedded quota (the merged-stderr form) with a SHORT reset, then real work on
+        # the next turn. The error text is a real agy result's, with only the reset time changed:
+        # the 2026-09-25 run that forced this rule (31 turn-ends "Resets in 16s", work in each)
+        # was overwritten before it was frozen, so no verbatim recording exists yet (task #8).
+        if n == 1:
+            import time
+            t_quota = time.time()
+            print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "ERROR", "response": "", "error": "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 3s.", "duration_seconds": 1.0, "num_turns": 1}}), flush=True)
+        else:
+            if n == 2:   # how long the driver waited between the quota and its next message
+                open(os.environ["FAKE_DONE"] + ".gap", "w").write(str(time.time() - t_quota))
+            open(os.environ["FAKE_DONE"], "w").write("done\n")
+            print(json.dumps({"event": "result", "result": {"conversation_id": "c", "status": "SUCCESS", "response": "ok", "duration_seconds": 1.0, "num_turns": n}}), flush=True)
+        continue
     if n > 1:
         sys.exit(1)            # the second turn finds agy already gone
     if mode == "quota":
@@ -404,7 +421,7 @@ for n, line in enumerate(sys.stdin, 1):
 """
 
 
-def ended(mode: str, done_cmd: str) -> tuple[int, str]:
+def ended(mode: str, done_cmd: str, *extra: str) -> tuple[int, str, float | None]:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         (tmp / "bin").mkdir()
@@ -415,11 +432,12 @@ def ended(mode: str, done_cmd: str) -> tuple[int, str]:
         cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
                              "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3",
                              "--done-cmd", done_cmd, "--hold-file", str(tmp / "STOP"),
-                             "--hold-max-s", "3"],
+                             "--hold-max-s", "3", *extra],
                             capture_output=True, text=True, timeout=120,
                             env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
-                                 "FAKE_MODE": mode})
-        return cp.returncode, cp.stderr
+                                 "FAKE_MODE": mode, "FAKE_DONE": str(tmp / "DONE")})
+        gap = tmp / "DONE.gap"
+        return cp.returncode, cp.stderr, (float(gap.read_text()) if gap.is_file() else None)
 
 
 def test_dead_is_not_done() -> None:
@@ -427,14 +445,31 @@ def test_dead_is_not_done() -> None:
     the driver printed "local work done" and returned 0 -- with not one deliverable written. The
     external stop condition must decide the exit code, whatever ended the session."""
     print("a session that ends without the work is not done:")
-    rc, err = ended("quota", "false")
+    rc, err, _ = ended("quota", "false")
     check("quota death -> rc 75 (retry after reset)", rc == 75, f"rc={rc}\n{err[-400:]}")
     check("...and the reset time is carried", "Resets in 2h44m46s" in err, err[-300:])
     check("...and it is NOT announced as done", "local work done" not in err and "NOT met" in err, err[-300:])
-    rc, err = ended("plain", "false")
+    rc, err, _ = ended("plain", "false")
     check("ended without quota, stop condition failing -> rc 7", rc == 7, f"rc={rc}\n{err[-300:]}")
-    rc, err = ended("plain", "true")
+    rc, err, _ = ended("plain", "true")
     check("stop condition met -> rc 0, announced as done", rc == 0 and "local work done" in err, f"rc={rc}\n{err[-300:]}")
+
+
+def test_short_quota_is_waited_out() -> None:
+    """Operator rule (2026-09-25): a quota that resets within --quota-wait-max-s (default 300 s)
+    is waited out and the session continues; a later reset ends it with rc 75. Measured: a
+    manager kept doing real work across 31 turn-ends that each said "Resets in 16s"."""
+    print("a short quota is waited out; a long one still ends the run:")
+    rc, err, gap = ended("short", "test -f DONE")
+    check("a 3 s quota is waited out and the run finishes its work -> rc 0", rc == 0, f"rc={rc}\n{err[-400:]}")
+    # Measured at agy's side of the pipe, not by wall clock: the session's end-of-run hold would
+    # make any elapsed-time check pass without a wait (a mutant that skipped the sleep survived it).
+    check("...agy got its next message only after the reset (>= 3 s after the quota result)",
+          gap is not None and gap >= 3.0, f"gap={gap}")
+    rc, err, _ = ended("short", "test -f DONE", "--quota-wait-max-s", "1")
+    check("the same quota above the threshold is fatal -> rc 75, not continued", rc == 75 and "no continue can fix" in err,
+          f"rc={rc}\n{err[-400:]}")
+    check("...and the reset is named", "resets in 3s" in err, err[-300:])
 
 
 MSG_FAKE = r"""#!/usr/bin/env python3
@@ -502,6 +537,7 @@ def main() -> int:
     test_teamwork_draft_approval_does_not_end_the_run()
     test_relay_changes_reach_the_manager()
     test_dead_is_not_done()
+    test_short_quota_is_waited_out()
     test_continue_says_why_and_stops_when_stuck()
     print()
     if FAILURES:

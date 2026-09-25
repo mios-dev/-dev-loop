@@ -189,6 +189,8 @@ case "$MODE" in
         # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
         [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
         [ -n "${AGY_HOST_RELAY_FILE:-}" ] && set -- "$@" --relay-file "$AGY_HOST_RELAY_FILE"
+        # A quota that resets within this many seconds is waited out; a later one ends the run (75).
+        [ -n "${AGY_HOST_QUOTA_WAIT_MAX_S:-}" ] && set -- "$@" --quota-wait-max-s "$AGY_HOST_QUOTA_WAIT_MAX_S"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             HOLD_FILE=${AGY_HOST_HOLD_FILE:-$(dirname "$EVENTS_FILE")/STOP}
@@ -276,6 +278,8 @@ case "$MODE" in
         # auto-continue must be EXTERNAL, so it is only passed when the operator names one.
         [ -n "${AGY_HOST_DONE_CMD:-}" ] && set -- "$@" --done-cmd "$AGY_HOST_DONE_CMD"
         [ -n "${AGY_HOST_RELAY_FILE:-}" ] && set -- "$@" --relay-file "$AGY_HOST_RELAY_FILE"
+        # A quota that resets within this many seconds is waited out; a later one ends the run (75).
+        [ -n "${AGY_HOST_QUOTA_WAIT_MAX_S:-}" ] && set -- "$@" --quota-wait-max-s "$AGY_HOST_QUOTA_WAIT_MAX_S"
         [ "$SKIP_PERMS" = 1 ] && set -- "$@" --yolo
         if [ "${REMOTE_CONTROL:-0}" = 1 ]; then
             # Registering the session and then exiting is the phantom this pairing exists to
