@@ -41,3 +41,15 @@
 - next: role-symmetry build on the robust gate; F16 once Gemini quota is back
 - blockers: -
 - unverified: no mutant for the wait-blocked span check (the rc/state checks also catch an early wait)
+
+## 2026-09-25 02:50 · c6266e7 · monitor session: operator decisions, caps, PRs
+- objective: act on the operator's 24 answers (decisions file: ~/.devloop-runtime/operator-decisions-2026-09-25.md)
+- done: 4-manager cap (live_managers.py, launcher refuses a 5th; both sides); quota probe/wait
+  require the assigned tier (stub controls 6/6); -dev-loop main squashed to 46b325c (tree
+  identical) and #14 replaced by #15 (GitHub closed #14 on the base rewrite); AGENTS.md records
+  the decisions; MiOS#32 (generated ARTIFACT-PROMPT.md + run 4 ToC + T-1104..T-1111, drift
+  236 -> 217 vs a same-binaries baseline) and mios-bootstrap#7; 4-hourly routine armed
+- next: replay-only revision of the role-symmetry build (wf_e487f7e3-399), then its AGY build;
+  rewrite the existing tests to replay real transcripts (task #8); run 3 relaunch is queued
+- blockers: -
+- unverified: F16 (a real AGY agent driving claude_lane.py) -- a live-harness run, on demand only
