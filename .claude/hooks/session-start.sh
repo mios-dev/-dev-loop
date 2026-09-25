@@ -18,11 +18,23 @@ else
     echo "antigravity setup incomplete (see errors above) — run manually: bash skills/dev-loop/scripts/env/setup-antigravity.sh"
 fi
 
-# Fedora userspace: install the wrapper only (sub-second). The image builds on
-# first `fedora …` use, so a session that never touches it pays nothing. This
-# path exists because a cloud environment's Setup script field is not always
-# offered in the environment dialog — the hook needs no environment config.
-bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/cloud-fedora-setup.sh" --wrapper-only ||
-    echo "fedora wrapper not installed — run manually: bash skills/dev-loop/scripts/env/cloud-fedora-setup.sh"
+# Fedora userspace: install the wrapper only (a second or two), and only when
+# there is none yet. The image builds on first `fedora …` use, so a session that
+# never touches it pays nothing. This path exists because a cloud environment's
+# Setup script field is not always offered in the environment dialog — the hook
+# needs no environment config.
+# An existing wrapper is left alone: the environment's own setup script may
+# have installed one in projection mode (mios-dev), baked for the runtime that
+# holds its image, while this hook runs the setup script with whatever FEDORA_*
+# the session exports (generic mode when none) and lets it pick the runtime.
+# Rewriting the wrapper here could point it at another image or runtime, so the
+# next `fedora` call would rebuild everything from scratch.
+# FEDORA_WRAPPER_DIR is honoured here and by the setup script (default
+# /usr/local/bin), so a test can point both at a scratch directory.
+WRAPPER_DIR="${FEDORA_WRAPPER_DIR:-/usr/local/bin}"
+if [ ! -e "$WRAPPER_DIR/fedora" ]; then
+    bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/cloud-fedora-setup.sh" --wrapper-only ||
+        echo "fedora wrapper not installed — run manually: bash skills/dev-loop/scripts/env/cloud-fedora-setup.sh"
+fi
 
 exit 0

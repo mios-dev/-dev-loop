@@ -44,11 +44,15 @@
 #                     grants, dev-loop skill via setup-antigravity.sh), which
 #                     otherwise runs first so Claude Code has agy on the host
 #   FEDORA_RUNTIME    auto|podman|docker                 (default auto)
-#                     MiOS is Podman-native: auto takes podman when it is on
-#                     PATH, else docker (Anthropic's cloud VM ships only docker).
-#                     An explicit runtime that is missing, or any other value,
+#                     MiOS is Podman-native. auto decides, in this order: the
+#                     runtime whose store already holds FEDORA_IMAGE (when both
+#                     are installed), then the first installed one that can run
+#                     here (podman info / dockerd up), then podman. An explicit
+#                     runtime that is missing or cannot run, or any other value,
 #                     logs an error and skips the Fedora build -- never a silent
 #                     fallback. `--print-runtime` prints the choice and exits.
+#   FEDORA_WRAPPER_DIR  where the wrapper(s) are installed (default /usr/local/bin);
+#                     the repo's SessionStart hook honours it too
 #   FEDORA_BUILD_CTX  build context + script cache dir   (default /opt/dev-loop-fedora)
 #
 # DEVCONTAINER PROJECTION MODE (worked example: MiOS)
@@ -142,6 +146,7 @@ esac
 FEDORA_RUNTIME="${FEDORA_RUNTIME:-auto}"
 # The chosen container runtime binary; set by select_runtime, used by every call.
 RT=""
+WRAPPER_DIR="${FEDORA_WRAPPER_DIR:-/usr/local/bin}"
 
 # The generic (non-projection) image only. A MiOS session uses projection mode,
 # which builds MiOS's one dev Containerfile instead of this list.
@@ -155,13 +160,37 @@ log() { printf '[fedora-env] %s\n' "$*"; }
 # (Anthropic's cloud VM). An explicit choice is honoured or refused, never
 # swapped: a silent fallback would build into the other runtime's image store,
 # where the wrapper baked for the requested one can never find it.
+# auto is decided in this order, and says which rule decided it:
+#   1. image home -- with both runtimes installed, the one whose store already
+#      holds $FEDORA_IMAGE. Each runtime has its own store, so "podman first"
+#      on a VM whose image sits in docker would rebuild everything into podman
+#      and strand the image that exists (measured: a --wrapper-only re-run did
+#      exactly that to a projection wrapper).
+#   2. usability -- a runtime that is on PATH but cannot run here (podman info
+#      fails, dockerd will not start) is passed over for the next installed
+#      one, with the reason logged. Being on PATH is not being able to run.
+#   3. podman.
 select_runtime() {
     case "$FEDORA_RUNTIME" in
         auto)
-            if command -v podman >/dev/null 2>&1; then RT=podman
-            elif command -v docker >/dev/null 2>&1; then RT=docker
-            else log "FEDORA_RUNTIME=auto: neither podman nor docker is on PATH"; return 1
-            fi ;;
+            order=""
+            for r in podman docker; do
+                command -v "$r" >/dev/null 2>&1 && order="$order $r"
+            done
+            [ -n "$order" ] || { log "FEDORA_RUNTIME=auto: neither podman nor docker is on PATH"; return 1; }
+            case "$order" in
+                *podman*docker*)
+                    if image_home; then
+                        log "auto: $FEDORA_IMAGE already lives in $IMAGE_HOME -- keeping it there"
+                        [ "$IMAGE_HOME" = docker ] && order="docker podman"
+                    fi ;;
+            esac
+            for r in $order; do
+                runtime_usable "$r" && { RT=$r; return 0; }
+                log "auto: $RT_WHY -- falling through to the next installed runtime"
+            done
+            log "FEDORA_RUNTIME=auto: no runtime on PATH can run here"
+            return 1 ;;
         podman|docker)
             command -v "$FEDORA_RUNTIME" >/dev/null 2>&1 || {
                 log "FEDORA_RUNTIME=$FEDORA_RUNTIME: $FEDORA_RUNTIME is not on PATH -- refusing to fall back to another runtime"
@@ -173,14 +202,40 @@ select_runtime() {
     esac
 }
 
-# Podman is daemonless: nothing to start, only check that it works.
+# Which installed runtime already holds $FEDORA_IMAGE: sets IMAGE_HOME, or
+# returns 1 when neither does. Docker's daemon is brought up first: a cold
+# session has it down, and a store that cannot be asked reads as empty, which
+# is exactly how an image in docker got overlooked.
+image_home() {
+    IMAGE_HOME=""
+    for r in podman docker; do
+        command -v "$r" >/dev/null 2>&1 || continue
+        if [ "$r" = docker ]; then ensure_dockerd || continue; fi
+        if "$r" image inspect "$FEDORA_IMAGE" >/dev/null 2>&1; then IMAGE_HOME=$r; return 0; fi
+    done
+    return 1
+}
+
+# Can $1 run here? Podman is daemonless, so only ask it; docker needs its
+# daemon, which no cold session has running. On failure RT_WHY names the reason.
+runtime_usable() {
+    RT_WHY=""
+    case "$1" in
+        podman) podman info >/dev/null 2>&1 && return 0
+                RT_WHY="podman info failed -- podman cannot run here" ;;
+        docker) ensure_dockerd && return 0
+                RT_WHY="docker's daemon is down and could not be started" ;;
+    esac
+    return 1
+}
+
+# The chosen runtime must actually run. auto already verified its pick; an
+# explicit runtime that cannot run here is refused, never swapped.
 ensure_runtime() {
-    if [ "$RT" = podman ]; then
-        podman info >/dev/null 2>&1 && return 0
-        log "podman info failed -- podman cannot run here"
-        return 1
-    fi
-    ensure_dockerd
+    runtime_usable "$RT" && return 0
+    log "$RT_WHY"
+    [ "$FEDORA_RUNTIME" = auto ] || log "FEDORA_RUNTIME=$FEDORA_RUNTIME: refusing to fall back to another runtime"
+    return 1
 }
 
 # --- 1. the Docker daemon (docker runtime only) ----------------------------------
@@ -300,7 +355,8 @@ install_wrapper() {
     # byte offset — truncating and rewriting the file a shell is executing
     # makes it resume mid-line on shifted offsets. A rename swaps the directory
     # entry and leaves the running shell's open inode untouched.
-    tmp=/usr/local/bin/.fedora-wrapper.$$
+    mkdir -p "$WRAPPER_DIR" || return 1
+    tmp=$WRAPPER_DIR/.fedora-wrapper.$$
     # Values are baked in (not read from the session env) so the wrapper keeps
     # meaning the same image in a later session that sets nothing, and an
     # on-demand build rebuilds the same mode.
@@ -322,7 +378,7 @@ install_wrapper() {
         printf 'SETUP_SCRIPT=%q\n' "$SCRIPT_CACHE"
         printf 'LIFECYCLE_STATUS=%q\n' "$BUILD_CTX/${DC_NAME:-none}.lifecycle"
         printf 'BUILD_ENV=(FEDORA_VERSION=%q FEDORA_IMAGE="$IMAGE" FEDORA_CONTAINER="$CONTAINER"' "$FEDORA_VERSION"
-        printf ' FEDORA_RUNTIME="$RUNTIME" FEDORA_BUILD_CTX=%q' "$BUILD_CTX"
+        printf ' FEDORA_RUNTIME="$RUNTIME" FEDORA_BUILD_CTX=%q FEDORA_WRAPPER_DIR=%q' "$BUILD_CTX" "$WRAPPER_DIR"
         printf ' FEDORA_DEVCONTAINER_REPO=%q FEDORA_DEVCONTAINER_FILE=%q' "$DC_REPO" "$DC_FILE"
         printf ' FEDORA_DEVCONTAINER_REF=%q FEDORA_DEVCONTAINER_NAME=%q)\n' "$DC_REF" "$DC_NAME"
         cat <<'WRAPPER'
@@ -425,7 +481,7 @@ WRAPPER
     } > "$tmp" || { rm -f "$tmp"; return 1; }
     chmod 0755 "$tmp" || { rm -f "$tmp"; return 1; }
     for n in $WRAPPER_NAMES; do
-        cp -f "$tmp" "/usr/local/bin/.$n.$$" && mv -f "/usr/local/bin/.$n.$$" "/usr/local/bin/$n" ||
+        cp -f "$tmp" "$WRAPPER_DIR/.$n.$$" && mv -f "$WRAPPER_DIR/.$n.$$" "$WRAPPER_DIR/$n" ||
             { rm -f "$tmp"; return 1; }
     done
     rm -f "$tmp"
@@ -649,7 +705,7 @@ main() {
 
     if [ "$WRAPPER_ONLY" = 1 ]; then
         select_runtime || { log "no wrapper installed"; return 0; }
-        install_wrapper && log "installed $WRAPPER_NAMES in /usr/local/bin (builds $FEDORA_IMAGE on first use)" ||
+        install_wrapper && log "installed $WRAPPER_NAMES in $WRAPPER_DIR (builds $FEDORA_IMAGE on first use)" ||
             log "could not install the wrapper"
         return 0
     fi
@@ -686,12 +742,12 @@ main() {
     fi
 
     if [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ]; then
-        log "invoked by the wrapper — leaving /usr/local/bin/$first as it is"
+        log "invoked by the wrapper — leaving $WRAPPER_DIR/$first as it is"
     else
         install_wrapper || { log "could not install the wrapper"; return 0; }
     fi
 
-    if ver=$(FEDORA_NO_AUTOBUILD=1 "/usr/local/bin/$first" cat /etc/fedora-release 2>/dev/null); then
+    if ver=$(FEDORA_NO_AUTOBUILD=1 "$WRAPPER_DIR/$first" cat /etc/fedora-release 2>/dev/null); then
         log "ready: $ver — run '$first <command>' or '$first' for a shell"
     else
         log "image built but the wrapper could not start a container"
