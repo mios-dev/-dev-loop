@@ -143,6 +143,9 @@ no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubun
   replacing the base image is unsupported, so this is the setup script to paste into the
   environment dialog. It builds `dev-loop-fedora:44` and installs `/usr/local/bin/fedora`
   (same paths, same `$PWD`). Measured 60s first run, 1.4s cold-session self-heal.
+  With `FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS` it instead projects MiOS's
+  `.devcontainer/Containerfile` (built unedited on a locally shadowed, CA-trusting fedora:44)
+  and installs `/usr/local/bin/mios-dev` (+ `fedora`). Measured 3m32s first run, 1.45s cold.
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
 - **In a cloud session, a detached job does not outlive the container.** `job.py spawn` survives
   the monitor's turn, but not the container, and an idle session's container is reclaimed.

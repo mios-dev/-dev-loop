@@ -138,6 +138,73 @@ run 60s wall clock, well inside the ~5-minute budget the cache needs; re-run
 1.4s. Fedora 44 with git 2.55, Python 3.14, Node 22, gcc 16; `dnf`, `pip` and
 `curl` all verified through the proxy with TLS verification on.
 
+### Projecting a repo's devcontainer (worked example: MiOS)
+
+Set `FEDORA_DEVCONTAINER_REPO` and the same script turns the session into a
+projection of that repo's devcontainer rather than the generic image:
+
+```sh
+FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS
+FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile   # the default
+```
+
+It shallow-clones the repo to `/opt/dev-loop-fedora/src/<name>` and builds its
+Containerfile **unedited**, with the repo root as context. The Containerfile's
+hard-coded `FROM registry.fedoraproject.org/fedora:44` is made to resolve to a
+base built first — upstream Fedora plus the egress CA, the pinned repos (every
+other repo disabled, since a devcontainer's `dnf install` has no
+`--disablerepo`) and `ENV SSL_CERT_FILE`/`CURL_CA_BUNDLE`/`REQUESTS_CA_BUNDLE`/
+`NODE_EXTRA_CA_CERTS`/`PIP_CERT` — tagged locally under the upstream name.
+Docker resolves `FROM` from the local store before any registry, so the build
+lands on the shadow (the build log shows the base's digest), and every later
+layer inherits the CA env: MiOS's `npm install -g`, its python3.11 venv `pip
+install` and its Antigravity `curl` all run through the proxy with
+verification on. The real upstream is kept as `dev-loop-fedora-upstream:<tag>`,
+so a rebuild never bases the shadow on itself.
+
+The wrapper is installed as `/usr/local/bin/<repo>-dev` (`mios-dev`) and as
+`/usr/local/bin/fedora`, both entering the same container. Its image, mode and
+build settings are baked in at install time, so a later session that sets
+nothing still means the same image and a first-use build rebuilds the same
+mode; the script caches itself at `/opt/dev-loop-fedora/cloud-fedora-setup.sh`
+for that. Commands run as root by default because the bind-mounted workspace
+is root-owned in a cloud session; `FEDORA_EXEC_USER=mios-dev` runs as the
+devcontainer's own user instead. `/home` is mounted per entry, never whole —
+mounting it whole hides the image's `/home/mios-dev/.local/bin`, where MiOS
+installs `agy`.
+
+**Commit from the host, not the container.** A cloud session signs commits
+through a platform helper (`gpg.ssh.program=/tmp/code-sign`, a symlink into
+`/opt/env-runner/`), and neither path is mounted into the container. So
+`git commit` inside `mios-dev` fails (`cannot exec '/tmp/code-sign'`, exit
+128), and so does any test suite that makes commits in a temp repo: this is
+why `validate.sh` errors in four suites inside the container and passes on the
+host. Build, test and run inside `mios-dev`; stage, commit and push on the
+host, where the files are the same files.
+
+Why the devcontainer and not MiOS's own image: `ghcr.io/mios-dev/mios:latest`
+is a bootc OCI image of 22.8 GB compressed in 79 layers — too big for the
+setup budget or the VM's disk. The devcontainer is MiOS's build and dev
+userspace, which is what a session needs; the bootc image is what it produces.
+
+**Measured (2026-09-25, same VM class):** setup script, nothing cached, 3m32s
+wall clock (build 208s: dnf 54s, npm 18s, venv 17s, layer export 97s) —
+inside the ~5-minute budget, with little room, so on a slow day prefer
+`--wrapper-only`; re-run with the image present 0.36s; cold session (dockerd
+down, container gone) 1.45s; first-use build through the wrapper with no
+`FEDORA_DEVCONTAINER_*` in the environment 3m14s. Inside: Fedora 44, just
+1.57.0, bootc 1.16.13, cargo 1.98.1, venv Python 3.11.16, agy 1.2.11, claude,
+gemini, copilot, podman, ShellCheck, `MIOS_DEVCONTAINER=1`.
+
+Trust was checked on both sides against a host the proxy actually intercepts:
+the proxy MITMs only some hosts (`github.com` yes; `dl.fedoraproject.org`,
+`pypi.org`, `registry.npmjs.org` and `registry.fedoraproject.org` pass through
+to curl untouched), so a fetch from those proves nothing either way. From the
+same Fedora 44 without the CA layer, `curl https://github.com/…` fails with
+`(60) self-signed certificate in certificate chain`; inside `mios-dev`, curl,
+the venv's Python and node all complete the handshake. With the CA step
+disabled (`FEDORA_CA_BUNDLE=none`), the build's `dnf` fails the same way.
+
 ### When the dialog has no Setup script field
 
 Observed 2026-09: an environment dialog showing only **Name**, **Network

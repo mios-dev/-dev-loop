@@ -54,6 +54,13 @@
 - blockers: -
 - unverified: F16 (a real AGY agent driving claude_lane.py) -- a live-harness run, on demand only
 
+## 2026-09-25 07:29 · f909dfe · cloud session: MiOS devcontainer projection
+- objective: make a cloud session a Fedora container projected from MiOS's devcontainer, with a reusable setup script
+- done: cloud-fedora-setup.sh FEDORA_DEVCONTAINER_REPO mode: shallow clone, unedited build of .devcontainer/Containerfile on a locally shadowed CA-trusting repo-pinned fedora:44 (FROM resolved to the shadow digest), inherited CA env incl. PIP_CERT, wrapper baked + installed as mios-dev and fedora, per-entry /home mounts (whole /home hid agy), concurrent cold-start race fixed. Measured 3m32s first run, 0.36s re-run, 1.45s cold, 3m14s first-use build from baked values. adapters.validate_spec fallback now enforces the schema's numeric worker bounds (host lacks jsonschema; test_claude_lane timeout check was red on HEAD). validate.sh rc 0
+- next: operator: paste the script + the two FEDORA_DEVCONTAINER_* vars into a cloud environment and make it the default; decide whether validate.sh should also pass inside mios-dev (4 suites error there)
+- blockers: -
+- unverified: the platform snapshot of a pasted setup-script run was not observed from a fresh session; 3m32s leaves ~1.5 min of the ~5 min budget; node reached github.com with NODE_EXTRA_CA_CERTS unset, so that var is belt-and-braces there
+
 ## 2026-09-25 07:49 · 48e0f49+1 · dev-loop-web: the Spark skill, its package target and gate
 - objective: a web-only dev-loop skill the operator uploads to Gemini Spark for the MiOS daily out-of-loop
   artifact task (design: research note devloop_spark_skill_design.md Q4), packaged and gated here
@@ -88,3 +95,10 @@
 - next: -
 - blockers: -
 - unverified: a real codex turn with this argv (no codex auth here; live-harness runs are on demand only)
+
+## 2026-09-25 13:39 · 06445b1 · PR #17 review before ready
+- objective: review PR #17 before marking it ready (operator: refine with AGY if needed)
+- done: agy unauthenticated after the container restart -> reviewed as Claude Code (topology B fallback); no correctness findings in the script or adapters diff. Root-caused the 4 suites that error inside mios-dev: git commit exits 128 because the host signs commits via gpg.ssh.program=/tmp/code-sign (-> /opt/env-runner), which is not mounted; documented 'commit from the host'. Mounting the helper was denied by the permission classifier and not pursued. validate.sh rc 0
+- next: operator: finish agy login (agy-login.sh --code) if an AGY review pass is still wanted; review and merge #17
+- blockers: -
+- unverified: no AGY review ran (no auth); signing inside the container untested (helper mount not permitted)

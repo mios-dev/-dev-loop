@@ -146,6 +146,20 @@ def validate_spec(spec: dict) -> list[str]:
                 if k not in l: errs.append(f"lane {l.get('id')}: missing {k}")
             h = l.get("worker", {}).get("harness")
             if h and h not in HARNESSES: errs.append(f"lane {l.get('id')}: unknown harness {h}")
+        # The schema's numeric bounds are contract (timeout_s >= 30, ...), not a jsonschema
+        # nicety: without them a host lacking the library dispatched a 5s lane unrefused.
+        bounds = json.loads((HERE.parent / "assets" / "lane-schema.json").read_text("utf-8"))
+        bounds = bounds["$defs"]["worker"]["properties"]
+        workers = [("worker", spec.get("worker"))] + [
+            (f"lanes/{l.get('id')}/worker", l.get("worker")) for l in spec.get("lanes", [])]
+        for where, w in workers:
+            for k, v in (w or {}).items():
+                b = bounds.get(k, {})
+                if isinstance(v, bool) or not isinstance(v, (int, float)): continue
+                if "minimum" in b and v < b["minimum"]:
+                    errs.append(f"{where}/{k}: {v} is less than the minimum of {b['minimum']}")
+                if "maximum" in b and v > b["maximum"]:
+                    errs.append(f"{where}/{k}: {v} is greater than the maximum of {b['maximum']}")
     ids = [l.get("id") for l in spec.get("lanes", [])]
     if len(ids) != len(set(ids)): errs.append("duplicate lane ids")
     for l in spec.get("lanes", []):
