@@ -18,6 +18,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
+    sys.path.insert(0, str(HERE))
+from repo_root import cli_repo_root, find_repo_root, template_source  # noqa: E402  -- the one repo-root resolver
+
 
 @dataclass
 class TriageClassification:
@@ -41,30 +46,21 @@ class TriageReport:
 
 class FailureTriager:
     def __init__(self, repo_root: Optional[str] = None):
-        self.repo_root = Path(repo_root or self._find_repo_root()).resolve()
+        self.repo_root = Path(repo_root or find_repo_root()).resolve()
         self.artifacts_dir = self.repo_root / ".devloop"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-        self.script_dir = Path(__file__).resolve().parent
 
-    def _find_repo_root(self) -> Path:
+    def scaffold_template(self, template_dir: Optional[str] = None) -> Path:
+        """Copy TRIAGE_INCIDENT.md from `template_dir` (default: the skill's shipped
+        assets/templates) to INCIDENT_TRIAGE.md. The target repo is never searched implicitly."""
         try:
-            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-            return Path(out).resolve()
-        except Exception:
-            cur = Path.cwd()
-            for parent in [cur] + list(cur.parents):
-                if (parent / ".git").exists():
-                    return parent
-            return cur
-
-    def scaffold_template(self) -> Path:
-        src_path = self.script_dir.parent / "assets" / "templates" / "TRIAGE_INCIDENT.md"
-        if not src_path.exists():
-            src_path = self.repo_root / "reference" / "templates" / "TRIAGE_INCIDENT.md"
+            src_path = template_source("TRIAGE_INCIDENT.md", template_dir)
+        except FileNotFoundError as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
+            sys.exit(1)
         dest_path = self.repo_root / "INCIDENT_TRIAGE.md"
-        if src_path.exists():
-            shutil.copy2(src_path, dest_path)
-            print(f"[SCAFFOLDED] Created {dest_path.name} at {dest_path}")
+        shutil.copy2(src_path, dest_path)
+        print(f"[SCAFFOLDED] Created {dest_path.name} at {dest_path}")
         return dest_path
 
     def triage_command(self, test_cmd: str, iterations: int = 3) -> TriageReport:
@@ -213,12 +209,13 @@ def main():
     parser.add_argument("command", nargs="?", default="", help="Failing command or test to triage")
     parser.add_argument("--runs", type=int, default=3, help="Number of repetitions for flakiness check")
     parser.add_argument("--init", action="store_true", help="Scaffold TRIAGE_INCIDENT.md template")
+    parser.add_argument("--template-dir", metavar="DIR", help="Directory to copy the template from (default: the skill's shipped assets/templates; the target repo is never searched implicitly)")
 
     args = parser.parse_args()
-    triager = FailureTriager()
+    triager = FailureTriager(cli_repo_root())
 
     if args.init:
-        triager.scaffold_template()
+        triager.scaffold_template(args.template_dir)
     elif args.command:
         report = triager.triage_command(args.command, iterations=args.runs)
         if report.classification and report.classification.failure_type in ("DETERMINISTIC_BUG", "FLAKY_TEST"):

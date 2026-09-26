@@ -16,5 +16,5 @@ Input: `$ARGUMENTS`.
 2. **Primary sources first**: vendor docs, changelog, release notes, the installed package source. Aggregator blogs are corroboration only. Cite URLs and versions.
 3. **Two-way deprecation check**: was it really removed/replaced, or is it an unmerged proposal? Is the recommended replacement still current?
 4. **Release diffing**: `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/research.py diff <base_ref> <upstream_ref>` (tags/SHAs) → breaking-change list.
-5. **Write it down**: `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/research.py template spike|upstream-audit|tech-eval` then fill the document under `docs/`; link it from the task (`links`) or an ADR (`artifacts.py adr new`).
+5. **Write it down**: `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/research.py template spike|upstream|eval [--template-dir DIR]` (default: the shipped `assets/templates`; the target repo is never searched implicitly) then fill the document under `docs/`; link it from the task (`links`) or an ADR (`artifacts.py adr new`).
 6. Return: findings, versions, sources, recommendation with trade-offs, and what remains unverified. No code changes in this skill.

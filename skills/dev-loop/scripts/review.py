@@ -22,6 +22,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
+    sys.path.insert(0, str(HERE))
+from repo_root import cli_repo_root, find_repo_root  # noqa: E402  -- the one repo-root resolver
+
 
 class Severity(str, Enum):
     BLOCKER = "BLOCKER"
@@ -98,21 +103,10 @@ class ScopeOversightRecord:
 
 class ScopeReviewEngine:
     def __init__(self, repo_root: Optional[str] = None):
-        self.repo_root = Path(repo_root or self._find_repo_root()).resolve()
+        self.repo_root = Path(repo_root or find_repo_root()).resolve()
         self.artifacts_dir = self.repo_root / ".devloop"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         self.script_dir = Path(__file__).resolve().parent
-
-    def _find_repo_root(self) -> Path:
-        try:
-            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-            return Path(out).resolve()
-        except Exception:
-            cur = Path.cwd()
-            for parent in [cur] + list(cur.parents):
-                if (parent / ".git").exists():
-                    return parent
-            return cur
 
     def _get_diff(self, target_ref: str) -> str:
         """Fetch git diff safely across staged, unstaged, commit ranges, or single commits."""
@@ -554,7 +548,7 @@ def main():
     parser.add_argument("--init", action="store_true", help="Scaffold OVERSIGHT_RECORD.md template")
 
     args = parser.parse_args()
-    engine = ScopeReviewEngine()
+    engine = ScopeReviewEngine(cli_repo_root())
 
     if args.init:
         engine.scaffold_template()

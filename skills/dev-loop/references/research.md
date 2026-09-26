@@ -19,5 +19,5 @@ Before modifying code or contracts:
 
 1. **Verify Truth Before Refactoring:** Never guess API signatures or assume deprecation timelines. Run `/websearch` or `/s` to inspect canonical release notes.
 2. **Upstream Tag & Digest Auditing:** When bumping dependencies, run `/research <base_tag> <new_tag>`. Inspect deleted interfaces, renamed constants, and breaking schema changes.
-3. **Template Scaffolding:** Run `python3 scripts/research.py template <spike|upstream|eval>` to instantiate formal research briefs.
+3. **Template Scaffolding:** Run `python3 scripts/research.py template <spike|upstream|eval> [--dest FILE] [--template-dir DIR]` to instantiate formal research briefs. Templates come from the skill's shipped `assets/templates` unless `--template-dir` names another directory; the target repository is never searched implicitly.
 4. **Generate Research Brief:** The research engine produces `UPSTREAM_BRIEF.md` and logs JSON telemetry in `.devloop/`, creating an auditable paper trail.

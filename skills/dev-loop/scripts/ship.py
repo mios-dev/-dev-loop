@@ -18,6 +18,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
+    sys.path.insert(0, str(HERE))
+from repo_root import cli_repo_root, find_repo_root, template_source  # noqa: E402  -- the one repo-root resolver
+
 
 @dataclass
 class ShipResult:
@@ -34,30 +39,22 @@ class ShipResult:
 
 class ShipEngine:
     def __init__(self, repo_root: Optional[str] = None):
-        self.repo_root = Path(repo_root or self._find_repo_root()).resolve()
+        self.repo_root = Path(repo_root or find_repo_root()).resolve()
         self.artifacts_dir = self.repo_root / ".devloop"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         self.script_dir = Path(__file__).resolve().parent
 
-    def _find_repo_root(self) -> Path:
+    def scaffold_template(self, template_dir: Optional[str] = None) -> Path:
+        """Copy RELEASE_CHECKLIST.md from `template_dir` (default: the skill's shipped
+        assets/templates). The target repo is never searched implicitly."""
         try:
-            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-            return Path(out).resolve()
-        except Exception:
-            cur = Path.cwd()
-            for parent in [cur] + list(cur.parents):
-                if (parent / ".git").exists():
-                    return parent
-            return cur
-
-    def scaffold_template(self) -> Path:
-        src_path = self.script_dir.parent / "assets" / "templates" / "RELEASE_CHECKLIST.md"
-        if not src_path.exists():
-            src_path = self.repo_root / "reference" / "templates" / "RELEASE_CHECKLIST.md"
+            src_path = template_source("RELEASE_CHECKLIST.md", template_dir)
+        except FileNotFoundError as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
+            sys.exit(1)
         dest_path = self.repo_root / "RELEASE_CHECKLIST.md"
-        if src_path.exists():
-            shutil.copy2(src_path, dest_path)
-            print(f"[SCAFFOLDED] Created {dest_path.name} at {dest_path}")
+        shutil.copy2(src_path, dest_path)
+        print(f"[SCAFFOLDED] Created {dest_path.name} at {dest_path}")
         return dest_path
 
     def ship(self, source_branch: str, target_branch: str = "main", tag: Optional[str] = None, delete_branch: bool = False, **kwargs) -> ShipResult:
@@ -204,13 +201,14 @@ def main():
     parser.add_argument("--tag", help="Optional release tag to apply upon successful merge")
     parser.add_argument("--delete-branch", action="store_true", help="Delete source branch after successful merge")
     parser.add_argument("--init", action="store_true", help="Scaffold RELEASE_CHECKLIST.md template")
+    parser.add_argument("--template-dir", metavar="DIR", help="Directory to copy the template from (default: the skill's shipped assets/templates; the target repo is never searched implicitly)")
     parser.add_argument("--skip-scope-gate", action="store_true", help="Bypass automated SCOPE staged review gate")
 
     args = parser.parse_args()
-    engine = ShipEngine()
+    engine = ShipEngine(cli_repo_root())
 
     if args.init:
-        engine.scaffold_template()
+        engine.scaffold_template(args.template_dir)
     elif args.source:
         res = engine.ship(args.source, target_branch=args.target, tag=args.tag, delete_branch=args.delete_branch, skip_scope_gate=args.skip_scope_gate)
         sys.exit(0 if res.success else 1)
