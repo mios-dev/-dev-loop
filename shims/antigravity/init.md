@@ -4,10 +4,16 @@ Identifier: `init`
 Purpose: Take a fresh MiOS development environment to a running dev loop — the four sibling
 repos (the MiOS checkout pinned to its GitHub origin), what MiOS's one `.devcontainer/Containerfile`
 installs (Fedora host: its dnf set from `mios.toml [packages.devcontainer]`, its npm CLIs and the
-agent-pipe venv on the host; any other host: the Containerfile itself built as an image, podman
-first), `agy`, and the MiOS identity (`MiOS.md`) plus the Global MiOS System Prompt
+agent-pipe venv on the host, the venv judged against the `requirements.txt` the Containerfile
+installs, never a literal module list; any other host: the Containerfile itself built as an
+image, podman first), `agy`, and the MiOS identity (`MiOS.md`) plus the Global MiOS System Prompt
 (`usr/share/mios/ai/system.md`) adopted for the session beneath the repository contract files.
 Idempotent; safe to re-run after a container rebuild.
+
+The pin is a trust statement, not a boundary: a directory at a candidate path whose origin is set
+to the MiOS URL is accepted, because a local checkout is the operator's own working copy, trusted
+exactly as its `packages.sh` already is. The deployed OS copy and GitHub `main` are the anchors
+when no such checkout exists.
 
 Input: optional flags passed straight through — `--plan` (show what would run, change
 nothing), `--no-packages`, `--prompt-only`, `--packages-only`. A pair that selects no step is
@@ -46,5 +52,10 @@ Report: workspace root, repo states, package path taken (dnf or projection) and 
 identity path + sha256 + source, prompt path + sha256 + source, agy auth state, the proposed
 next task.
 
-MiOS is podman-native: the projection uses docker only where it is the host's only runtime, and
-the wrapper it installs is written for the runtime that holds the image.
+MiOS is podman-native: the projection uses docker only where it is the host's only runtime. The
+runtime that holds the image is the setup script's own `--print-runtime` answer (it starts
+dockerd when needed), and the wrapper (`$FEDORA_WRAPPER_DIR/mios-dev`, default `/usr/local/bin`)
+is written for that runtime and verified to say so; an existing wrapper naming the other runtime
+is rewritten. Every failure detail names its log (a fetch failure, its curl stderr log); URLs are
+logged with userinfo and `?token=` values redacted; forwarded variables reach `sudo` through a
+0600 temp file, never on its argv.

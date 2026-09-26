@@ -15,6 +15,12 @@
 #                and skipped -- its packages.sh would run as root and its
 #                prompt would be adopted. $PWD and its parent are never
 #                candidates for the workspace root.
+#                The pin is a trust statement, not a boundary: a directory at a
+#                candidate path whose origin is SET to the MiOS URL is accepted,
+#                because a local checkout is the operator's own working copy and
+#                is trusted exactly as its packages.sh already is. The deployed
+#                OS copy and GitHub main are the anchors when no such checkout
+#                exists.
 #   2. packages  install what MiOS's ONE .devcontainer/Containerfile installs:
 #                  Fedora host  -> on the host itself, the Containerfile's
 #                                  three installs: its dnf set
@@ -24,19 +30,30 @@
 #                                  --setopt=install_weak_deps=False as the
 #                                  Containerfile does; podman is in that set),
 #                                  its global npm CLIs (parsed from the
-#                                  Containerfile's `npm install -g` line, never
+#                                  Containerfile's `npm install -g` line, with
+#                                  backslash-continued lines joined first, never
 #                                  a copied list) and the agent-pipe venv
 #                                  (python3.11 -m venv /usr/lib/mios/agents/.venv
-#                                  + pip install -r usr/lib/mios/agent-pipe/
-#                                  requirements.txt; skipped when the venv
-#                                  already imports fastapi httpx mcp pydantic
-#                                  uvicorn)
+#                                  + pip install -r the requirements.txt the
+#                                  Containerfile's own pip install -r names,
+#                                  followed back to the MiOS tree through its
+#                                  COPY or staged path; skipped when the venv
+#                                  already holds every distribution that file
+#                                  names -- pip freeze, PEP 503 names -- never a
+#                                  literal module list)
 #                  other hosts  -> the Containerfile ITSELF, built as an image
 #                                  by cloud-fedora-setup.sh (podman first,
 #                                  docker where it is the host's only runtime);
-#                                  an existing image is never rebuilt, and the
-#                                  wrapper is installed for the runtime that
-#                                  holds the image and verified to say so
+#                                  the runtime that holds the image is the
+#                                  setup script's own answer (--print-runtime,
+#                                  which starts dockerd when needed, so a down
+#                                  daemon never reads as "image absent"); an
+#                                  existing image is never rebuilt, and the
+#                                  wrapper ($FEDORA_WRAPPER_DIR/<name>, default
+#                                  /usr/local/bin) is installed for that runtime
+#                                  and verified to say so -- an existing wrapper
+#                                  that names the other runtime (or none) is
+#                                  rewritten the same way
 #      tooling   setup-antigravity.sh --quiet (agy, keyring, grants, skill);
 #                agy is its job on both paths
 #   3. prompt    two files, each resolved the same pinned way -- the deployed
@@ -55,8 +72,11 @@
 # it. Required: repo:MiOS, packages, tooling, prompt. The other three repos are
 # reported but optional. A run that selects no step at all is an error (exit 2
 # for a contradictory flag pair), never ok. Every failure detail names the log
-# it came from. URLs are logged and emitted with their userinfo redacted
-# (https://user:TOKEN@host -> https://***@host).
+# it came from (a fetch failure names the curl stderr log, which holds curl's
+# own message: a proxy refusal, a TLS or CA failure). URLs are logged and
+# emitted with their credentials redacted: userinfo (https://user:TOKEN@host ->
+# https://***@host) and the value of a credential query parameter (token,
+# access_token, key, sig, signature, X-Amz-Signature; ?token=... -> ?token=***).
 #
 # Usage: bash mios-init.sh [--plan] [--no-packages] [--prompt-only] [--packages-only]
 #   --plan           print what would run; change nothing (no clone, install, write)
@@ -74,7 +94,11 @@
 #   MIOS_TOML                     mios.toml to resolve packages from
 #                                 (default <MiOS>/usr/share/mios/mios.toml)
 #   MIOS_CONTAINERFILE            Containerfile whose `npm install -g` line names
-#                                 the CLIs (default <MiOS>/.devcontainer/Containerfile)
+#                                 the CLIs and whose `pip install -r` names the
+#                                 venv's requirements file (default <MiOS>/.devcontainer/Containerfile)
+#   MIOS_REQUIREMENTS             the venv's requirements file (default: the one
+#                                 the Containerfile's pip install -r names, as a
+#                                 file of <MiOS>)
 #   MIOS_SYSTEM_PROMPT_URL        system.md fetch URL   (default MiOS main on raw.githubusercontent.com)
 #   MIOS_SYSTEM_PROMPT_DEPLOYED   deployed system.md    (default /usr/share/mios/ai/system.md)
 #   MIOS_IDENTITY_URL             MiOS.md fetch URL     (default MiOS main on raw.githubusercontent.com)
@@ -82,10 +106,13 @@
 #   MIOS_OS_RELEASE               os-release file       (default /etc/os-release)
 #   FEDORA_DEVCONTAINER_REPO / FEDORA_DEVCONTAINER_NAME / FEDORA_IMAGE
 #                                 passed through to cloud-fedora-setup.sh
+#   FEDORA_WRAPPER_DIR            where the wrapper lives (default /usr/local/bin;
+#                                 cloud-fedora-setup.sh honours the same variable)
 #   When not root, the proxy variables (HTTPS_PROXY https_proxy HTTP_PROXY
 #   http_proxy NO_PROXY no_proxy) and every FEDORA_* / MIOS_* variable that is
-#   set are forwarded through `sudo -n env NAME=value ...` (sudo's env_reset
-#   would strip them); values are never printed by this script.
+#   set are forwarded to the sudo side through a 0600 temp file that root's sh
+#   sources (never on sudo's argv, which is world-readable and syslogged);
+#   values are never printed by this script.
 set -u
 
 SELF_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -109,13 +136,18 @@ OS_RELEASE="${MIOS_OS_RELEASE:-/etc/os-release}"
 CACHE_DIR="${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/mios"
 PROMPT_OUT="$CACHE_DIR/system.md"
 IDENT_OUT="$CACHE_DIR/MiOS.md"
-# The agent-pipe venv exactly as the Containerfile creates it, and the modules
-# whose import proves it is already satisfied.
+# The agent-pipe venv exactly as the Containerfile creates it. What must be in
+# it is read from the requirements file the Containerfile installs, never
+# listed here (a copied subset drifts silently).
 VENV=/usr/lib/mios/agents/.venv
-VENV_MODULES="fastapi httpx mcp pydantic uvicorn"
 DC_REPO="${FEDORA_DEVCONTAINER_REPO:-https://github.com/mios-dev/MiOS}"
-DC_NAME="${FEDORA_DEVCONTAINER_NAME:-mios-dev}"
+# The wrapper name exactly as cloud-fedora-setup.sh derives it: <repo>-dev.
+DC_NAME="${FEDORA_DEVCONTAINER_NAME:-$(basename "${DC_REPO%/}" .git | tr '[:upper:]' '[:lower:]')-dev}"
 DC_IMAGE="${FEDORA_IMAGE:-${DC_NAME}:latest}"
+# Where the wrapper lives; cloud-fedora-setup.sh honours the same variable, so
+# one setting names the same file on both sides.
+WRAPPER_DIR="${FEDORA_WRAPPER_DIR:-/usr/local/bin}"
+CFS="$SELF_DIR/cloud-fedora-setup.sh"
 export GIT_TERMINAL_PROMPT=0
 
 PLAN=0 DO_REPOS=1 DO_PKGS=1 DO_TOOLING=1 DO_PROMPT=1 MODE=run
@@ -144,9 +176,17 @@ fi
 
 log() { printf '[mios-init] %s\n' "$*"; }
 jstr() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r\t')"; }
-# Userinfo (anything between :// and the @ before the host) is never logged or
-# emitted: a token in https://user:TOKEN@host would land in the transcript.
-redact_url() { printf '%s' "$1" | sed -E 's#(://)[^/@]*@#\1***@#g'; }
+# Credentials never reach a log, the JSON or the transcript. Two forms are
+# blanked: userinfo (anything between :// and the @ before the host: a token in
+# https://user:TOKEN@host) and the value of a credential-carrying query
+# parameter -- token, access_token, key, sig, signature, X-Amz-Signature,
+# matched case-insensitively (GitHub's own ?token= form for private raw URLs
+# among them). The names are spelled out as letter classes because sed's I
+# flag is GNU-only. redact_stream filters stdin (a log, line by line);
+# redact_url one string.
+REDACT_PARAMS='[Tt][Oo][Kk][Ee][Nn]|[Aa][Cc][Cc][Ee][Ss][Ss]_[Tt][Oo][Kk][Ee][Nn]|[Kk][Ee][Yy]|[Ss][Ii][Gg]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Xx]-[Aa][Mm][Zz]-[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]'
+redact_stream() { sed -E -e 's#(://)[^/@]*@#\1***@#g' -e 's,([?&]('"$REDACT_PARAMS"')=)[^&#]*,\1***,g'; }
+redact_url() { printf '%s' "$1" | redact_stream; }
 
 STEPS="" FAILED_REQ="" REPOS_JSON="" RUNTIME=""
 PROMPT_SHA="" PROMPT_SRC="" IDENT_SHA="" IDENT_SRC=""
@@ -161,28 +201,38 @@ record() {
 
 # run "$@" as root: directly when root, else through non-interactive sudo.
 # sudo's env_reset strips the environment, so the proxy variables and every
-# FEDORA_* / MIOS_* variable that is set are re-applied on the far side as
-# `env NAME=value` arguments. The names come from awk's ENVIRON (no env dump
-# is ever printed); positional parameters are the only list POSIX sh has, so
-# the pairs are appended after the command and the command is then rotated
-# to the end.
+# FEDORA_* / MIOS_* variable that is set are re-applied on the far side -- but
+# never on argv: a value there (HTTPS_PROXY with proxy credentials, a token in
+# MIOS_GITHUB_BASE) is world-readable in /proc/<pid>/cmdline for the run and
+# lands on sudo's syslog COMMAND= line. The pairs are written, shell-quoted,
+# into a temp file created 0600 (mktemp under umask 077): root is the target,
+# so root reading it is no leak, and no other user can. Root's sh sources the
+# file and execs the command; argv carries the file's path only. The file is
+# removed right after, and by an EXIT trap should the script die first. The
+# names come from awk's ENVIRON (no env dump is ever printed).
 as_root() {
     if [ "$(id -u)" = 0 ]; then "$@"; return $?; fi
     command -v sudo >/dev/null 2>&1 || { printf 'mios-init: not root and no sudo for: %s\n' "$*" >&2; return 1; }
-    _n=$#
+    AS_ROOT_ENV=$(umask 077 && mktemp "${TMPDIR:-/tmp}/mios-init-env.XXXXXX") ||
+        { printf 'mios-init: cannot create the env file for sudo\n' >&2; return 1; }
+    trap '[ -z "${AS_ROOT_ENV:-}" ] || rm -f "$AS_ROOT_ENV"' EXIT
     for _v in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PROXY no_proxy \
               $(awk 'BEGIN { for (k in ENVIRON) if (k ~ /^(FEDORA|MIOS)_[A-Za-z0-9_]*$/) print k }'); do
         eval "_val=\${$_v:-}"
-        [ -n "$_val" ] && set -- "$@" "$_v=$_val"
-    done
-    while [ "$_n" -gt 0 ]; do set -- "$@" "$1"; shift; _n=$((_n - 1)); done
-    sudo -n env "$@"
+        [ -n "$_val" ] || continue
+        printf "export %s='%s'\n" "$_v" "$(printf '%s' "$_val" | sed "s/'/'\\\\''/g")"
+    done >"$AS_ROOT_ENV"
+    sudo -n sh -c '. "$1"; shift; exec "$@"' sh "$AS_ROOT_ENV" "$@"
+    _rc=$?
+    rm -f "$AS_ROOT_ENV"; AS_ROOT_ENV=""
+    return $_rc
 }
 
 # is_mios DIR: DIR is a usable MiOS checkout -- it carries the two files this
 # script consumes AND it is the root of a git work tree whose origin is the
 # MiOS repo. Otherwise IS_MIOS_WHY says why, and a directory that only fails
 # the pin starts with "ignored:". Read-only: rev-parse and remote get-url.
+# The origin match is a trust statement (see the header), not a boundary.
 IS_MIOS_WHY=""
 is_mios() {
     IS_MIOS_WHY=""
@@ -244,7 +294,7 @@ if [ "$DO_REPOS" = 1 ]; then
             ctmp="$CACHE_DIR/.clone.$r.$$"
             git clone --quiet --depth 1 -- "$GH_BASE/$r" "$d" >"$ctmp" 2>&1; rc=$?
             # git's own output can echo the URL it was given: redact before it is kept.
-            sed -E 's#(://)[^/@]*@#\1***@#g' "$ctmp" >"$clog" 2>/dev/null; rm -f "$ctmp"
+            redact_stream <"$ctmp" >"$clog" 2>/dev/null; rm -f "$ctmp"
             if [ "$rc" = 0 ]; then
                 state=cloned; record "repo:$r" ok "$req" "shallow-cloned $rurl into $d (log $clog)"
             else
@@ -264,21 +314,131 @@ is_fedora() {
     ( . "$OS_RELEASE" && [ "${ID:-}" = fedora ] )
 }
 
-image_runtime() { # prints the runtime that holds $DC_IMAGE, podman first
+# probe_image: which runtime holds $DC_IMAGE. The decision is delegated to
+# cloud-fedora-setup.sh --print-runtime under FEDORA_RUNTIME=auto: it applies
+# image home (the runtime whose store already holds the image, when both are
+# installed) and starts dockerd when it is down, so a cold session with both
+# runtimes never reads an image docker holds as "absent". PROBE_RT is its
+# answer -- the runtime a projection would build into -- and the return is 0
+# when that runtime's store holds the image. Only without the setup script (or
+# without root to run it) does a fallback ask podman, then docker, starting
+# nothing.
+PROBE_RT=""
+probe_image() {
+    PROBE_RT="" PROBE_NOTE=""
+    # --plan changes nothing: the delegation below can start dockerd as root,
+    # so a plan only inspects what is already running and says what it could
+    # not see.
+    if [ -f "$CFS" ] && [ "$PLAN" != 1 ]; then
+        PROBE_RT=$( export FEDORA_RUNTIME=auto FEDORA_IMAGE="$DC_IMAGE" FEDORA_DEVCONTAINER_REPO="$DC_REPO" FEDORA_DEVCONTAINER_NAME="$DC_NAME"
+                    as_root bash "$CFS" --print-runtime 2>/dev/null | head -n 1 )
+    fi
+    if [ -n "$PROBE_RT" ]; then
+        "$PROBE_RT" image inspect "$DC_IMAGE" >/dev/null 2>&1
+        return $?
+    fi
     for rt in podman docker; do
         command -v "$rt" >/dev/null 2>&1 || continue
-        "$rt" image inspect "$DC_IMAGE" >/dev/null 2>&1 && { printf '%s' "$rt"; return 0; }
+        [ -n "$PROBE_RT" ] || PROBE_RT=$rt
+        "$rt" image inspect "$DC_IMAGE" >/dev/null 2>&1 && { PROBE_RT=$rt; return 0; }
+        [ "$rt" = docker ] && ! docker info >/dev/null 2>&1 &&
+            PROBE_NOTE="docker's daemon is down, so its image store was not checked (a real run starts it through $CFS --print-runtime and checks again)"
     done
     return 1
 }
 
-wrapper_runtime() { # prints the RUNTIME= the installed wrapper was written for
-    sed -n 's/^RUNTIME=//p' "/usr/local/bin/$DC_NAME" 2>/dev/null | head -n 1
+wrapper_runtime() { # prints the RUNTIME= the installed wrapper was written for (empty: none)
+    sed -n 's/^RUNTIME=//p' "$WRAPPER_DIR/$DC_NAME" 2>/dev/null | head -n 1
 }
 
+# install_wrapper RT: (re)install $WRAPPER_DIR/$DC_NAME through the setup
+# script's --wrapper-only for RT, the runtime that holds the image. RT is
+# passed explicitly: auto would take podman when both runtimes are installed
+# and write a wrapper that can never find the image, whose first call would
+# rebuild everything there. The installed wrapper's RUNTIME= line is read back
+# (the wrapper is generated; the line is "RUNTIME=<rt>"): returns 0 when it
+# says RT, else WRAPPER_WHY says what went wrong. WRAPPER_RT is what it says.
+WRAPPER_RT="" WRAPPER_WHY="" WLOG=""
+install_wrapper() {
+    mkdir -p "$CACHE_DIR" 2>/dev/null
+    WLOG="$CACHE_DIR/mios-init-wrapper.log"
+    WRAPPER_RT="" WRAPPER_WHY=""
+    ( export FEDORA_DEVCONTAINER_REPO="$DC_REPO" FEDORA_DEVCONTAINER_NAME="$DC_NAME" FEDORA_IMAGE="$DC_IMAGE"
+      export FEDORA_RUNTIME="$1" FEDORA_PROVISION_HOST=0
+      as_root bash "$CFS" --wrapper-only ) >"$WLOG" 2>&1
+    if [ ! -x "$WRAPPER_DIR/$DC_NAME" ]; then
+        WRAPPER_WHY="cloud-fedora-setup.sh --wrapper-only did not install $WRAPPER_DIR/$DC_NAME: $(tail -n 2 "$WLOG" 2>/dev/null | tr '\n' ' ')"
+        return 1
+    fi
+    WRAPPER_RT=$(wrapper_runtime)
+    [ "$WRAPPER_RT" = "$1" ] && return 0
+    WRAPPER_WHY="the installed $WRAPPER_DIR/$DC_NAME says RUNTIME=${WRAPPER_RT:-<none>}, not $1: a wrapper for the wrong runtime cannot find the image and would rebuild it there"
+    return 1
+}
+
+# pep503 on stdin: distribution names normalised as pip compares them --
+# lowercase, every run of - _ . as one - (ruamel.yaml, Ruamel_YAML and
+# ruamel-yaml are one name).
+pep503() { tr '[:upper:]' '[:lower:]' | sed -E 's/[-_.]+/-/g'; }
+
+# req_dists FILE: the distribution names a requirements file names, one per
+# line, normalised, sorted: each non-comment line's leading
+# [A-Za-z0-9][A-Za-z0-9._-]* before any of <>=!~;[ or whitespace (extras,
+# specifiers and markers dropped); option lines (-r, -e, --index-url) name no
+# distribution and are skipped.
+req_dists() {
+    sed -E -e 's/#.*//' -e 's/^[[:space:]]+//' -e '/^[A-Za-z0-9]/!d' \
+        -e 's/^([A-Za-z0-9][A-Za-z0-9._-]*).*/\1/' "$1" | pep503 | sort -u
+}
+
+# venv_satisfied REQS: every distribution REQS names is installed in $VENV,
+# by pip freeze's names (PEP 503 normalised on both sides). VENV_COUNT is how
+# many REQS names; on failure VENV_MISSING names the absent ones.
+VENV_MISSING="" VENV_COUNT=0
 venv_satisfied() {
-    [ -x "$VENV/bin/python" ] &&
-        "$VENV/bin/python" -c "import $(printf '%s' "$VENV_MODULES" | tr ' ' ',')" >/dev/null 2>&1
+    VENV_MISSING="" VENV_COUNT=0
+    [ -x "$VENV/bin/python" ] || { VENV_MISSING="(no $VENV/bin/python)"; return 1; }
+    _want=$(req_dists "$1")
+    VENV_COUNT=$(printf '%s\n' "$_want" | grep -c .)
+    [ "$VENV_COUNT" -gt 0 ] || { VENV_MISSING="(no distribution named in $1)"; return 1; }
+    _have=$("$VENV/bin/python" -m pip freeze --all 2>/dev/null |
+        sed -E -e 's/^-e .*#egg=//' -e 's/[[:space:]].*//' -e 's/[<>=!~@;[].*//' | pep503)
+    for _d in $_want; do
+        printf '%s\n' "$_have" | grep -qx -- "$_d" || VENV_MISSING="${VENV_MISSING:+$VENV_MISSING }$_d"
+    done
+    [ -z "$VENV_MISSING" ]
+}
+
+# reqs_from_containerfile TEXT (a Containerfile, continuation lines joined):
+# the requirements file its `pip install` is given, as a file of $MIOS_DIR.
+# The argument of -r / --requirement is followed back to the build context
+# (the MiOS root): through the COPY line whose destination it is, when there
+# is one (COPY <src> /tmp/reqs.txt; pip install -r /tmp/reqs.txt), else as the
+# longest trailing part of that path, of two components or more, that is a file
+# under $MIOS_DIR (a staged copy: /usr/src/mios-ssot/usr/lib/.../requirements.txt
+# -> usr/lib/.../requirements.txt). Sets REQS_FILE; on failure REQS_WHY.
+REQS_FILE="" REQS_WHY=""
+reqs_from_containerfile() {
+    REQS_FILE="" REQS_WHY=""
+    _rp=$(printf '%s\n' "$1" | awk '/pip[^[:space:]]*[[:space:]]+install[[:space:]]/ {
+            for (i = 1; i <= NF; i++) {
+                if (($i == "-r" || $i == "--requirement") && i < NF) { print $(i + 1); exit }
+                if ($i ~ /^--requirement=/) { sub(/^--requirement=/, "", $i); print $i; exit }
+            } }' | sed -e 's/^["'"'"']//' -e 's/["'"'"';&]*$//')
+    [ -n "$_rp" ] || { REQS_WHY="no pip install -r line"; return 1; }
+    _src=$(printf '%s\n' "$1" | awk -v d="$_rp" 'toupper($1) == "COPY" && $NF == d { for (i = 2; i < NF; i++) if ($i !~ /^--/) { print $i; exit } }')
+    if [ -n "$_src" ]; then
+        [ -f "$MIOS_DIR/$_src" ] || { REQS_WHY="COPY source $_src of $_rp is not a file of the MiOS checkout"; return 1; }
+        REQS_FILE="$MIOS_DIR/$_src"; return 0
+    fi
+    _sfx=${_rp#/}
+    while :; do
+        case "$_sfx" in */*) ;; *) break ;; esac
+        [ -f "$MIOS_DIR/$_sfx" ] && { REQS_FILE="$MIOS_DIR/$_sfx"; return 0; }
+        _sfx=${_sfx#*/}
+    done
+    REQS_WHY="pip is given $_rp; no COPY names it and no trailing part of it is a file of the MiOS checkout"
+    return 1
 }
 
 packages_fedora() {
@@ -307,11 +467,14 @@ packages_fedora() {
     RUNTIME=podman
     # The Containerfile's other two installs. Its global npm CLIs are READ from
     # its `npm install -g` line (a copied list would drift); the venv is
-    # recreated exactly as it does it.
+    # recreated exactly as it does it, from the requirements file its pip installs.
     cf="${MIOS_CONTAINERFILE:-$MIOS_DIR/.devcontainer/Containerfile}"
-    reqs="$MIOS_DIR/usr/lib/mios/agent-pipe/requirements.txt"
     [ -f "$cf" ] || { record packages failed 1 "Containerfile not found: $cf (MIOS_CONTAINERFILE)"; return; }
-    npm_line=$(grep -m 1 -E '(^|[[:space:]])npm install -g[[:space:]]' "$cf")
+    # Backslash-continued lines are joined before any line is parsed: a
+    # `RUN npm install -g a \` split over two lines must not silently lose its
+    # continuation.
+    cfj=$(sed -e :a -e '/\\$/N; s/\\\n//; ta' "$cf")
+    npm_line=$(printf '%s\n' "$cfj" | grep -m 1 -E '(^|[[:space:]])npm install -g[[:space:]]')
     [ -n "$npm_line" ] ||
         { record packages failed 1 "no 'npm install -g' line in $cf (MIOS_CONTAINERFILE): the CLI set is read from the Containerfile, never copied"; return; }
     clis=""
@@ -319,6 +482,12 @@ packages_fedora() {
         case "$t" in -*) ;; *) clis="${clis:+$clis }$t" ;; esac
     done
     [ -n "$clis" ] || { record packages failed 1 "the 'npm install -g' line in $cf names no package"; return; }
+    reqs="${MIOS_REQUIREMENTS:-}"
+    if [ -z "$reqs" ]; then
+        reqs_from_containerfile "$cfj" ||
+            { record packages failed 1 "no 'pip install -r <file>' in $cf (MIOS_CONTAINERFILE) that maps to a file of $MIOS_DIR${REQS_WHY:+ ($REQS_WHY)}: the venv's requirements file is read from the Containerfile (or MIOS_REQUIREMENTS)"; return; }
+        reqs=$REQS_FILE
+    fi
     [ -f "$reqs" ] || { record packages failed 1 "requirements.txt not found: $reqs"; return; }
     cli_missing=""
     if command -v npm >/dev/null 2>&1; then
@@ -326,11 +495,12 @@ packages_fedora() {
     else
         cli_missing=$clis
     fi
-    venv_ok=0; venv_satisfied && venv_ok=1
+    venv_ok=0; venv_satisfied "$reqs" && venv_ok=1
     if [ "$PLAN" = 1 ]; then
         d="Fedora host: would run: $dnf install -y --setopt=install_weak_deps=False <$n packages of [packages.devcontainer] from $toml>"
         if [ -n "$cli_missing" ]; then d="$d; would run: npm install -g $cli_missing (from $cf)"; else d="$d; npm CLIs from $cf: present ($clis)"; fi
-        if [ "$venv_ok" = 1 ]; then d="$d; venv $VENV: already satisfied"; else d="$d; would run: python3.11 -m venv $VENV && pip install -r $reqs"; fi
+        if [ "$venv_ok" = 1 ]; then d="$d; venv $VENV: already satisfied (all $VENV_COUNT distributions of $reqs installed)"
+        else d="$d; venv $VENV: missing $VENV_MISSING (of $VENV_COUNT in $reqs); would run: python3.11 -m venv $VENV && pip install -r $reqs"; fi
         record packages planned 1 "$d"
         return
     fi
@@ -362,62 +532,68 @@ packages_fedora() {
     fi
     vlog="$CACHE_DIR/mios-init-venv.log"
     if [ "$venv_ok" = 1 ]; then
-        d="$d; venv $VENV: already satisfied (imports $VENV_MODULES)"
+        d="$d; venv $VENV: already satisfied (all $VENV_COUNT distributions of $reqs installed)"
     elif ! command -v python3.11 >/dev/null 2>&1; then
         record packages failed 1 "$d; venv $VENV: python3.11 is not on PATH after the dnf set (log $dlog)"
         return
     elif as_root sh -c 'install -d -m 0755 "$1" && python3.11 -m venv "$2" && "$2/bin/pip" install --no-cache-dir -r "$3"' \
-            _ "$(dirname "$VENV")" "$VENV" "$reqs" >"$vlog" 2>&1 && venv_satisfied; then
-        d="$d; venv $VENV: created from $reqs (log $vlog)"
+            _ "$(dirname "$VENV")" "$VENV" "$reqs" >"$vlog" 2>&1 && venv_satisfied "$reqs"; then
+        d="$d; venv $VENV: created from $reqs (all $VENV_COUNT distributions installed; log $vlog)"
     else
-        record packages failed 1 "$d; venv $VENV from $reqs failed: $(tail -n 2 "$vlog" 2>/dev/null | tr '\n' ' ')(log $vlog)"
+        record packages failed 1 "$d; venv $VENV from $reqs failed: ${VENV_MISSING:+still missing $VENV_MISSING; }$(tail -n 2 "$vlog" 2>/dev/null | tr '\n' ' ')(log $vlog)"
         return
     fi
     record packages ok 1 "$d"
 }
 
 packages_projection() {
-    cfs="$SELF_DIR/cloud-fedora-setup.sh"
-    how="non-Fedora host -> projection via $cfs (FEDORA_DEVCONTAINER_REPO=$DC_REPO)"
-    [ -f "$cfs" ] || { record packages failed 1 "cloud-fedora-setup.sh not found beside $0"; return; }
-    if rt=$(image_runtime); then
-        RUNTIME=$rt
-        if [ -x "/usr/local/bin/$DC_NAME" ]; then
-            record packages skipped 1 "$how: image $DC_IMAGE already present ($rt), not rebuilt; enter it with /usr/local/bin/$DC_NAME"
+    how="non-Fedora host -> projection via $CFS (FEDORA_DEVCONTAINER_REPO=$DC_REPO)"
+    [ -f "$CFS" ] || { record packages failed 1 "cloud-fedora-setup.sh not found beside $0"; return; }
+    w="$WRAPPER_DIR/$DC_NAME"
+    if probe_image; then
+        rt=$PROBE_RT RUNTIME=$rt
+        if [ -x "$w" ]; then
+            # An existing wrapper is only as good as its RUNTIME= line: one left
+            # by an earlier run for the other runtime, or by a generation that
+            # wrote no such line, cannot find the image and would rebuild it
+            # there on its first call. It is rewritten through the same
+            # verified path as a missing one.
+            wrt=$(wrapper_runtime)
+            if [ "$wrt" = "$rt" ]; then
+                record packages skipped 1 "$how: image $DC_IMAGE already present ($rt), not rebuilt; $w says RUNTIME=$wrt; enter it with $w"
+                return
+            fi
+            if [ "$PLAN" = 1 ]; then
+                record packages planned 1 "$how: image $DC_IMAGE present ($rt) but $w says RUNTIME=${wrt:-<none>}; would run: FEDORA_RUNTIME=$rt bash $CFS --wrapper-only (rewrites $w)"
+                return
+            fi
+            if install_wrapper "$rt"; then
+                record packages ok 1 "non-Fedora host: image $DC_IMAGE present ($rt); $w said RUNTIME=${wrt:-<none>}: wrapper rewritten for $rt, with $WRAPPER_DIR/fedora (log $WLOG)"
+            else
+                record packages failed 1 "non-Fedora host: image $DC_IMAGE lives in $rt, $w said RUNTIME=${wrt:-<none>} and after a rewrite for $rt $WRAPPER_WHY (log $WLOG)"
+            fi
             return
         fi
         if [ "$PLAN" = 1 ]; then
-            record packages planned 1 "$how: image $DC_IMAGE present ($rt); would run: FEDORA_RUNTIME=$rt bash $cfs --wrapper-only"
+            record packages planned 1 "$how: image $DC_IMAGE present ($rt); would run: FEDORA_RUNTIME=$rt bash $CFS --wrapper-only (installs $w)"
             return
         fi
-        mkdir -p "$CACHE_DIR" 2>/dev/null
-        wlog="$CACHE_DIR/mios-init-wrapper.log"
-        # The image lives in ONE runtime's store, so the wrapper must be written
-        # for that runtime: it is passed explicitly (auto would take podman when
-        # both are installed and write a wrapper that can never find the image,
-        # and the first call would rebuild everything there), and the installed
-        # wrapper's RUNTIME= line is checked before ok is recorded.
-        as_root env FEDORA_DEVCONTAINER_REPO="$DC_REPO" FEDORA_RUNTIME="$rt" FEDORA_PROVISION_HOST=0 bash "$cfs" --wrapper-only >"$wlog" 2>&1
-        if [ ! -x "/usr/local/bin/$DC_NAME" ]; then
-            record packages failed 1 "non-Fedora host: image $DC_IMAGE present ($rt) but cloud-fedora-setup.sh --wrapper-only did not install /usr/local/bin/$DC_NAME: $(tail -n 2 "$wlog" 2>/dev/null | tr '\n' ' ')(log $wlog)"
-            return
-        fi
-        wrt=$(wrapper_runtime)
-        if [ "$wrt" = "$rt" ]; then
-            record packages ok 1 "non-Fedora host: image $DC_IMAGE present ($rt); installed /usr/local/bin/$DC_NAME for RUNTIME=$wrt (log $wlog)"
+        if install_wrapper "$rt"; then
+            record packages ok 1 "non-Fedora host: image $DC_IMAGE present ($rt); installed $w for RUNTIME=$WRAPPER_RT (log $WLOG)"
         else
-            record packages failed 1 "non-Fedora host: image $DC_IMAGE lives in $rt but the installed /usr/local/bin/$DC_NAME says RUNTIME=${wrt:-<none>}: a wrapper for the wrong runtime cannot find the image and would rebuild it there (log $wlog)"
+            record packages failed 1 "non-Fedora host: image $DC_IMAGE lives in $rt but $WRAPPER_WHY (log $WLOG)"
         fi
         return
     fi
-    if command -v podman >/dev/null 2>&1; then RUNTIME=podman
-    elif command -v docker >/dev/null 2>&1; then RUNTIME=docker
-    else RUNTIME=none; fi
+    RUNTIME=${PROBE_RT:-none}
     if [ "$PLAN" = 1 ]; then
-        note="image $DC_IMAGE not found"
-        [ "$RUNTIME" = docker ] && ! docker info >/dev/null 2>&1 &&
-            note="image state unknown: the docker daemon is not running (the setup script starts it and skips the build when the image is there)"
-        record packages planned 1 "non-Fedora host: $note; would run projection: FEDORA_DEVCONTAINER_REPO=$DC_REPO FEDORA_PROVISION_HOST=0 bash $cfs (builds MiOS .devcontainer/Containerfile as $DC_IMAGE, installs /usr/local/bin/$DC_NAME)"
+        if [ "$RUNTIME" = none ]; then
+            note="image $DC_IMAGE not found and no runtime can run here (podman or docker; $CFS --print-runtime chose none)"
+        else
+            note="image $DC_IMAGE not found in $RUNTIME (the runtime $CFS --print-runtime selects)"
+        fi
+        [ -n "$PROBE_NOTE" ] && note="$note; $PROBE_NOTE"
+        record packages planned 1 "non-Fedora host: $note; would run projection: FEDORA_DEVCONTAINER_REPO=$DC_REPO FEDORA_PROVISION_HOST=0 bash $CFS (builds MiOS .devcontainer/Containerfile as $DC_IMAGE, installs $w)"
         return
     fi
     mkdir -p "$CACHE_DIR" 2>/dev/null
@@ -425,14 +601,15 @@ packages_projection() {
     log "projecting the MiOS devcontainer (several minutes on a cold host; log $plog)"
     # cloud-fedora-setup.sh always exits 0 by contract, so success is judged by
     # the image it must leave behind, not by its exit code.
-    as_root env FEDORA_DEVCONTAINER_REPO="$DC_REPO" FEDORA_PROVISION_HOST=0 bash "$cfs" >"$plog" 2>&1
-    if rt=$(image_runtime); then
-        RUNTIME=$rt
+    ( export FEDORA_DEVCONTAINER_REPO="$DC_REPO" FEDORA_DEVCONTAINER_NAME="$DC_NAME" FEDORA_IMAGE="$DC_IMAGE" FEDORA_PROVISION_HOST=0
+      as_root bash "$CFS" ) >"$plog" 2>&1
+    if probe_image; then
+        rt=$PROBE_RT RUNTIME=$rt
         wrt=$(wrapper_runtime)
         if [ "$wrt" = "$rt" ]; then
-            record packages ok 1 "non-Fedora host: projected $DC_IMAGE ($rt) from $DC_REPO; enter it with /usr/local/bin/$DC_NAME (RUNTIME=$wrt; log $plog)"
+            record packages ok 1 "non-Fedora host: projected $DC_IMAGE ($rt) from $DC_REPO; enter it with $w (RUNTIME=$wrt; log $plog)"
         else
-            record packages failed 1 "non-Fedora host: projected $DC_IMAGE into $rt but /usr/local/bin/$DC_NAME says RUNTIME=${wrt:-<none>} (log $plog)"
+            record packages failed 1 "non-Fedora host: projected $DC_IMAGE into $rt but $w says RUNTIME=${wrt:-<none>} (log $plog)"
         fi
     else
         record packages failed 1 "non-Fedora host: cloud-fedora-setup.sh left no $DC_IMAGE image: $(tail -n 2 "$plog" 2>/dev/null | tr '\n' ' ')(log $plog)"
@@ -498,11 +675,17 @@ fetch_doc() {
     if [ -n "$src" ]; then
         cp "${src#* }" "$tmp" || { rm -f "$tmp"; DOC_WHY="cannot copy ${src#* }"; return 1; }
     else
-        curl -fsSL --compressed --retry 2 --max-time 60 -o "$tmp" "$url" 2>/dev/null
+        # curl's stderr is kept: its own message names the cause (a proxy
+        # refusal, rc 7; TLS, 35; an untrusted CA, 60) that the rc alone does
+        # not. It can echo the URL, so it is redacted line by line first.
+        flog="$CACHE_DIR/mios-init-fetch-$(basename "$out" .md).log"
+        ftmp="$CACHE_DIR/.fetch.$(basename "$out").$$"
+        curl -fsSL --compressed --retry 2 --max-time 60 -o "$tmp" "$url" 2>"$ftmp"
         rc=$?
+        redact_stream <"$ftmp" >"$flog" 2>/dev/null; rm -f "$ftmp"
         if [ "$rc" != 0 ]; then
             rm -f "$tmp"
-            DOC_WHY="fetch failed (curl rc $rc): $(redact_url "$url")${why:+ ;$why}"
+            DOC_WHY="fetch failed (curl rc $rc: $(tail -n 1 "$flog" 2>/dev/null)): $(redact_url "$url") (log $flog)${why:+ ;$why}"
             return 1
         fi
         if ! bad=$(looks_markdown "$tmp"); then

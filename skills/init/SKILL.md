@@ -53,17 +53,27 @@ of stdout, one JSON object**: `ok`, `failed_required`, `steps[]`, `prompt.path`,
   work tree whose origin is `https://github.com/mios-dev/MiOS` (optional `.git`, or the ssh
   form); anything else carrying `mios.toml` + `packages.sh` is logged `ignored: origin is <url>`
   and skipped, because that checkout's `packages.sh` runs as root and its prompt is adopted.
+  The pin is a trust statement, not a boundary: a directory at a candidate path whose origin is
+  set to the MiOS URL is accepted, because a local checkout is the operator's own working copy,
+  trusted exactly as its `packages.sh` already is. The deployed OS copy and GitHub `main` are the
+  anchors when no such checkout exists.
 - **packages** — what MiOS's one `.devcontainer/Containerfile` installs. Fedora host: the
   Containerfile's three installs on the host itself — its dnf set (`[packages.devcontainer]` of
   MiOS `usr/share/mios/mios.toml`, resolved by MiOS `automation/lib/packages.sh`, installed with
   `--setopt=install_weak_deps=False` as the Containerfile does; podman is in that set), its global
-  npm CLIs (parsed from the Containerfile's `npm install -g` line, never a copied list) and the
-  agent-pipe venv (`python3.11 -m venv /usr/lib/mios/agents/.venv` + its `requirements.txt`,
-  skipped when the venv already imports fastapi, httpx, mcp, pydantic, uvicorn). Any other host
-  (the stock cloud VM): the Containerfile itself, built as an image by `cloud-fedora-setup.sh`
-  (podman first; docker where it is the host's only runtime); an existing image is not rebuilt,
-  the wrapper is installed for the runtime that holds the image and verified to say so; enter it
-  with `mios-dev`. `agy` is `setup-antigravity.sh`'s job on both paths.
+  npm CLIs (parsed from the Containerfile's `npm install -g` line, backslash continuations joined,
+  never a copied list) and the agent-pipe venv (`python3.11 -m venv /usr/lib/mios/agents/.venv`
+  + the `requirements.txt` the Containerfile's own `pip install -r` names, followed back to the
+  MiOS tree through its COPY or staged path, skipped when the venv already holds every
+  distribution that file names -- `pip freeze`, PEP 503 names, never a literal module list). Any
+  other host (the stock cloud VM): the Containerfile itself, built as an image by
+  `cloud-fedora-setup.sh` (podman first; docker where it is the host's only runtime); the runtime
+  that holds the image is the setup script's own `--print-runtime` answer (it starts dockerd when
+  needed, so a down daemon never reads as "image absent"); an existing image is not rebuilt, the
+  wrapper (`$FEDORA_WRAPPER_DIR/mios-dev`, default `/usr/local/bin`) is installed for that
+  runtime and verified to say so, and an existing wrapper that names the other runtime (or none)
+  is rewritten the same way; enter it with `mios-dev`. `agy` is `setup-antigravity.sh`'s job on
+  both paths.
 - **tooling** — `setup-antigravity.sh --quiet` (agy, keyring, headless grants, the skill).
 - **prompt** — two files, each from the deployed copy, else the pinned local MiOS checkout, else
   MiOS `main` on GitHub, written under `${XDG_CACHE_HOME:-~/.cache}/mios/`: the identity
@@ -71,9 +81,12 @@ of stdout, one JSON object**: `ok`, `failed_required`, `steps[]`, `prompt.path`,
   (deployed `/usr/share/mios/ai/system.md`). An empty or non-markdown fetch fails loudly.
 
 Exit is non-zero only when a **required** step failed (`repo:MiOS`, `packages`, `tooling`,
-`prompt`); stderr names it. Every failure detail names its log. Report a failed step with its
-`detail` and log path, fix what it names, re-run. Never claim a step succeeded that the JSON marks
-`failed` or `planned`.
+`prompt`); stderr names it. Every failure detail names its log (a fetch failure names its curl
+stderr log, which holds curl's own message: a proxy refusal, a TLS or CA failure). URLs are logged
+with their credentials redacted: userinfo and the value of a credential query parameter
+(`?token=...`). When not root, forwarded variables reach `sudo` through a 0600 temp file, never
+on its argv. Report a failed step with its `detail` and log path, fix what it names, re-run.
+Never claim a step succeeded that the JSON marks `failed` or `planned`.
 
 ## 2. Adopt the MiOS operating context — beneath the repository contract files
 
