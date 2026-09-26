@@ -172,3 +172,10 @@
 - next: install the plugin copy so running sessions pick up the hook; MiOS CI green (ci-green lane); worker-session prompt launch pending the operator
 - blockers: -
 - unverified: agy/Gemini/Codex native question surfaces (matrix says not yet probed); detector is a heuristic ("?" ending a prose sentence) and can false-positive on a rhetorical question in a report
+
+## 2026-09-26 · 196894c · re-ask + agy 1.2.11
+- objective: operator: re-ask open questions every turn via the native UI; links clickable; sign agy in
+- done: Stop hook sends back a report blocked on the operator from a turn that never asked (real fixture open-blocker.jsonl); links go in a file card (SendUserFile) before the question. agy signed in (headless auth verified; quota spent, resets ~13:58Z). agy 1.2.11 refuses artifactReviewPolicy "turbo" (new spellings always-proceed/request-review/agent-decides): agy_settings.py reads the set from the installed binary, warns on stale values, gains clear-review-policy; SessionStart no longer defaults turbo; operator chose to remove the key. agy-doctor names a spent quota. Negative controls: re-ask detector off fails 1 test by name; legacy-only spellings fail 4 checks by name. validate.sh passes.
+- next: worker 2 for Task #8 (SPIKE revision); operator's policy choice for unattended teamwork; MiOS CI green lane
+- blockers: -
+- unverified: doctor quota branch has no test (live-observed both ways: before = "did nothing", after = quota named); agy-login.sh on 1.2.11 when truly signed out

@@ -44,15 +44,19 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   `agy_host.sh --session --remote-control`, which also passes `--hold-file`/`--hold-max-s`
   so the session stays attachable after its local work ends and is stopped with
   `touch <run>/.devloop/native/STOP`. Controls: `tests/test_agy_remote_control.py`.
-- **Unattended `/teamwork-preview` needs `artifactReviewPolicy: "turbo"`.** The built-in's own
-  protocol forbids invoking the team "before explicit user approval", and a brief that says "do not
-  ask" is not approval. Measured: a manager told not to ask did the whole job solo (100 responses,
-  1 subagent). `turbo` is the approval; `agy_session.py --auto-continue` answers the draft turn.
-  agy VALIDATES the value, and an unrecognized one (e.g. `ARTIFACT_REVIEW_MODE_TURBO`) makes it
-  load DEFAULTS for everything, dropping every permission grant. So
-  `scripts/env/agy_settings.py` is the one settings writer and refuses any value outside
-  always/auto/turbo. Set `DEVLOOP_AGY_ARTIFACT_REVIEW` (the SessionStart hook defaults it to
-  `turbo`). Controls: `tests/test_agy_settings.py`.
+- **Unattended `/teamwork-preview` needs an auto-proceed `artifactReviewPolicy`.** The built-in's
+  own protocol forbids invoking the team "before explicit user approval", and a brief that says "do
+  not ask" is not approval. Measured: a manager told not to ask did the whole job solo (100
+  responses, 1 subagent). The auto-proceed policy is the approval; `agy_session.py
+  --auto-continue` answers the draft turn. agy VALIDATES the value, and an unrecognized one makes
+  it load DEFAULTS for everything, dropping every permission grant. The spellings changed under the
+  same key: 1.2.7 took `turbo`; 1.2.11 (measured 2026-09-26) refuses it and takes
+  `always-proceed` / `request-review` / `agent-decides`. So `scripts/env/agy_settings.py` is the
+  one settings writer, reads the accepted set from the INSTALLED binary, and refuses anything
+  else; `clear-review-policy` removes the key. **Operator decision (2026-09-26): no default** --
+  the SessionStart hook no longer sets `turbo`, and the key stays removed until the operator
+  chooses a policy (`DEVLOOP_AGY_ARTIFACT_REVIEW`). Until then unattended teamwork runs are not
+  pre-approved. Controls: `tests/test_agy_settings.py`.
 - **The stray base-tree guard is scoped to lane runs.** `agy_session.py` fails closed (exit 6)
   on a manager editing the base tree outside a lane worktree. That question presupposes
   worktrees, so a LANE-LESS session (one manager doing the work itself -- an AGY teamwork run)
@@ -187,7 +191,10 @@ the cloud-session projection -- builds those same bytes. The Ubuntu variant was 
 - **Questions to the operator go through the native question UI, never chat prose** (operator,
   2026-09-26). In Claude Code that is `AskUserQuestion`; the Stop hook sends back a reply that
   asks in prose (SKILL.md §5, `tests/test_stop_gate.py`). A lane or worker session with no UI
-  reports `status: blocked` with the question, and the monitor asks it natively.
+  reports `status: blocked` with the question, and the monitor asks it natively. Every open
+  question is re-asked EVERY turn until answered (the hook also sends back a report blocked on the
+  operator from a turn that never asked). A link the operator must open goes in a file card
+  (`SendUserFile`) sent before the question, because the question UI does not render links.
 - Gates for changes to this repo: `sh skills/dev-loop/scripts/validate.sh` must pass;
   shell edits get `bash -n` / `sh -n`; JSON edits must `json.load`.
 - Harness CLI flags drift monthly: run `python3 skills/dev-loop/scripts/adapters.py probe`

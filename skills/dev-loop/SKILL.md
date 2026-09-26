@@ -216,6 +216,14 @@ low-blast-radius → pick the conservative option, state it, move on.
   question they can answer in the app; the Stop hook sends it back (`hooks/_chat_question.py`,
   `DEVLOOP_NATIVE_ASK=0` for a UI-less host). A lane has no UI: it returns `status: blocked`
   with the question, and the host asks it natively. Control: `tests/test_stop_gate.py`.
+- **Every open question is re-asked every turn** until it is answered. A report `blocked` on an
+  item naming the operator, from a turn that never called the question tool, is sent back by the
+  same hook. Phrase a wait that is not a question (a PR awaiting review) without the word
+  "operator".
+- **Links the operator must click go in a file card, not the question.** The question UI does not
+  render links, and chat text written before the tool call is not shown while the question is
+  open. Write a small HTML page with the link as a button, send it with the harness's file tool
+  (Claude Code `SendUserFile`, `display: render`), then ask, naming the card.
 - **Present 2–4 concrete options** with implementation details, affected paths, blast radius,
   performance/security trade-offs, and upstream precedent. Each must be defensible.
 - **Ask early.** A question before the work is cheap; the same question after is a rewrite.

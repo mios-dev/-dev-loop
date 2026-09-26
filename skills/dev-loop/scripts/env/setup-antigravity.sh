@@ -137,8 +137,8 @@ elif command -v python3 >/dev/null 2>&1; then
     python3 "$SKILL_DIR/scripts/env/agy_settings.py" --settings "$AGY_SETTINGS" ensure-grants \
         && log "headless grants written to ~/.gemini/antigravity-cli/settings.json" \
         || warn "agy settings not written -- see the message above; headless lanes may be auto-denied"
-    # Unattended /teamwork-preview needs explicit approval of its draft; `turbo` supplies it.
-    # Opt-in, and validated: agy drops EVERY setting on an unrecognized value (measured 1.2.7).
+    # Unattended /teamwork-preview needs explicit approval of its draft. Opt-in, and validated
+    # against the installed agy's spellings (turbo on 1.2.7, always-proceed on 1.2.11).
     if [ -n "${DEVLOOP_AGY_ARTIFACT_REVIEW:-}" ]; then
         python3 "$SKILL_DIR/scripts/env/agy_settings.py" --settings "$AGY_SETTINGS" \
             review-policy "$DEVLOOP_AGY_ARTIFACT_REVIEW" \
