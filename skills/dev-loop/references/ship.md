@@ -19,6 +19,9 @@ The Ship engine automates final branch reconciliation, pre-flight gate verificat
 # Ship lane-backend into main
 python3 scripts/ship.py lane-backend --target main --tag v1.4.0
 
-# Scaffold release checklist
+# Scaffold release checklist (from the skill's shipped assets/templates)
 python3 scripts/ship.py --init
+
+# ...or from a template directory you name; the target repo is never searched implicitly
+python3 scripts/ship.py --init --template-dir path/to/templates
 ```

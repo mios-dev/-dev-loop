@@ -17,6 +17,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
+    sys.path.insert(0, str(HERE))
+from repo_root import cli_repo_root, find_repo_root, template_source  # noqa: E402  -- the one repo-root resolver
+
 
 @dataclass
 class UpstreamFinding:
@@ -39,23 +44,14 @@ class ResearchReport:
 
 class UpstreamResearcher:
     def __init__(self, repo_root: Optional[str] = None):
-        self.repo_root = Path(repo_root or self._find_repo_root()).resolve()
+        self.repo_root = Path(repo_root or find_repo_root()).resolve()
         self.artifacts_dir = self.repo_root / ".devloop"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-        self.script_dir = Path(__file__).resolve().parent
 
-    def _find_repo_root(self) -> Path:
-        try:
-            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-            return Path(out).resolve()
-        except Exception:
-            cur = Path.cwd()
-            for parent in [cur] + list(cur.parents):
-                if (parent / ".git").exists():
-                    return parent
-            return cur
-
-    def scaffold_template(self, template_type: str, dest_name: Optional[str] = None) -> Path:
+    def scaffold_template(self, template_type: str, dest_name: Optional[str] = None,
+                          template_dir: Optional[str] = None) -> Path:
+        """Copy the SPIKE / UPSTREAM_AUDIT / TECH_EVAL template from `template_dir` (default:
+        the skill's shipped assets/templates). The target repo is never searched implicitly."""
         mapping = {
             "spike": ("SPIKE.md", "SPIKE.md"),
             "upstream": ("UPSTREAM_AUDIT.md", "UPSTREAM_AUDIT.md"),
@@ -66,14 +62,11 @@ class UpstreamResearcher:
 
         src_name, default_dest = mapping[template_type.lower()]
         target_name = dest_name or default_dest
-        src_path = self.script_dir.parent / "assets" / "templates" / src_name
         dest_path = self.repo_root / target_name
-
-        if not src_path.exists():
-            src_path = self.repo_root / "reference" / "templates" / src_name
-
-        if not src_path.exists():
-            print(f"[ERROR] Template source not found: {src_path}", file=sys.stderr)
+        try:
+            src_path = template_source(src_name, template_dir)
+        except FileNotFoundError as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
             sys.exit(1)
 
         shutil.copy2(src_path, dest_path)
@@ -214,16 +207,17 @@ def main():
     templ_p = subparsers.add_parser("template", aliases=["scaffold"], help="Scaffold a research document template")
     templ_p.add_argument("type", choices=["spike", "upstream", "eval"], help="Template type to scaffold")
     templ_p.add_argument("--dest", help="Custom destination filename")
+    templ_p.add_argument("--template-dir", metavar="DIR", help="Directory to copy the template from (default: the skill's shipped assets/templates; the target repo is never searched implicitly)")
 
     args = parser.parse_args()
-    researcher = UpstreamResearcher()
+    researcher = UpstreamResearcher(cli_repo_root())
 
     if args.cmd in ["search", "s"]:
         researcher.search_docs(args.query)
     elif args.cmd in ["diff", "upstream", "rs"]:
         researcher.diff_upstream(args.base, args.upstream)
     elif args.cmd in ["template", "scaffold"]:
-        researcher.scaffold_template(args.type, args.dest)
+        researcher.scaffold_template(args.type, args.dest, args.template_dir)
 
 
 if __name__ == "__main__":

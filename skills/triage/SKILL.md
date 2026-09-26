@@ -13,6 +13,6 @@ _Paths: `${CLAUDE_SKILL_DIR}/../dev-loop/scripts/` resolves in Claude Code; in o
 Command under test: `$ARGUMENTS`.
 
 1. Walk the phantom runbook in order: path mismatch → stale artefact → worktree `.git` file → earliest root failure → manifest/projection sync.
-2. `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/triage.py "<cmd>" --runs 3` → classification (deterministic | flaky | phantom), repro script, `.devloop/triage_*.json`; record in `docs/` from `templates/TRIAGE_INCIDENT.md`.
+2. `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/triage.py "<cmd>" --runs 3` → classification (deterministic | flaky | phantom), repro script, `.devloop/triage_*.json`; record in `docs/` from `templates/TRIAGE_INCIDENT.md` (`triage.py --init [--template-dir DIR]` scaffolds it from the shipped `assets/templates`, or from `DIR` when named; the target repo is never searched implicitly).
 3. Flaky is a defect, not noise: find the shared state / order dependence / port collision; never "fix" by retrying or pinning order (§6).
 4. Return: classification, root cause hypothesis with evidence, the repro command, and the phantoms dismissed. No fixes in this skill — hand the repro to `/dev-loop`.

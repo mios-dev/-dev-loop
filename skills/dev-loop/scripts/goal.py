@@ -16,6 +16,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
+    sys.path.insert(0, str(HERE))
+from repo_root import cli_repo_root, find_repo_root  # noqa: E402  -- the one repo-root resolver
+
 
 # The closed set evaluate() dispatches on. Anything outside it fails rather than passes:
 # an unrecognised type means the criterion was never measured, which is not a pass.
@@ -47,24 +52,13 @@ class GoalDefinition:
 
 class GoalEngine:
     def __init__(self, repo_root: Optional[str] = None):
-        self.repo_root = Path(repo_root or self._find_repo_root()).resolve()
+        self.repo_root = Path(repo_root or find_repo_root()).resolve()
         self.goal_file = self.repo_root / "GOALS.md"
         self.artifacts_dir = self.repo_root / ".devloop"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         self.state_file = self.artifacts_dir / "goal_state.json"
         self.goal: Optional[GoalDefinition] = None
         self._load()
-
-    def _find_repo_root(self) -> Path:
-        try:
-            out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-            return Path(out).resolve()
-        except Exception:
-            cur = Path.cwd()
-            for parent in [cur] + list(cur.parents):
-                if (parent / ".git").exists():
-                    return parent
-            return cur
 
     def _load(self):
         if self.state_file.exists():
@@ -311,7 +305,7 @@ def main():
     status_p = subparsers.add_parser("status", help="Show current goal status")
 
     args = parser.parse_args()
-    engine = GoalEngine()
+    engine = GoalEngine(cli_repo_root())
 
     if args.cmd == "init":
         engine.init_goal(args.objective, args.stop, non_goals=args.non_goals)

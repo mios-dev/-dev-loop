@@ -19,6 +19,9 @@ The Triage suite isolates phantom environment failures, detects test flakiness, 
 # Analyze a failing test command over 3 iterations
 python3 scripts/triage.py "pytest tests/unit" --runs 3
 
-# Scaffold a formal incident investigation report
+# Scaffold a formal incident investigation report (from the skill's shipped assets/templates)
 python3 scripts/triage.py --init
+
+# ...or from a template directory you name; the target repo is never searched implicitly
+python3 scripts/triage.py --init --template-dir path/to/templates
 ```

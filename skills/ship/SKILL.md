@@ -12,6 +12,6 @@ _Paths: `${CLAUDE_SKILL_DIR}/../dev-loop/scripts/` resolves in Claude Code; in o
 Args: `$ARGUMENTS`.
 
 1. Pre-flight: base tree clean (`git status --porcelain` empty); `/dev-loop:review` verdict PASSED for this branch; both controls recorded in the task (`artifacts.py tasks validate`); `CHECKLISTS.md` pre-merge items ticked.
-2. `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/ship.py <source> [--target main] [--tag vX.Y.Z]` — runs the gates, merges `--no-ff`, aborts and keeps the branch + worktree on conflict, prunes on success, appends `CHANGELOG.md` (`[Unreleased]`).
+2. `python3 ${CLAUDE_SKILL_DIR}/../dev-loop/scripts/ship.py <source> [--target main] [--tag vX.Y.Z]` — runs the gates, merges `--no-ff`, aborts and keeps the branch + worktree on conflict, prunes on success, appends `CHANGELOG.md` (`[Unreleased]`). `ship.py --init [--template-dir DIR]` scaffolds `RELEASE_CHECKLIST.md` from the shipped `assets/templates`, or from `DIR` when named; the target repo is never searched implicitly.
 3. Tagging, pushing, publishing are irreversible: confirm with the operator unless standing authorisation exists in `AGENTS.md`.
 4. Close the task (`artifacts.py tasks set T-0NN done --evidence …`), re-render `TASKS.md`, append a ledger entry, report.
