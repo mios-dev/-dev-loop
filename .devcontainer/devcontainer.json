@@ -6,7 +6,7 @@
   },
   "init": true,
   "containerEnv": {
-    "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
+    "MIOS_AI_ENDPOINT": "http://localhost:8700/v1",
     "MIOS_AI_ROLE": "builder",
     "DEVLOOP_HARNESS": "embedded",
     "PYTHONUNBUFFERED": "1"
@@ -200,6 +200,7 @@
     }
   },
   "remoteUser": "mios-dev",
+  "forwardPorts": [8900, 8700, 8500, 8600],
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
   "workspaceFolder": "/workspaces/-dev-loop",
   "postCreateCommand": "bash -c 'if [ -f /workspaces/MiOS/.devcontainer/setup-devcontainer.sh ]; then bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh; else { git clone --depth 1 https://github.com/mios-dev/MiOS.git /workspaces/MiOS 2>/dev/null || true; } && bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh; fi'",
