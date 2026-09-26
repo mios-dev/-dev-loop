@@ -200,11 +200,6 @@ OBSERVED, BLIND, NA = "observed", "blind", "not_applicable"
 # the tree looks like. Counting it as an observation would make `blind` almost unreachable and
 # hand this monitor the exact failure it exists to prevent: a calm tick over an empty view.
 # (Caught by tests/test_global_monitor.py, which refused the first version of this rule.)
-# How much older than the newest assignment an ORIGINAL_REQUEST.md may be before it reads as
-# inherited. A request is written moments BEFORE the first dispatch of its own run, so the
-# margin only has to cover that gap; anything beyond it is a previous session's.
-STALE_REQUEST_SLACK_S = 300.0
-
 ENUMERATING_SOURCES = ("devloop_runs", "serverd", "native_marker", "agy_teamwork", "harness_cli")
 
 # `worker-<id>.exit` values with a meaning beyond "the command returned this"

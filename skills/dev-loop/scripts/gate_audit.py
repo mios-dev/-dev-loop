@@ -153,7 +153,6 @@ RE_ANCHORED = re.compile(r"(\^|\$\)|\$\"|\$'|\$/|\\A|\\Z|-x\b|--fixed-strings|-F
 RE_LOOSE_MATCH = re.compile(r"(grep\b|egrep\b|re\.(search|match|fullmatch)\(|\.includes\(|\.indexOf\(|any\([^)]*\bin\b|Select-String\b|\.startswith\(|\.contains\(|fnmatch\.)")
 RE_COUNT_SUBJECT = re.compile(r"(?i)(\bcount\b|\blen\(|wc -l|\bn_\w+|\bnum\w*|\btotal\b|threshold|baseline|\blimit\b|\bmax_\w+|\bMAX\b|violations|failures|errors|warnings|budget)")
 RE_NUM_COMPARE = re.compile(r"(-(le|lt|ge|gt|eq|ne)\s+\d+|[<>]=?\s*\d+|==\s*\d+|!=\s*\d+|\d+\s*[<>]=?)")
-RE_TIMEOUT = re.compile(r"(\btimeout\b\s|\btimeout\d*\b|timeout=|timeout-minutes|Wait-Process|--timeout\b|TimeoutExpired)")
 RE_TIMEOUT_SWALLOW = re.compile(r"\btimeout\b[^\n#]*(\|\|\s*(true|:)|\|\|\s*exit\s+0)")
 RE_TIMEOUT_EXCEPT = re.compile(r"^\s*except\s+[\w.]*TimeoutExpired[^:]*:")
 RE_BENIGN_TIMEOUT_BODY = re.compile(r"(raise|sys\.exit\(\s*[1-9]|return\s+(False|1)\b|fail)")
@@ -167,12 +166,7 @@ RE_COMPARE_TOKEN = re.compile(
 )
 RE_DIFF_CALL = re.compile(r"(^|[;&|(\s])(diff|cmp)\s+([^\n]+)|filecmp\.cmp\(([^)]*)\)|Compare-Object\s+([^\n]+)")
 RE_TEMPY = re.compile(r"(?i)(mktemp|\$\{?tmp|/tmp\b|tmpdir|temporarydirectory|tempfile\.|new-temporaryfile|\$env:temp|\.tmp\b)")
-RE_WRITE_OUT = re.compile(r"(>\s*(\S+)|--out(?:put|-file)?[= ](\S+)|-o\s+(\S+)|write_text\(|\.write\()")
 RE_GENERATOR = re.compile(r"(?i)(render|generate|gen\b|emit|build|scaffold|format\b|fmt\b|codegen|template)")
-
-
-def _window(lines: list[str], i: int, n: int) -> list[str]:
-    return lines[i : min(len(lines), i + n)]
 
 
 def _block(lines: list[str], i: int, lang: str, cap: int = 30) -> list[str]:
