@@ -165,6 +165,55 @@ def test_host_passes_it_through() -> None:
           "a single-turn run would register a session that is gone before anyone can open it")
 
 
+HOST_MSG_FAKE = r'''#!/usr/bin/env python3
+import json, os, sys
+open(os.environ["FAKE_AGY_MSG"], "w").write("")
+print(json.dumps({"event": "init", "conversation_id": "fake-conv",
+                  "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}),
+      flush=True)
+for line in sys.stdin:
+    open(os.environ["FAKE_AGY_MSG"], "w").write(line)
+    print(json.dumps({"event": "result", "result": {"conversation_id": "fake-conv",
+                      "status": "ok", "response": "done", "num_turns": 1}}), flush=True)
+'''
+
+
+def teamwork_host_first_message(conversation: str | None) -> str:
+    """Run the real teamwork launcher through agy_session.py and return its first user turn."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        bindir = tmp / "bin"
+        bindir.mkdir(parents=True, exist_ok=True)
+        fake = bindir / "agy"
+        fake.write_text(HOST_MSG_FAKE)
+        fake.chmod(0o755)
+        msg = tmp / "msg.ndjson"
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+               "FAKE_AGY_MSG": str(msg), "AGY_HOST_CLAUDE_LANES": "0",
+               "AGY_HOST_TIMEOUT": "30s"}
+        if conversation:
+            env["AGY_HOST_CONVERSATION"] = conversation
+        subprocess.run(["sh", str(HOST), "--teamwork", "Build the thing"],
+                       capture_output=True, text=True, timeout=120, env=env)
+        if not msg.is_file():
+            return ""
+        return json.loads(msg.read_text()).get("message", {}).get("content", "")
+
+
+def test_host_resume_note_replaces_the_kickoff_prompt() -> None:
+    """A resumed held session's first NEW turn must be a resume note, not the original
+    /teamwork-preview kickoff command that would re-trigger planning."""
+    print("agy_host.sh resume note:")
+    fresh = teamwork_host_first_message(None)
+    check("fresh teamwork launch sends the kickoff prompt",
+          fresh.startswith("/teamwork-preview Build the thing"), repr(fresh[:120]))
+    resumed = teamwork_host_first_message("a7417589-8ebe-4711-aa44-5e3864f58021")
+    check("resumed teamwork launch sends a resume note",
+          resumed.startswith("Resume this existing manager conversation."), repr(resumed[:160]))
+    check("the resume note does NOT replay /teamwork-preview",
+          "/teamwork-preview" not in resumed, repr(resumed[:160]))
+
+
 def run_held(tmp: Path, extra: list[str], stop_after: float | None = None) -> tuple[float, str]:
     """Run the fake session with a hold and return (elapsed, stderr)."""
     bindir = tmp / "bin"
@@ -520,6 +569,7 @@ def main() -> int:
     test_resume_is_a_switch()
     test_reaches_the_binary()
     test_host_passes_it_through()
+    test_host_resume_note_replaces_the_kickoff_prompt()
     test_hold_keeps_the_session_alive()
     test_no_hold_means_no_hold()
     test_hold_warns_when_it_is_pointless()
