@@ -126,5 +126,31 @@ class DevcontainerMirror(unittest.TestCase):
         self.assertIsNotNone(compare(good + b"\n", good, "scratch"))
 
 
+def _jsonc(path: Path) -> dict:
+    import json, re
+    text = re.sub(r"^\s*//.*$", "", path.read_text(), flags=re.M)
+    return json.loads(re.sub(r",(\s*[}\]])", r"\1", text))
+
+
+class DevcontainerProjection(unittest.TestCase):
+    """forwardPorts and MIOS_AI_ENDPOINT are projected from MiOS's mios.toml into
+    MiOS's devcontainer.json; this repo's copy must carry the same values."""
+
+    def _mios(self) -> dict:
+        for _, path in _candidates():
+            dc = path.parent / "devcontainer.json"
+            if dc.is_file():
+                return _jsonc(dc)
+        raise unittest.SkipTest("no MiOS devcontainer.json reachable, so the projection was NOT checked")
+
+    def test_projected_values_match_mios(self):
+        mine, mios = _jsonc(ROOT / ".devcontainer" / "devcontainer.json"), self._mios()
+        for key in ("forwardPorts",):
+            self.assertEqual(mine.get(key), mios.get(key), f"devcontainer.json {key} differs from MiOS's")
+        self.assertEqual((mine.get("containerEnv") or {}).get("MIOS_AI_ENDPOINT"),
+                         (mios.get("containerEnv") or {}).get("MIOS_AI_ENDPOINT"),
+                         "devcontainer.json containerEnv.MIOS_AI_ENDPOINT differs from MiOS's")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
