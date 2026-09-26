@@ -179,7 +179,7 @@ the cloud-session projection -- builds those same bytes. The Ubuntu variant was 
   Measured once (2026-09-25): a few minutes after the monitor's turn ended, the egress proxy
   refused connections (11:35:42Z) and three live AGY managers died mid-tool. The session resumed at 12:25Z on a
   restarted VM with the disk intact and no processes. So an AGY run in a cloud session lives only
-  while a turn is open (the monitor blocks on `wait_done.py`), and a check-in that finds a dead
+  while a turn is open (the monitor blocks on `scripts/job.py wait`), and a check-in that finds a dead
   run must read its driver's log before calling it a quota death.
 - The keyring holds the AGY credential unencrypted-at-rest (empty-password keyring) — accepted
   for ephemeral single-user containers only. Never print or export the credential.

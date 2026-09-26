@@ -179,3 +179,10 @@
 - next: worker 2 for Task #8 (SPIKE revision); operator's policy choice for unattended teamwork; MiOS CI green lane
 - blockers: -
 - unverified: doctor quota branch has no test (live-observed both ways: before = "did nothing", after = quota named); agy-login.sh on 1.2.11 when truly signed out
+
+## 2026-09-26 · c918084+ · monitor-relay kickoff
+- objective: operator: monitor+relay inside every MiOS image (cloud sessions, Codespaces, Cloud Shell), relaying subagents over OpenAI/upstream patterns; ADR 0003 dispositions from upstream research (kept 1,3,4; dropped 2)
+- done: AGENTS.md dangling wait_done.py -> scripts/job.py wait (ADR 0003 item 4 contract update); research+design workflow wf_a82fc37e-22b launched
+- next: operator questions from the relay SPIKE and dispositions; implementation lanes
+- blockers: -
+- unverified: everything in the relay design (not yet written)
