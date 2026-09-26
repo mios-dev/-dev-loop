@@ -44,6 +44,15 @@ The pair of commit and blob SHA can be checked by anyone later. The command
   Retry at most once, after a pause. Never retry in a loop.
 - Raw-host fetches do not count against the API budget.
 
+## Every tool, before the next URL
+
+A runtime can hold more than one fetch tool, and they fail differently. Measured on Gemini Spark:
+the direct fetch tool answers `FETCH_ERROR: No canonical URL found` for every GitHub URL, while
+the browser tool resolves `api.github.com` (the raw and blob hosts were refused there). So try each
+URL with every fetch tool before moving to the next URL, and record each tool's result. When a
+contents API response arrives as rendered JSON, copy its `content` field exactly into the runner,
+decode it there, and prove it with `bytes_proof.py` against the `sha` field.
+
 ## Fallback order for the contract file
 
 Use this list only when a form fails with a fetch error. A safety or security block is recorded
