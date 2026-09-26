@@ -80,9 +80,10 @@ The environment layer ships **inside the skill** (`skills/dev-loop/scripts/env/`
 package manager (dnf5/dnf/microdnf, else apt-get) rather than assuming one — idempotent, and
 location-independent.
 
-**Devcontainer:** `.devcontainer/devcontainer.json` builds MiOS's one development image
-(`../MiOS/.devcontainer/Containerfile`, Fedora 44, cloned as a sibling by `initializeCommand`)
-and runs MiOS's lifecycle, so it is identical to every other MiOS dev environment. It bakes
+**Devcontainer:** `.devcontainer/Containerfile` is a byte-identical mirror of MiOS's one
+development image (Fedora 44; `tests/test_devcontainer_mirror.py` gates it), built from this
+repo's root, and `devcontainer.json` runs MiOS's lifecycle, so it is identical to every other
+MiOS dev environment. It bakes
 `agy`, the keyring stack and Node + Claude Code for `claude-code` lanes, and re-arms the keyring
 on every start — after a container restart no new login is needed.
 

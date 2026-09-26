@@ -130,3 +130,24 @@
 - next: re-review verdict -> mark the -dev-loop PR ready; Codespaces lane (worktrees /root/.cache/wt on lane/dotfiles-web: desktop-only VS Code keys out of the API-applied surfaces) -> merge, push, PRs; research SPIKE -> backlog the accepted items and run implementation lanes; operator: agy-login.sh --code with a fresh code
 - blockers: agy authentication (operator code expired; fresh URL issued)
 - unverified: re-review of the fix commits; projection under podman end to end; a bare Fedora install path; the ~5 min cache budget overrun behaviour
+
+## 2026-09-25 18:05 · e96e695 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 7 dirty path(s)
+
+## 2026-09-25 23:00 · e96e695 · partial
+- objective: Codespaces web-safe settings, /dev-loop:init round-2, Fedora devcontainer restore, images design
+- done: Codespaces verifier read: surfaces clean but lane refuted (mode-dropping _write_atomic, over-cap hints, untracked census); all four workflows died on the 22:40Z subagent quota; relaunched at 22:47Z: codespaces-fixup wf_e666a6f3-422 (wt /root/.cache/wt lane/dotfiles-web), init/runtime round-2 resume wf_14e9b24b-848 (partial edits in this tree; tests pass 50+35), restore resume wf_d46f9bf9-422 (wt2 lane/fedora-devcontainers); MiOS branch fast-forwarded to origin/main a7de8f4 (operator dash/ux commit touching mios.toml, mios.code-workspace, setup-devcontainer.sh, manual-corpus.tsv: expect merge work on both lane branches)
+- next: on each workflow result: gate, merge lane branch into claude/dev-loop-iv4399, regenerate (sync-generated.sh), commit explicit paths, push, PR, subscribe; then resume images design wf_cee03fe3-78d and research critic wf_94707d27-6df (verdict revise; synthesize:revised never ran); check-in trig_01BTo49SoVmngTzBLRWKCAVQ 00:15Z
+- blockers: agy authentication (operator code expired; fresh code needed); subagent quota window
+- unverified: the 8 dirty -dev-loop paths are the round-2 lane's in-flight edits (not gated yet); PR #21 head e96e695 has no CI check runs on this repo
+
+## 2026-09-26 04:14 · e96e695 · partial
+- objective: Edge-to-edge terminals globally
+- done: global inventory (21 surfaces) + design SPIKE-edge-to-edge-global.md (critic: revise); operator decisions: code-server in dev image with patched workbench, ModernUI on, density compact, bake-time bundle patch for the 10px scrollbar reserve (fail if anchor moves), Ptyxis via GTK CSS only, fastfetch logo inset 0; Fedora devcontainer restore merged (MiOS#38, mios-bootstrap#10)
+- next: fix the critic's items in the design, then run edge lanes after lane/dotfiles-web merges; integrate round-2 init + -dev-loop restore part onto PR #21
+- blockers: codespaces-fixup wf_e666a6f3-422 and round-2 wf_14e9b24b-848 running
+- unverified: Ptyxis flatpak dconf/gtk path; code-server bundle patch anchor; github.dev stays unreachable by design

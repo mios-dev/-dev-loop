@@ -10,7 +10,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Plugin SessionStart hook revives `agy`'s keyring in every cloud session and exports its bus through `CLAUDE_ENV_FILE` (`tests/test_session_start_keyring.py`).
 - README: the paste-able cloud-environment setup script and every variable, described, beside the install commands.
 ### Changed
-- `.devcontainer/devcontainer.json` builds MiOS's one dev image (`../MiOS/.devcontainer/Containerfile`, cloned as a sibling by `initializeCommand`) and runs MiOS's lifecycle; no image definition of its own.
+- `.devcontainer/Containerfile` is a byte-identical, test-gated mirror of MiOS's one dev image (context-independent: it shallow-clones MiOS when built here); `devcontainer.json` runs MiOS's lifecycle. The settings block carries only keys browser clients register (MiOS ADR-0024), fixing the Codespaces "not a registered configuration" error.
 ### Fixed
 - `scripts/env/fetch-installer.sh`: the `agy` installer fetch decodes the CDN's unsolicited gzip and refuses a non-script payload (`tests/test_agy_installer_fetch.py`).
 - `hooks/format.sh` parses `.sh` files with the interpreter their shebang names instead of always `sh -n` (`tests/test_format_hook.py`).

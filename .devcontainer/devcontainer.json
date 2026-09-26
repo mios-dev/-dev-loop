@@ -1,11 +1,16 @@
 {
   "name": "dev-loop (MiOS devcontainer)",
-  "initializeCommand": "git clone --depth 1 https://github.com/mios-dev/MiOS.git ../MiOS || git -C ../MiOS rev-parse --git-dir",
   "build": {
-    "dockerfile": "../../MiOS/.devcontainer/Containerfile",
-    "context": "../../MiOS"
+    "dockerfile": "Containerfile",
+    "context": ".."
   },
   "init": true,
+  "containerEnv": {
+    "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
+    "MIOS_AI_ROLE": "builder",
+    "DEVLOOP_HARNESS": "embedded",
+    "PYTHONUNBUFFERED": "1"
+  },
   "features": {
     "ghcr.io/devcontainers/features/common-utils:latest": {
       "username": "mios-dev",
@@ -13,12 +18,6 @@
       "userGid": "1000",
       "upgradePackages": false
     }
-  },
-  "containerEnv": {
-    "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
-    "MIOS_AI_ROLE": "builder",
-    "DEVLOOP_HARNESS": "embedded",
-    "PYTHONUNBUFFERED": "1"
   },
   "customizations": {
     "vscode": {
@@ -81,9 +80,7 @@
         "terminal.integrated.gpuAcceleration": "off",
         "breadcrumbs.enabled": true,
         "breadcrumbs.filePath": "last",
-        "window.zoomLevel": -0.5,
         "window.commandCenter": false,
-        "window.menuBarVisibility": "compact",
         "workbench.editor.tabActionLocation": "left",
         "workbench.editor.labelFormat": "short",
         "workbench.colorCustomizations": {
@@ -205,8 +202,8 @@
   "remoteUser": "mios-dev",
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
   "workspaceFolder": "/workspaces/-dev-loop",
-  "postCreateCommand": "cd /workspaces/MiOS && bash .devcontainer/post-create.sh && bash .devcontainer/platform-bootstrap.sh",
-  "postStartCommand": "cd /workspaces/MiOS && bash .devcontainer/boot-mios-systems.sh && bash .devcontainer/post-start.sh",
+  "postCreateCommand": "bash -c 'if [ -f /workspaces/MiOS/.devcontainer/setup-devcontainer.sh ]; then bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh; else { git clone --depth 1 https://github.com/mios-dev/MiOS.git /workspaces/MiOS 2>/dev/null || true; } && bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh; fi'",
+  "postStartCommand": "bash -c '. /workspaces/-dev-loop/skills/dev-loop/scripts/env/agy-keyring.sh 2>/dev/null || true; if [ -d /workspaces/MiOS ]; then cd /workspaces/MiOS && bash .devcontainer/boot-mios-systems.sh && bash .devcontainer/post-start.sh; else echo \"[devcontainer:post-start] /workspaces/MiOS is absent: MiOS lifecycle skipped (postCreateCommand clones it)\"; fi'",
   "postAttachCommand": "code --execute-command workbench.action.closeSidebar",
   "hostRequirements": {
     "cpus": 4,

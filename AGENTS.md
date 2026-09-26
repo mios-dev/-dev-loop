@@ -130,11 +130,12 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 
 Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`; there is
 no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
-`.devcontainer/` builds **MiOS's one dev image** (`../MiOS/.devcontainer/Containerfile`, a sibling
-checkout cloned by `initializeCommand`; packages from MiOS `mios.toml [packages.devcontainer]`) and
-runs MiOS's lifecycle. Operator decision (2026-09-25): every MiOS dev environment -- the three
-repos' devcontainers, Codespaces, Cloud Shell, the cloud-session projection -- builds that one
-file; none keeps a copy. The Ubuntu variant was removed.
+`.devcontainer/Containerfile` is a byte-identical mirror of **MiOS's one dev image** (gated by
+`tests/test_devcontainer_mirror.py`; edit it in MiOS, never here). It is context-independent: built
+from this repo's root it shallow-clones MiOS and resolves `[packages.devcontainer]` from the clone,
+and `devcontainer.json` runs MiOS's lifecycle from `/workspaces/MiOS`. Operator decision
+(2026-09-25): every MiOS dev environment -- the three repos' devcontainers, Codespaces, Cloud Shell,
+the cloud-session projection -- builds those same bytes. The Ubuntu variant was removed.
 
 - `bash skills/dev-loop/scripts/env/setup-antigravity.sh` — idempotent provisioning (also run
   by the SessionStart hook in `.claude/settings.json` and devcontainer `postCreateCommand`).
@@ -164,8 +165,8 @@ file; none keeps a copy. The Ubuntu variant was removed.
   server/container (miosd, agent-pipe), and backed by the MiOS database systems (the pgvector
   datastore; `check_db_seed_coverage` requires every SSOT section seeded). Every MiOS repo carries
   the same devcontainer definition, byte-identical and gated, buildable from its own root -- no
-  sibling-checkout pointer. Deleting a repo's devcontainer file was a misreading of "one image" and
-  is being reversed (restore lane in flight; the Ubuntu variant stays removed); the hand-authored
+  sibling-checkout pointer (restored 2026-09-26: MiOS#38, mios-bootstrap#10, and this repo's
+  mirror; the Ubuntu variant stays removed). The hand-authored
   `[packages.devcontainer]` list and `FEDORA_PACKAGES` in `cloud-fedora-setup.sh` are interim and
   must give way to the core profile of the real pipeline. Design: task #11 (SPIKE in flight).
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.

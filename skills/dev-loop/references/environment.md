@@ -49,19 +49,21 @@ best UX for humans.
 
 ## Devcontainers
 
-`.devcontainer/devcontainer.json` has no image of its own: it builds **MiOS's one
-development image**, `../MiOS/.devcontainer/Containerfile` (Fedora 44, package set
-from `[packages.devcontainer]` in MiOS's `mios.toml`), from a sibling checkout that
-`initializeCommand` clones next to this repo, and runs MiOS's own lifecycle
-(`post-create.sh`, `boot-mios-systems.sh`, `post-start.sh`) from `/workspaces/MiOS`.
-The MiOS and mios-bootstrap devcontainers, Codespaces, Cloud Shell and the cloud-session
-projection below all build that same file, so every MiOS dev environment is identical by
-construction. The image bakes `agy` (the build fails if it cannot), the keyring stack
-and the agent CLIs; `setup-devcontainer.sh` runs `setup-antigravity.sh` for the grants
-and skill install, and `post-start.sh` re-arms the keyring on every start (daemons die
-with the container; the keyring *files* survive, so a restart needs no new login).
-Non-root `mios-dev` user (uid 1000) with passwordless sudo. The former Ubuntu variant
-was removed: it could never match the Fedora image.
+`.devcontainer/` at the repo root is the MiOS dev environment, **Fedora 44
+only** (`.devcontainer/devcontainer.json` + `Containerfile`; there is no
+Ubuntu variant -- every MiOS dev environment is Fedora). `Containerfile` is a
+byte-identical mirror of MiOS's `.devcontainer/Containerfile`, the one MiOS
+dev image, gated by `tests/test_devcontainer_mirror.py`: edit it in MiOS,
+never here. The file is context-independent: built from this repo's root it
+shallow-clones MiOS and resolves `[packages.devcontainer]` from that clone, so
+no sibling checkout and no `initializeCommand` are needed. The image bakes the
+keyring stack, tmux/jq, python3, Node + the agent CLIs and `agy` (fail-closed).
+`postCreateCommand` runs MiOS's `setup-devcontainer.sh` (cloning MiOS to
+`/workspaces/MiOS` when absent), which runs `setup-antigravity.sh`;
+`postStartCommand` runs MiOS's `boot-mios-systems.sh` + `post-start.sh`, which
+re-arm the keyring (daemons die with the container; the keyring *files*
+survive in the home volume, so a restart needs no new login). Non-root
+`mios-dev` user (uid 1000) with passwordless sudo.
 
 ## Security model, stated plainly
 
