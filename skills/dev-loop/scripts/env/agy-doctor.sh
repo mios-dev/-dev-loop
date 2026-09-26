@@ -120,7 +120,10 @@ if [ "${1:-}" = "--probe" ] && command -v agy >/dev/null 2>&1; then
     envfile="$(mktemp)"; printf '%s' "$out" > "$envfile"
     denials="$("${PYTHON:-python3}" "$SCRIPT_DIR/../adapters.py" denials "$envfile" 2>&1)"; drc=$?
     rm -f "$envfile"
-    if printf '%s' "$out" | grep -qi 'not authenticated\|sign in\|authentication'; then
+    quota="$(printf '%s' "$out" | grep -oE '[A-Za-z ]*quota reached[^"]*' | head -1)"
+    if [ -n "$quota" ]; then
+        fail "headless probe: authenticated, but the plan's quota is spent, so tool use is UNVERIFIED: $quota"
+    elif printf '%s' "$out" | grep -qi 'not authenticated\|sign in\|authentication'; then
         fail "headless probe: NOT AUTHENTICATED — run: bash $SCRIPT_DIR/agy-login.sh"
     elif [ $drc -ne 0 ]; then
         fail "headless probe: the run reported success but did nothing — $(printf '%s' "$denials" | head -2 | tr '\n' ' ')"

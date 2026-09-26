@@ -191,6 +191,26 @@ class TestQuestionsGoThroughTheNativeUI(unittest.TestCase):
         self.assertFalse(asks_natively(run_event(fixture("chat-question.jsonl"),
                                                  env={"DEVLOOP_NATIVE_ASK": "0"})))
 
+    def test_an_open_operator_question_is_re_asked_every_turn(self):
+        """open-blocker.jsonl is a real turn that ended blocked on "Task #8: operator decision on
+        the revised SPIKE" without asking it."""
+        d = run_event(fixture("open-blocker.jsonl"))
+        self.assertTrue(d and "blocked on the operator" in d.get("reason", ""), d)
+        self.assertIn("Task #8", d["reason"], "the reason must name the open item")
+
+    def test_asking_it_clears_the_open_item(self):
+        ask = [l for l in fixture("native-ask.jsonl").splitlines() if "AskUserQuestion" in l]
+        rows = fixture("open-blocker.jsonl").splitlines()
+        text = "\n".join(rows[:2] + ask + rows[2:]) + "\n"
+        d = run_event(text)
+        self.assertFalse(d and "blocked on the operator" in d.get("reason", ""), d)
+
+    def test_a_report_not_blocked_is_not_held(self):
+        text = fixture("open-blocker.jsonl").replace('\\"status\\": \\"blocked\\"', '\\"status\\": \\"done\\"', 1)
+        self.assertNotEqual(text, fixture("open-blocker.jsonl"), "the plant must land")
+        d = run_event(text)
+        self.assertFalse(d and "blocked on the operator" in d.get("reason", ""), d)
+
     def test_it_is_bounded(self):
         d = tempfile.mkdtemp()
         seen = [asks_natively(run_event(fixture("chat-question.jsonl"), env={"DEVLOOP_ASK_CAP": "2"},

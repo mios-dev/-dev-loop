@@ -2,9 +2,11 @@
 """Did the final turn ask the operator a question in chat prose instead of the native UI?
 
 SKILL.md §5: operator questions go through the harness's question UI (Claude Code's
-AskUserQuestion), never as a sentence ending in "?" in a reply. Exit 1 and print the offending
-line when the last turn's reply asks one and the turn never called the question tool; exit 0
-otherwise, including on any transcript it cannot read (a hook must not wedge a session)."""
+AskUserQuestion), never as a sentence ending in "?" in a reply, and a question still open is
+re-asked EVERY turn. Exit 1 when the last turn never called the question tool and either its reply
+asks in prose (prints "chat: <line>") or its devloop_report is blocked on the operator (prints
+"open: <item>"); exit 0 otherwise, including on any transcript it cannot read (a hook must not
+wedge a session)."""
 from __future__ import annotations
 
 import json
@@ -30,6 +32,21 @@ def _prose(text: str) -> list[str]:
     text = re.sub(r"```.*?```", "", text, flags=re.S)
     text = re.sub(r"`[^`\n]*`", "", text)
     return [ln for ln in text.splitlines() if not ln.lstrip().startswith(">")]
+
+
+def _open_operator_items(text: str) -> list[str]:
+    """blocked_on items that name the operator, from the reply's devloop_report block."""
+    for block in reversed(re.findall(r"```(?:json)?[ \t]*\n(.*?)```", text, flags=re.S)):
+        if "devloop_report" not in block:
+            continue
+        try:
+            rep = json.loads(block).get("devloop_report") or {}
+        except ValueError:
+            return []
+        if rep.get("status") != "blocked":
+            return []
+        return [str(i) for i in rep.get("blocked_on") or [] if "operator" in str(i).lower()]
+    return []
 
 
 def main(path: str) -> int:
@@ -59,8 +76,12 @@ def main(path: str) -> int:
         return 0
     for ln in _prose(reply):
         if QUESTION.search(ln):
-            print(ln.strip()[:200])
+            print("chat: " + ln.strip()[:200])
             return 1
+    items = _open_operator_items(reply)
+    if items:
+        print("open: " + items[0][:200])
+        return 1
     return 0
 
 

@@ -25,7 +25,10 @@ if [ "$(json_get "$IN" .hook_event_name)" != "SubagentStop" ] && [ "${DEVLOOP_NA
 fi
 if [ -n "$QL" ] && [ "$(cat "$Q" 2>/dev/null || echo 0)" -lt "$QCAP" ]; then
   echo $(( $(cat "$Q" 2>/dev/null || echo 0) + 1 )) > "$Q"
-  R="dev-loop: your reply asks the operator a question in chat (\"$QL\"). SKILL §5: ask through the native question UI (AskUserQuestion) with 2-4 options, recommended first -- never in prose. Ask it now with the tool, then finish the turn."
+  case "$QL" in
+    open:*) R="dev-loop: your report is blocked on the operator (\"${QL#open: }\") but this turn never asked. SKILL §5: every open operator question is re-asked EVERY turn through the native question UI (AskUserQuestion), 2-4 options, recommended first. Ask them now, then finish the turn." ;;
+    *) R="dev-loop: your reply asks the operator a question in chat (\"${QL#chat: }\"). SKILL §5: ask through the native question UI (AskUserQuestion) with 2-4 options, recommended first -- never in prose. Ask it now with the tool, then finish the turn." ;;
+  esac
   printf '{"decision":"block","reason":%s}\n' "$(printf '%s' "$R" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')"
   exit 0
 fi
