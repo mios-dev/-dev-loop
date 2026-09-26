@@ -224,6 +224,7 @@ Use the native command when it exists; the fallback column always works.
 |---|---|---|---|---|---|
 | Pre-flight | `/doctor` | `agy --version`, `/tasks` | `gemini --version` | `codex --version` | `devloop.sh --check` |
 | Context / memory | `/init`, `/memory`, `CLAUDE.md` | Knowledge Base, `.agent/rules/` | `GEMINI.md`, `/memory` | `AGENTS.md`, `/init` | `AGENTS.md` |
+| Operator question (§5) | `AskUserQuestion` (Stop hook refuses a question in chat) | not yet probed | not yet probed | not yet probed | `status: blocked` + the question in the report |
 | Plan (§2–3) | plan mode, `/plan` | Implementation Plan artefact | `/plan` (if extension) | plan mode | DoD block in repo docs |
 | Execute a lane (§11) | subagent / `claude -p` | `invoke_subagent` / `agy -p` | `gemini -p` | `codex exec --json` | `devloop.sh lanes.json` |
 | Refactor | `/simplify` | skill / `/boost` | — | — | `ruff --fix`, `cargo clippy --fix` |

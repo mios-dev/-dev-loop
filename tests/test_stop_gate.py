@@ -138,5 +138,85 @@ class TestPreExistingBehaviourHolds(unittest.TestCase):
         self.assertEqual(out, "", "a session that never ran the loop is none of this hook's business")
 
 
+
+FIX = os.path.join(HERE, "fixtures", "transcripts")
+
+
+def fixture(name):
+    with open(os.path.join(FIX, name), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def run_event(text, event="Stop", env=None, tmpdir=None):
+    d = tmpdir or tempfile.mkdtemp()
+    t = os.path.join(d, "transcript.jsonl")
+    with open(t, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    e = dict(os.environ, TMPDIR=d, **(env or {}))
+    payload = json.dumps({"stop_hook_active": False, "transcript_path": t, "hook_event_name": event})
+    p = subprocess.run(["sh", GATE], input=payload, capture_output=True, text=True, env=e)
+    return blocked(p.stdout.strip())
+
+
+def asks_natively(d):
+    return bool(d) and "native question UI" in d.get("reason", "")
+
+
+class TestQuestionsGoThroughTheNativeUI(unittest.TestCase):
+    """SKILL.md 5: operator questions go through the harness's question UI, never chat prose.
+    Both fixtures are real turns from a monitor session (tool inputs and results elided):
+    chat-question.jsonl ends "Want me to launch one?" in prose; native-ask.jsonl asked with
+    AskUserQuestion."""
+
+    def test_a_question_in_chat_is_sent_back(self):
+        d = run_event(fixture("chat-question.jsonl"))
+        self.assertTrue(asks_natively(d), d)
+        self.assertIn("Want me to launch one?", d["reason"], "the reason must quote the offending line")
+
+    def test_a_native_ask_is_not_flagged(self):
+        self.assertFalse(asks_natively(run_event(fixture("native-ask.jsonl"))))
+
+    def test_the_tool_call_exempts_the_same_prose(self):
+        ask = [l for l in fixture("native-ask.jsonl").splitlines() if "AskUserQuestion" in l]
+        self.assertTrue(ask, "the native fixture must carry the tool call")
+        rows = fixture("chat-question.jsonl").splitlines()
+        text = "\n".join(rows[:2] + ask + rows[2:]) + "\n"
+        self.assertFalse(asks_natively(run_event(text)), "a turn that asked natively may also mention it")
+
+    def test_a_lane_is_not_held_to_it(self):
+        self.assertFalse(asks_natively(run_event(fixture("chat-question.jsonl"), event="SubagentStop")),
+                         "a lane has no question UI; it returns blocked instead")
+
+    def test_a_ui_less_host_can_opt_out(self):
+        self.assertFalse(asks_natively(run_event(fixture("chat-question.jsonl"),
+                                                 env={"DEVLOOP_NATIVE_ASK": "0"})))
+
+    def test_an_open_operator_question_is_re_asked_every_turn(self):
+        """open-blocker.jsonl is a real turn that ended blocked on "Task #8: operator decision on
+        the revised SPIKE" without asking it."""
+        d = run_event(fixture("open-blocker.jsonl"))
+        self.assertTrue(d and "blocked on the operator" in d.get("reason", ""), d)
+        self.assertIn("Task #8", d["reason"], "the reason must name the open item")
+
+    def test_asking_it_clears_the_open_item(self):
+        ask = [l for l in fixture("native-ask.jsonl").splitlines() if "AskUserQuestion" in l]
+        rows = fixture("open-blocker.jsonl").splitlines()
+        text = "\n".join(rows[:2] + ask + rows[2:]) + "\n"
+        d = run_event(text)
+        self.assertFalse(d and "blocked on the operator" in d.get("reason", ""), d)
+
+    def test_a_report_not_blocked_is_not_held(self):
+        text = fixture("open-blocker.jsonl").replace('\\"status\\": \\"blocked\\"', '\\"status\\": \\"done\\"', 1)
+        self.assertNotEqual(text, fixture("open-blocker.jsonl"), "the plant must land")
+        d = run_event(text)
+        self.assertFalse(d and "blocked on the operator" in d.get("reason", ""), d)
+
+    def test_it_is_bounded(self):
+        d = tempfile.mkdtemp()
+        seen = [asks_natively(run_event(fixture("chat-question.jsonl"), env={"DEVLOOP_ASK_CAP": "2"},
+                                        tmpdir=d)) for _ in range(3)]
+        self.assertEqual(seen, [True, True, False], "two send-backs, then the stop is allowed")
+
+
 if __name__ == "__main__":
     unittest.main()

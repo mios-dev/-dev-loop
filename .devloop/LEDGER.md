@@ -158,3 +158,31 @@
 - next: operator decisions below; then push the socket-swap fix, watch CI finish, drive #40/#12/#23 to merged; backlog: test_job_receipt.py flake (race in job.kill/status), test-socket-swap asserts retired port 8642
 - blockers: operator: push test-socket-swap fix (#40 or own PR); accept ratchet growth (+272 python lines, +11 files); merge order #12 -> #40 -> #23
 - unverified: live code-server/Hyprland/Ptyxis/WT sessions; WSL profileTemplate on wsl --import; patched suite on the hosted runner
+
+## 2026-09-26 · 9b2a83f · job-wrapper-term
+- objective: root-cause the test_job_receipt.py flake (1 in 4 on main)
+- done: the wrapper's TERM trap wrote a receipt and fell through into the job when the signal landed before `timeout` started; traps now exit. A regression test widens the window on a wrapper copy; the negative control (trap without exit) fails it by name. validate.sh passes; 18 repeat runs green.
+- next: MiOS CI green (ci-green workflow in flight); -dev-loop self-improvement SPIKE; images core profile
+- blockers: agy auth needs a fresh code from the operator
+- unverified: the flake's original trigger timing on a loaded box (reproduced deterministically, not statistically)
+
+## 2026-09-26 · c918084 · native-ask
+- objective: operator (2026-09-26): questions come through the app's native question UI, never chat prose; part of dev-loop's native mechanisms
+- done: SKILL §5 rule + harness matrix row + AGENTS.md working rule; Stop hook sends back a reply that asks in prose without AskUserQuestion (hooks/_chat_question.py; lanes exempt; DEVLOOP_NATIVE_ASK=0 opt-out; DEVLOOP_ASK_CAP=2). Controls replay two real captured turns (tests/fixtures/transcripts/); disabled detector fails 2 tests by name. validate.sh passes.
+- next: install the plugin copy so running sessions pick up the hook; MiOS CI green (ci-green lane); worker-session prompt launch pending the operator
+- blockers: -
+- unverified: agy/Gemini/Codex native question surfaces (matrix says not yet probed); detector is a heuristic ("?" ending a prose sentence) and can false-positive on a rhetorical question in a report
+
+## 2026-09-26 · 196894c · re-ask + agy 1.2.11
+- objective: operator: re-ask open questions every turn via the native UI; links clickable; sign agy in
+- done: Stop hook sends back a report blocked on the operator from a turn that never asked (real fixture open-blocker.jsonl); links go in a file card (SendUserFile) before the question. agy signed in (headless auth verified; quota spent, resets ~13:58Z). agy 1.2.11 refuses artifactReviewPolicy "turbo" (new spellings always-proceed/request-review/agent-decides): agy_settings.py reads the set from the installed binary, warns on stale values, gains clear-review-policy; SessionStart no longer defaults turbo; operator chose to remove the key. agy-doctor names a spent quota. Negative controls: re-ask detector off fails 1 test by name; legacy-only spellings fail 4 checks by name. validate.sh passes.
+- next: worker 2 for Task #8 (SPIKE revision); operator's policy choice for unattended teamwork; MiOS CI green lane
+- blockers: -
+- unverified: doctor quota branch has no test (live-observed both ways: before = "did nothing", after = quota named); agy-login.sh on 1.2.11 when truly signed out
+
+## 2026-09-26 · c918084+ · monitor-relay kickoff
+- objective: operator: monitor+relay inside every MiOS image (cloud sessions, Codespaces, Cloud Shell), relaying subagents over OpenAI/upstream patterns; ADR 0003 dispositions from upstream research (kept 1,3,4; dropped 2)
+- done: AGENTS.md dangling wait_done.py -> scripts/job.py wait (ADR 0003 item 4 contract update); research+design workflow wf_a82fc37e-22b launched
+- next: operator questions from the relay SPIKE and dispositions; implementation lanes
+- blockers: -
+- unverified: everything in the relay design (not yet written)

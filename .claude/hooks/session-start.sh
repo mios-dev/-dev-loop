@@ -9,9 +9,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
     exit 0
 fi
 
-# Unattended /teamwork-preview must receive explicit approval of its draft (its own protocol
-# forbids dispatching the team before it). `turbo` is agy's setting for that; an override wins.
-export DEVLOOP_AGY_ARTIFACT_REVIEW="${DEVLOOP_AGY_ARTIFACT_REVIEW:-turbo}"
+# No artifactReviewPolicy default (operator, 2026-09-26): agy 1.2.11 refused the old `turbo`
+# default and dropped every setting. Set DEVLOOP_AGY_ARTIFACT_REVIEW to opt in; it is validated.
 if bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/setup-antigravity.sh" --quiet; then
     :
 else

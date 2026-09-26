@@ -105,5 +105,40 @@ class TestGuardHook(unittest.TestCase):
         self.assertIn("bare kill -9 is forbidden", out)
 
 
+class TestNoMergeHook(unittest.TestCase):
+    """The monitor and managers never merge (AGENTS.md); the hook enforces it, not just the rule."""
+
+    def run_hook(self, tool: str) -> str:
+        res = subprocess.run(["sh", str(ROOT / "hooks" / "no-merge.sh")],
+                             input=json.dumps({"tool_name": tool, "tool_input": {}}),
+                             capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        return res.stdout.strip()
+
+    def test_merge_tools_are_denied(self):
+        for tool in ("mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge",
+                     "mcp__github__update_pull_request_branch", "mcp__forge__merge_pull_request"):
+            out = self.run_hook(tool)
+            self.assertIn('"permissionDecision":"deny"', out, tool)
+            self.assertIn("the operator merges", out, tool)
+
+    def test_review_and_pr_tools_pass(self):
+        for tool in ("mcp__github__create_pull_request", "mcp__github__pull_request_read",
+                     "mcp__github__add_reply_to_pull_request_comment"):
+            self.assertEqual(self.run_hook(tool), "", tool)
+
+    def test_hook_is_registered_for_the_merge_tools(self):
+        hooks = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]["PreToolUse"]
+        entry = [h for h in hooks if any("no-merge.sh" in c["command"] for c in h["hooks"])]
+        self.assertTrue(entry, "no-merge.sh is not registered")
+        import re
+        self.assertTrue(re.fullmatch(entry[0]["matcher"], "mcp__github__merge_pull_request"))
+
+    def test_gh_pr_merge_denied_in_bash(self):
+        res = subprocess.run(["sh", str(GUARD)], input=json.dumps({"tool_input": {"command": "gh pr merge 42 --squash"}}),
+                             capture_output=True, text=True)
+        self.assertIn("the operator merges", res.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
