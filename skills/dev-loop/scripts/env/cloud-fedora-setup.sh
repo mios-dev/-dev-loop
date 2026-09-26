@@ -107,7 +107,7 @@ fi
 WRAPPER_ONLY=0
 [ "${1:-}" = "--wrapper-only" ] && WRAPPER_ONLY=1
 
-# Kept close to .devcontainer/Dockerfile so a cloud session and the devcontainer
+# Kept close to .devcontainer/Containerfile so a cloud session and the devcontainer
 # present the same Fedora. install_weak_deps=False keeps the build inside budget.
 FEDORA_PACKAGES="${FEDORA_PACKAGES:-git tmux jq curl wget ripgrep python3 python3-pip nodejs npm gcc gcc-c++ make procps-ng util-linux shadow-utils sudo which hostname tar gzip unzip zip findutils diffutils patch openssl dbus-daemon dbus-tools gnome-keyring libsecret}"
 

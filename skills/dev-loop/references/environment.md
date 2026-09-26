@@ -49,14 +49,21 @@ best UX for humans.
 
 ## Devcontainers
 
-`.devcontainer/` at the repo root: **Fedora 44 is the default config**
-(`.devcontainer/devcontainer.json` + `Dockerfile`); an Ubuntu 24.04 variant
-lives in `.devcontainer/ubuntu/`. Both bake the keyring stack, tmux/jq,
-python3, and Node + Claude Code (for `claude-code` lanes), run
-`setup-antigravity.sh` at `postCreateCommand`, and re-arm the keyring at
-`postStartCommand` (daemons die with the container; the keyring *files*
-survive in the home volume, so a restart needs no new login). `agy` installs
-per-user at postCreate. Non-root `dev` user with passwordless sudo.
+`.devcontainer/` at the repo root is the MiOS dev environment, **Fedora 44
+only** (`.devcontainer/devcontainer.json` + `Containerfile`; there is no
+Ubuntu variant -- every MiOS dev environment is Fedora). `Containerfile` is a
+byte-identical mirror of MiOS's `.devcontainer/Containerfile`, the one MiOS
+dev image, gated by `tests/test_devcontainer_mirror.py`: edit it in MiOS,
+never here. The file is context-independent: built from this repo's root it
+shallow-clones MiOS and resolves `[packages.devcontainer]` from that clone, so
+no sibling checkout and no `initializeCommand` are needed. The image bakes the
+keyring stack, tmux/jq, python3, Node + the agent CLIs and `agy` (fail-closed).
+`postCreateCommand` runs MiOS's `setup-devcontainer.sh` (cloning MiOS to
+`/workspaces/MiOS` when absent), which runs `setup-antigravity.sh`;
+`postStartCommand` runs MiOS's `boot-mios-systems.sh` + `post-start.sh`, which
+re-arm the keyring (daemons die with the container; the keyring *files*
+survive in the home volume, so a restart needs no new login). Non-root
+`mios-dev` user (uid 1000) with passwordless sudo.
 
 ## Security model, stated plainly
 
