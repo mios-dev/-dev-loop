@@ -184,6 +184,10 @@ the cloud-session projection -- builds those same bytes. The Ubuntu variant was 
 
 - Follow `skills/dev-loop/SKILL.md`: DoD before code, two-sided verification, explicit-path
   staging only (never `git add -A`), secrets scan before commit, ledger entry before ending.
+- **Questions to the operator go through the native question UI, never chat prose** (operator,
+  2026-09-26). In Claude Code that is `AskUserQuestion`; the Stop hook sends back a reply that
+  asks in prose (SKILL.md §5, `tests/test_stop_gate.py`). A lane or worker session with no UI
+  reports `status: blocked` with the question, and the monitor asks it natively.
 - Gates for changes to this repo: `sh skills/dev-loop/scripts/validate.sh` must pass;
   shell edits get `bash -n` / `sh -n`; JSON edits must `json.load`.
 - Harness CLI flags drift monthly: run `python3 skills/dev-loop/scripts/adapters.py probe`

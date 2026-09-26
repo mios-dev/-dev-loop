@@ -210,6 +210,12 @@ Discoverable from the repo/CI/docs/a five-minute experiment → discover it. Rev
 low-blast-radius → pick the conservative option, state it, move on.
 
 ### How to ask
+- **Ask through the harness's native question UI, never in chat prose.** In Claude Code that is
+  the `AskUserQuestion` tool: the options below become its choices, recommended first, with the
+  RFC detail in their descriptions. A reply that ends in a question to the operator is not a
+  question they can answer in the app; the Stop hook sends it back (`hooks/_chat_question.py`,
+  `DEVLOOP_NATIVE_ASK=0` for a UI-less host). A lane has no UI: it returns `status: blocked`
+  with the question, and the host asks it natively. Control: `tests/test_stop_gate.py`.
 - **Present 2–4 concrete options** with implementation details, affected paths, blast radius,
   performance/security trade-offs, and upstream precedent. Each must be defensible.
 - **Ask early.** A question before the work is cheap; the same question after is a rewrite.

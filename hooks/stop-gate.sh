@@ -16,6 +16,20 @@ CAP=${DEVLOOP_STOP_CAP:-3};  C="${TMPDIR:-/tmp}/devloop-stop-$KEY"              
 LCAP=${DEVLOOP_LOOP_CAP:-5}; L="${TMPDIR:-/tmp}/devloop-loop-$KEY"                # report says partial
 _done() { rm -f "$C" "$L"; exit 0; }
 
+# SKILL §5: operator questions go through the native question UI, never chat prose. Stop only
+# (a lane has no UI and returns `blocked`); DEVLOOP_NATIVE_ASK=0 opts out for a UI-less host.
+QCAP=${DEVLOOP_ASK_CAP:-2}; Q="${TMPDIR:-/tmp}/devloop-ask-$KEY"
+QL=""
+if [ "$(json_get "$IN" .hook_event_name)" != "SubagentStop" ] && [ "${DEVLOOP_NATIVE_ASK:-1}" != "0" ]; then
+  QL=$(python3 "$(dirname "$0")/_chat_question.py" "$T" || :)                   # prints only on a hit
+fi
+if [ -n "$QL" ] && [ "$(cat "$Q" 2>/dev/null || echo 0)" -lt "$QCAP" ]; then
+  echo $(( $(cat "$Q" 2>/dev/null || echo 0) + 1 )) > "$Q"
+  R="dev-loop: your reply asks the operator a question in chat (\"$QL\"). SKILL §5: ask through the native question UI (AskUserQuestion) with 2-4 options, recommended first -- never in prose. Ask it now with the tool, then finish the turn."
+  printf '{"decision":"block","reason":%s}\n' "$(printf '%s' "$R" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')"
+  exit 0
+fi
+rm -f "$Q"
 LAST=$(tail -c 60000 "$T")
 # transcript lines are JSONL: quotes inside message content are escaped as \" — accept both forms
 _status() { printf '%s' "$LAST" | grep -Eo '\\?"status\\?"[[:space:]]*:[[:space:]]*\\?"[a-z_]+' | tail -1 | grep -Eo '[a-z_]+$'; }
