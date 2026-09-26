@@ -151,3 +151,10 @@
 - next: fix the critic's items in the design, then run edge lanes after lane/dotfiles-web merges; integrate round-2 init + -dev-loop restore part onto PR #21
 - blockers: codespaces-fixup wf_e666a6f3-422 and round-2 wf_14e9b24b-848 running
 - unverified: Ptyxis flatpak dconf/gtk path; code-server bundle patch anchor; github.dev stays unreachable by design
+
+## 2026-09-26 11:48 · ee959c4 · blocked
+- objective: Edge-to-edge terminals globally; MiOS CI stall
+- done: edge waves 1+2 on MiOS#40 (0ca442e) and mios-bootstrap#12 (384ca11): SSOT inset, renderer Law 13, WT/code-server/GTK/fastfetch/Hyprland/Sway/Alacritty/WSL/tmux/Portal/ttyd rendered+gated, code-server baked with two fail-loud bundle patches, mios-edge-status; three adversarial reviews; -dev-loop#23 mirrors the Containerfile and the projected endpoint/ports. CI stall root-caused: tests/test-socket-swap.sh leaks a mock worker holding the captured stdout pipe; 9-line fix validated both ways, posted on MiOS#40
+- next: operator decisions below; then push the socket-swap fix, watch CI finish, drive #40/#12/#23 to merged; backlog: test_job_receipt.py flake (race in job.kill/status), test-socket-swap asserts retired port 8642
+- blockers: operator: push test-socket-swap fix (#40 or own PR); accept ratchet growth (+272 python lines, +11 files); merge order #12 -> #40 -> #23
+- unverified: live code-server/Hyprland/Ptyxis/WT sessions; WSL profileTemplate on wsl --import; patched suite on the hosted runner
