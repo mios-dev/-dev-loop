@@ -165,3 +165,10 @@
 - next: MiOS CI green (ci-green workflow in flight); -dev-loop self-improvement SPIKE; images core profile
 - blockers: agy auth needs a fresh code from the operator
 - unverified: the flake's original trigger timing on a loaded box (reproduced deterministically, not statistically)
+
+## 2026-09-26 · c918084 · native-ask
+- objective: operator (2026-09-26): questions come through the app's native question UI, never chat prose; part of dev-loop's native mechanisms
+- done: SKILL §5 rule + harness matrix row + AGENTS.md working rule; Stop hook sends back a reply that asks in prose without AskUserQuestion (hooks/_chat_question.py; lanes exempt; DEVLOOP_NATIVE_ASK=0 opt-out; DEVLOOP_ASK_CAP=2). Controls replay two real captured turns (tests/fixtures/transcripts/); disabled detector fails 2 tests by name. validate.sh passes.
+- next: install the plugin copy so running sessions pick up the hook; MiOS CI green (ci-green lane); worker-session prompt launch pending the operator
+- blockers: -
+- unverified: agy/Gemini/Codex native question surfaces (matrix says not yet probed); detector is a heuristic ("?" ending a prose sentence) and can false-positive on a rhetorical question in a report
