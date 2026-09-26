@@ -4,7 +4,7 @@ date: 2026-09-26
 decision-makers: [operator]
 consulted:
   - "dev-loop design pass (45 proposals, P1..P6b) and its completeness critic (verdict: revise) -- condensed in the task brief; long form on the monitor's box only"
-  - "mios-dev/-dev-loop origin/main 96e6578 (after #24 job-wrapper TERM fix and #25 native-UI questions); origin/claude/dev-loop-iv4399 666e35c (one commit ahead, unmerged)"
+  - "mios-dev/-dev-loop origin/main cd14b55 (after #24 job-wrapper TERM fix, #25 native-UI questions and #26 666e35c; first drafted on 96e6578)"
   - "mios-dev/MiOS main 96d7de8 (read-only, for P2j)"
 informed: [monitor]
 ---
@@ -16,23 +16,23 @@ A design pass scored 45 proposals for improving the dev-loop skill. A completene
 returned **revise**: several premises were wrong, many controls passed on the unchanged tree, and
 about twenty gaps had no row. This ADR is the revised plan. It does not implement anything.
 
-Every premise was re-checked against `origin/main` **96e6578**. Every `file:line` below was
-re-derived at that commit, unless it names another repo or ref. Main already carries #24
-(job wrapper traps exit) and #25 (native-UI operator questions). One more commit sits unmerged on
-`claude/dev-loop-iv4399`: 666e35c, "re-ask open questions every turn; agy 1.2.11 review-policy
-spellings". It touches `hooks/stop-gate.sh`, `hooks/_chat_question.py`, `scripts/env/agy_settings.py`
-and `AGENTS.md`, and items that edit those files must rebase onto it (item 9).
+Every premise was re-checked against `origin/main` **cd14b55**. It was first checked at
+96e6578, then again after #26 merged, and each moved citation was re-derived. Every `file:line`
+below is at cd14b55, unless it names another repo or ref. Main carries #24 (job wrapper traps
+exit), #25 (native-UI operator questions) and #26 (666e35c, "re-ask open questions every turn; agy
+1.2.11 review-policy spellings", which touched `hooks/stop-gate.sh`, `hooks/_chat_question.py`,
+`scripts/env/agy_settings.py`, `SKILL.md` and `AGENTS.md`).
 
 In the context of a multi-harness lane loop whose gates are only as strong as their controls,
 facing premises that drifted and controls that proved nothing, we decided to re-plan as the
-numbered items in the Decision Outcome, each with a positive control that is **red on 96e6578**
+numbered items in the Decision Outcome, each with a positive control that is **red on cd14b55**
 and a negative control whose failure text is dictated. We accept that items with no real captured
 transcript stay **UNTESTED** until one exists.
 
 ## Decision Drivers
 
 1. **A control that passes on the unchanged tree proves nothing** (critic). Every positive below
-   is a new or extended test that FAILS on 96e6578 first. The implementer records that failure.
+   is a new or extended test that FAILS on cd14b55 first. The implementer records that failure.
 2. **Test doubles rule** (AGENTS.md, operator 2026-09-25). Controls replay REAL captured agy/claude
    transcripts. A scenario no real transcript contains is UNTESTED, never "proven".
 3. **Minimal, one deliverable per lane** (critic: a multi-deliverable lane's single mutation
@@ -46,7 +46,7 @@ transcript stay **UNTESTED** until one exists.
 
 1. **Implement the design pass as scored.** Rejected: 9 premises are wrong (see *Critic resolution*).
 2. **Drop the whole pass.** Rejected: the verified gaps are real. Examples: no sibling-lane
-   ownership check, no `--mutation`/`--full-gate` on nested lanes, a raw-text Bash guard, and 12
+   ownership check, no `--mutation`/`--full-gate` on nested lanes, a raw-text Bash guard, and 13
    stale line citations.
 3. **Revise: re-verify, correct, split, and re-control every item** (chosen).
 
@@ -57,7 +57,7 @@ the native question UI, and the questions are grouped at the end.
 
 ### Rules that bind every item
 
-- **R1 red-before.** The positive control is a test that fails on 96e6578 and passes after the
+- **R1 red-before.** The positive control is a test that fails on cd14b55 and passes after the
   change. The implementer pastes the red run into the lane report.
 - **R2 plants on copies.** Every negative control plants on a `mktemp -d` copy, or a `git worktree`
   of the change, never on the live tree. It must exit non-zero with the **exact text dictated
@@ -91,7 +91,7 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
 - *Files:* `skills/dev-loop/scripts/live_managers.py` + its test (if pushed), or `.devloop/LEDGER.md`.
 - *Positive:* `git cat-file -e origin/main:skills/dev-loop/scripts/live_managers.py` exits 0, or the
   ledger line reads "not pushed".
-- *Negative (red today):* the same command on 96e6578 exits 128 with
+- *Negative (red today):* the same command on cd14b55 exits 128 with
   `fatal: path 'skills/dev-loop/scripts/live_managers.py' does not exist in 'origin/main'`.
 - *Size* S · *Lane* monitor · *Deps* none · blocks 14, 18.
 
@@ -123,7 +123,7 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
   Replace each with a symbol anchor (``devloop.sh `launch()` ``, `` `BASE_SNAP` ``), and forbid
   numeric citations of files that move.
 - *Files:* the five above, plus a new `tests/test_line_citations.py`.
-- *Positive:* `python3 -m unittest tests.test_line_citations`. It is red on 96e6578, naming 12
+- *Positive:* `python3 -m unittest tests.test_line_citations`. It is red on cd14b55, naming 13
   citations.
 - *Negative:* the test writes a copy of `run-directory.md` into a temp tree and appends the text
   `devloop.sh:46`. It must fail with
@@ -131,17 +131,17 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
 - *Size* S · *Lane* sonnet medium · *Deps* none.
 
 **4. Dangling script names in AGENTS.md** (P5h, corrected)
-- *What/why:* `AGENTS.md:178`, inside the cloud-reclaim paragraph at :173-179 (the design pass's
+- *What/why:* `AGENTS.md:182`, inside the cloud-reclaim paragraph at :177-183 (the design pass's
   citation had moved), cites `wait_done.py`, which exists nowhere in the repo. The critic is right
-  that a scan of `scripts/` alone flags legitimate names. At 96e6578 AGENTS.md cites 13 `.py`
+  that a scan of `scripts/` alone flags legitimate names. At cd14b55 AGENTS.md cites 13 `.py`
   names: 7 in `tests/`, 1 in `scripts/env/` (`agy_settings.py`), 4 in `scripts/`, and
   `wait_done.py` in no directory. The test therefore resolves each `<name>.py` token against the
-  basenames of **all** tracked files (`git ls-files`). On 96e6578 it flags exactly `wait_done.py`.
+  basenames of **all** tracked files (`git ls-files`). On cd14b55 it flags exactly `wait_done.py`.
   The AGENTS.md fix is a `contract_updates` entry: it names the real blocking command, or drops
   the parenthetical.
-- *Files:* `tests/test_contract_refs.py` (worker); `AGENTS.md:178` (monitor).
+- *Files:* `tests/test_contract_refs.py` (worker); `AGENTS.md:182` (monitor).
 - *Positive:* `python3 -m unittest tests.test_contract_refs`. It is red today with
-  `DANGLING SCRIPT REFERENCE: wait_done.py (AGENTS.md:178) matches no tracked file`, and green after
+  `DANGLING SCRIPT REFERENCE: wait_done.py (AGENTS.md:182) matches no tracked file`, and green after
   the monitor's edit.
 - *Negative:* a temp copy of AGENTS.md with the appended line `see not_a_script.py` must fail with
   `DANGLING SCRIPT REFERENCE: not_a_script.py (AGENTS.md:<n>) matches no tracked file`.
@@ -174,7 +174,7 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
   - `devloop_worker.build_system` (`devloop_worker.py:177-179`);
   - `agents/lane-worker.md:13` (forbids `checkout` too; lane_prompt does not);
   - `assets/templates/prompts/nested-claude-lanes.md:76-93`;
-  - `SKILL.md` §11 (:415-417).
+  - `SKILL.md` §11 (:426-428).
 
   Parity tests today cover only lane_prompt (`tests/test_lane_prompt.py:60-87`) and the nested
   template (`tests/test_claude_lane.py:815-845`). Put the canonical lines in
@@ -198,7 +198,7 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
   has no field to say so, and the gate cannot warn. Add both fields to the `report` tool: its
   properties and its `required` list (`openai-tools.json:283-298`, `strict: true`). Also add them to
   `REPORT_KEYS` and the defaults (`adapters.py:67-68,454-455`), to `devloop_worker.py:261`, and to
-  the SKILL §13 example (:533-543). `collect` prints both. The gate prints
+  the SKILL §13 example (:541-551). `collect` prints both. The gate prints
   `WARN host_state_changes: <list>` when the list is non-empty; it is never a pass/fail input.
 - *Files:* the four above, plus `tests/test_report_schema_parity.py` and `tests/test_lane_prompt.py`.
 - *Positive:* `python3 -m unittest tests.test_report_schema_parity`, extended: it is red today
@@ -210,7 +210,7 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
 
 **8. A consumer for `contract_updates`** (critic MISSING)
 - *What/why:* nothing reads the field back. It appears only in schemas and prompts
-  (`openai-tools.json:283,390`, `system.md:117`, `manager.md:144`, `SKILL.md:172,540`), in defaults
+  (`openai-tools.json:283,390`, `system.md:117`, `manager.md:144`, `SKILL.md:172,548`), in defaults
   (`adapters.py:68,454`; `devloop_worker.py:261`), and in a deny message (`hooks/no-env.sh:5`), so
   the lane-to-host channel is write-only. `claude_lane.py collect` and `devloop.sh`'s end-of-run
   step will append every non-empty `contract_updates` to `<run>/contract-updates.md`, one line per
@@ -228,21 +228,21 @@ Legend: **Size** S/M/L · **Lane** the model class per AGENTS.md · **Deps** ite
 - *Size* S · *Lane* sonnet medium · *Deps* 2.
 
 **9. `blocked` means "outside this session's control"** (P5e)
-- *What/why:* SKILL §12 (:510) defines `blocked` as "Blocker requires operator". §5 (:217) makes it
+- *What/why:* SKILL §12 (:518) defines `blocked` as "Blocker requires operator". §5 (:217) makes it
   the lane's question channel. `agents/lane-worker.md` never mentions `blocked` (only `budget` and
   `converged_stuck`, :17). `system.md` (:147) says "blocked on a decision, a credential, or an
-  external system". The Stop hook's partial re-arm text (`hooks/stop-gate.sh:45`) says "blocked
+  external system". The Stop hook's partial re-arm text (`hooks/stop-gate.sh:48`) says "blocked
   (needs the operator)". MiOS's `usr/share/mios/ai/system.md` has no `blocked` at all; that gap is
   a cross-repo row in item 26. Use one definition on all four in-repo surfaces: "`blocked`: the
   next step is outside this session's control (the operator, a credential, an external event);
-  `next` names the event and the command that polls it". Rebase onto 666e35c first, because it
-  edits `stop-gate.sh`.
+  `next` names the event and the command that polls it". 666e35c (#26) already edited
+  `stop-gate.sh`; start from cd14b55 or later.
 - *Files:* `SKILL.md`, `hooks/stop-gate.sh`, `agents/lane-worker.md`,
   `assets/templates/prompts/system.md`, and a new `tests/test_status_vocabulary.py` (absent today).
 - *Positive:* `python3 -m unittest tests.test_status_vocabulary`. It is red today on all four surfaces.
 - *Negative:* a temp copy of `system.md` without the definition must fail with
   `STATUS VOCABULARY DRIFT: skills/dev-loop/assets/templates/prompts/system.md does not define blocked`.
-- *Size* S · *Lane* sonnet medium · *Deps* 666e35c merged; 6 (same files, serialise).
+- *Size* S · *Lane* sonnet medium · *Deps* 6 (same files, serialise).
 
 #### Group C: guards and dispatch-time refusals
 
@@ -662,7 +662,7 @@ be written before dispatch.
 | P3c | do | **item 24** | + stale reused branch |
 | P3d | do-later | do-later | |
 | P3e | already-exists | already-exists | devloop.sh merge_lane :282-283 abort-and-keep; base-audit :268 |
-| P3f | do | **item 3** | 12 stale citations, not 1 |
+| P3f | do | **item 3** | 13 stale citation sites, not 1 |
 | P4 | reject | reject | agreed |
 | P4a | do | **item 14** | one knob; deps on 1 |
 | P4b | do | **items 5 + 27** | retirement split out; real-repo control |
@@ -674,7 +674,7 @@ be written before dispatch.
 | P5b | do | **item 11** | premise corrected; scratch carve-out |
 | P5c | do | **item 6** | sentence corrected; 5 surfaces |
 | P5d | do | **item 7** | |
-| P5e | do | **item 9** | rebase on 666e35c |
+| P5e | do | **item 9** | 666e35c merged (#26) |
 | P5f | reject | reject | agreed |
 | P5g | do-later | folded into 27 | |
 | P5h | do | **item 4** | name resolution repo-wide |
@@ -691,7 +691,7 @@ be written before dispatch.
 | W: NEVER WRITE TO ANOTHER CHECKOUT vs mktemp | **Upheld.** Sentence rewritten with a scratch carve-out (item 6), and the same carve-out in item 11. |
 | W: P3a dirty tree refused | **Upheld.** It stays a note (`claude_lane.py:832-846`), and ROOT is never touched (item 22). |
 | W: sonnet medium for a heavy lane | **Upheld.** Split: text-only item 6 is sonnet; schema/code item 7 is opus xhigh. |
-| W: stale AGENTS.md citations | **Upheld.** Re-derived: `AGENTS.md:178`, paragraph :173-179 (item 4). |
+| W: stale AGENTS.md citations | **Upheld.** Re-derived: `AGENTS.md:182`, paragraph :177-183 (item 4). |
 | W: stale-refs scan flags tests/*.py | **Upheld.** Names resolve repo-wide via `git ls-files`; only `wait_done.py` is flagged (item 4). |
 | W: contracts.py controls don't exercise the repo | **Upheld.** The new test scans the real tree (item 5). |
 | W: lane 4 must fail closed if lane 2 unmerged | **Upheld.** Nothing enforces it today; item 13 adds `--requires`; R5. |
@@ -739,7 +739,7 @@ gated by `sh skills/dev-loop/scripts/validate.sh`.
 
 ## More Information
 
-- Baselines: -dev-loop `origin/main` 96e6578; `origin/claude/dev-loop-iv4399` 666e35c; MiOS 96d7de8.
+- Baselines: -dev-loop `origin/main` cd14b55 (first drafted on 96e6578; 666e35c merged via #26); MiOS 96d7de8.
 - git measured 2026-09-26: cloud VM host 2.43.0; `mios-dev:base` 2.55.0 (`git-core-2.55.0-1.fc44`).
 - AGENTS.md rules applied: test doubles (operator 2026-09-25), model policy, PRs ready for review,
   and workers never editing `AGENTS.md`/`.devloop/`.
