@@ -94,8 +94,8 @@ finish() {
   printf '%s\n' "$rc" > "$d/exit.tmp"
   mv "$d/exit.tmp" "$d/exit"
 }
-trap 'finish 143' TERM
-trap 'finish 130' INT
+trap 'finish 143; exit 143' TERM
+trap 'finish 130; exit 130' INT
 cd "$cwd" 2>/dev/null || { finish 125; exit 125; }
 timeout -k 10 "$budget" sh -c "$cmd" > "$d/out" 2> "$d/err"
 finish $?

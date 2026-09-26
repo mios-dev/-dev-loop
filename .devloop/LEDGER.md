@@ -158,3 +158,10 @@
 - next: operator decisions below; then push the socket-swap fix, watch CI finish, drive #40/#12/#23 to merged; backlog: test_job_receipt.py flake (race in job.kill/status), test-socket-swap asserts retired port 8642
 - blockers: operator: push test-socket-swap fix (#40 or own PR); accept ratchet growth (+272 python lines, +11 files); merge order #12 -> #40 -> #23
 - unverified: live code-server/Hyprland/Ptyxis/WT sessions; WSL profileTemplate on wsl --import; patched suite on the hosted runner
+
+## 2026-09-26 · 9b2a83f · job-wrapper-term
+- objective: root-cause the test_job_receipt.py flake (1 in 4 on main)
+- done: the wrapper's TERM trap wrote a receipt and fell through into the job when the signal landed before `timeout` started; traps now exit. A regression test widens the window on a wrapper copy; the negative control (trap without exit) fails it by name. validate.sh passes; 18 repeat runs green.
+- next: MiOS CI green (ci-green workflow in flight); -dev-loop self-improvement SPIKE; images core profile
+- blockers: agy auth needs a fresh code from the operator
+- unverified: the flake's original trigger timing on a loaded box (reproduced deterministically, not statistically)

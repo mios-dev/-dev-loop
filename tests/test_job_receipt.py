@@ -246,6 +246,44 @@ def test_a_receipt_does_not_outrank_liveness() -> None:
     job.kill(root, "premature", "KILL")
 
 
+def test_term_before_the_work_starts_stops_the_job() -> None:
+    """A TERM caught before `timeout` starts ran the trap, wrote a 143 receipt, and then fell
+    through into the job: the work ran its whole budget under a receipt saying it was killed.
+    That window is what made the premature-receipt check above flake. The startup gap is widened
+    with a sleep in a COPY of the wrapper so the signal lands in it every time."""
+    print("TERM during wrapper startup:")
+    d = newroot() / "early"
+    d.mkdir()
+    (d / "cmd").write_text("sleep 60\n")
+    (d / "cwd").write_text(str(d) + "\n")
+    (d / "budget").write_text("120\n")
+    w = d / "wrapper.sh"
+    w.write_text(job.WRAPPER.replace('cd "$cwd"', 'sleep 1; cd "$cwd"', 1))
+    proc = subprocess.Popen(["/bin/sh", str(w), str(d)], stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True)
+    try:
+        end = time.time() + 5
+        while not (d / "pid").is_file() and time.time() < end:
+            time.sleep(0.05)
+        time.sleep(0.3)
+        proc.send_signal(15)
+        try:
+            rc = proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            rc = None
+        check("the wrapper exits on TERM instead of starting the work", rc == 143, f"rc={rc}")
+        check("its receipt says 143", (d / "exit").read_text().strip() == "143"
+              if (d / "exit").is_file() else False, "no receipt")
+    finally:
+        for p in job._session_pids(proc.pid):
+            try:
+                os.kill(p, 9)
+            except OSError:
+                pass
+        proc.wait()
+
+
 def test_the_wrapper_stamps_its_own_pid() -> None:
     """Second term: the wrapper writes its pid into done.json, so a receipt left behind by
     something other than the process that ran the work is detectable even after it exits."""
@@ -272,7 +310,8 @@ def main() -> int:
               test_failure_is_reported_as_failure, test_wait_blocks_until_terminal,
               test_absent_job_is_absent,
               test_a_receipt_does_not_outrank_liveness,
-              test_the_wrapper_stamps_its_own_pid):
+              test_the_wrapper_stamps_its_own_pid,
+              test_term_before_the_work_starts_stops_the_job):
         t()
     print()
     if FAILURES:
