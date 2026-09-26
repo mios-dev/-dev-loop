@@ -49,14 +49,21 @@ best UX for humans.
 
 ## Devcontainers
 
-`.devcontainer/` at the repo root: **Fedora 44 is the default config**
-(`.devcontainer/devcontainer.json` + `Dockerfile`); an Ubuntu 24.04 variant
-lives in `.devcontainer/ubuntu/`. Both bake the keyring stack, tmux/jq,
-python3, and Node + Claude Code (for `claude-code` lanes), run
-`setup-antigravity.sh` at `postCreateCommand`, and re-arm the keyring at
-`postStartCommand` (daemons die with the container; the keyring *files*
-survive in the home volume, so a restart needs no new login). `agy` installs
-per-user at postCreate. Non-root `dev` user with passwordless sudo.
+`.devcontainer/` at the repo root is the MiOS dev environment, **Fedora 44
+only** (`.devcontainer/devcontainer.json` + `Containerfile`; there is no
+Ubuntu variant -- every MiOS dev environment is Fedora). `Containerfile` is a
+byte-identical mirror of MiOS's `.devcontainer/Containerfile`, the one MiOS
+dev image, gated by `tests/test_devcontainer_mirror.py`: edit it in MiOS,
+never here. The file is context-independent: built from this repo's root it
+shallow-clones MiOS and resolves `[packages.devcontainer]` from that clone, so
+no sibling checkout and no `initializeCommand` are needed. The image bakes the
+keyring stack, tmux/jq, python3, Node + the agent CLIs and `agy` (fail-closed).
+`postCreateCommand` runs MiOS's `setup-devcontainer.sh` (cloning MiOS to
+`/workspaces/MiOS` when absent), which runs `setup-antigravity.sh`;
+`postStartCommand` runs MiOS's `boot-mios-systems.sh` + `post-start.sh`, which
+re-arm the keyring (daemons die with the container; the keyring *files*
+survive in the home volume, so a restart needs no new login). Non-root
+`mios-dev` user (uid 1000) with passwordless sudo.
 
 ## Security model, stated plainly
 
@@ -173,6 +180,87 @@ devcontainer's own user instead. `/home` is mounted per entry, never whole —
 mounting it whole hides the image's `/home/mios-dev/.local/bin`, where MiOS
 installs `agy`.
 
+**The lifecycle is part of the environment, so it is prebuilt.** A devcontainer is
+its Containerfile *plus* its lifecycle commands. MiOS's `postCreateCommand` and
+`postStartCommand` apply the root overlay (`/usr/share/mios`, `/usr/libexec/mios`),
+build `miosd` and the native tools into `/opt/mios/bin`, run `setup-antigravity.sh`
+and pass the verification gate. Building only the Containerfile left all of that out
+(no `miosd`, no `/usr/share/mios`). Running it inside the session's container would
+not help either: a cold session restores files, never containers. So the image is
+built as `<name>:base` by the **Dev Containers CLI** (`devcontainer build`, installed
+once under `/opt/dev-loop-fedora/dccli`). It reads `devcontainer.json` and applies its
+features exactly as VS Code and Codespaces do. A plain Containerfile build is *not*
+the same environment: measured, MiOS's `common-utils` feature adds 16 packages
+(`bash-completion`, `man-db`, `strace`, `which`, …) that the Containerfile alone lacks.
+The CLI's build still resolves `FROM` to the local CA-trusting shadow, and
+`FEDORA_DEVCONTAINER_CLI=0` falls back to the plain build. Then the lifecycle runs
+once in a throwaway container. Its
+commands, `remoteUser` and `workspaceFolder` are read from the repo's `devcontainer.json`,
+never restated here, and the setup's clone is mounted at the `workspaceFolder`. The
+result is committed as `<name>:latest`, the image the wrapper runs: a Codespaces-style
+prebuild. A failed lifecycle degrades to the base image rather than to none, and says
+so: its status goes to `/opt/dev-loop-fedora/<name>.lifecycle` (`ok`, `skipped` or
+`failed: rc=N`), and the wrapper prints it whenever it creates a container from an image
+that lacks the lifecycle. `FEDORA_DEVCONTAINER_LIFECYCLE=0` skips the prebuild, and
+`FEDORA_LIFECYCLE_TIMEOUT_S` (default 900) bounds it. The prebuild takes minutes
+on top of the image build, so it can push the setup script past the snapshot budget.
+`FEDORA_SETUP_BUDGET_S=<seconds>` defers it when that much of the run is already
+spent: the image is then the bare Containerfile, the status reads `deferred: …`, and
+`bash /opt/dev-loop-fedora/cloud-fedora-setup.sh --lifecycle` applies it later in a
+session. The default of 0 means no budget, so it always prebuilds. The overlay and binaries reflect
+the MiOS commit the environment was built from; a session's fresh checkout is newer
+only until the environment's cache is rebuilt.
+
+**The host is provisioned too.** Claude Code itself runs on the VM, not in the
+container, so the setup script first runs `setup-antigravity.sh` on the host (agy, the
+keyring stack, headless grants, the dev-loop skill; `FEDORA_PROVISION_HOST=0` skips it).
+It lands in the snapshot, so every session starts with `agy` on PATH. Only the keyring
+*daemon* dies between sessions. The dev-loop plugin's SessionStart hook revives it in
+every cloud session, in whatever repo, and appends its bus address to
+`$CLAUDE_ENV_FILE` so every later tool call reaches it. The repo's own SessionStart hook
+only runs in sessions rooted in this repo, which is why a session opened at `/home/user`
+had no agy. Sign-in is still `agy-login.sh` once per container: the credential is
+written after the snapshot, so a new session starts without it, and it is never baked.
+
+**Podman first.** MiOS is Podman-native; Docker is for cloud providers that ship nothing
+else. `FEDORA_RUNTIME` (`auto`, the default; `podman`; `docker`) picks the container
+runtime for the build, the lifecycle prebuild and the generated wrapper, which bakes its
+runtime in the way it bakes the image name. `auto` decides in order: (1) **image home**:
+with both runtimes installed, the runtime whose store already holds `FEDORA_IMAGE` wins
+(docker's daemon is brought up first for that check, since a cold session has it down; the
+log says `auto: <image> already lives in <rt> -- keeping it there`), so an image built
+under docker is never silently rebuilt under podman; (2) **usability**: a runtime that is
+on PATH but cannot run (`podman info` fails, `dockerd` will not start) is skipped with a
+log line naming why; (3) podman. So this cloud VM (docker only) keeps working unchanged,
+and a VM where podman was installed later keeps its docker-held image. An explicit
+runtime that is not installed, or any other value, logs an error naming it and builds
+nothing (the setup-script contract still exits 0); it never falls back on its own. The
+Dev Containers CLI build gets `--docker-path podman` under podman, and podman is never
+started as a service (it has none). `--print-runtime` prints the choice.
+`FEDORA_WRAPPER_DIR` (default `/usr/local/bin`) governs every wrapper write and is baked
+into the wrapper for its on-demand build; the repo's SessionStart hook installs the
+generic wrapper only when none exists there, so an environment's own projection wrapper
+is never rewritten by a session start. Cost of the image-home rule: in auto mode with both
+runtimes installed, even `--print-runtime` and `--wrapper-only` start `dockerd` on a cold
+session when podman's store lacks the image.
+**Measured (podman 4.9.3, this VM, generic mode):** image built in 55s, the wrapper ran
+through podman, cold start after `podman rm -f` 0.38s. Projection mode under podman (the
+CLI build with `--docker-path`, the local `fedora:44` shadow tag, `podman commit`) has
+not been run end to end; rootless podman has not been tried.
+
+**First command in a fresh environment: `/dev-loop:init`.** It wraps
+`scripts/env/mios-init.sh`: the four repos side by side, the MiOS package set (`dnf` on a
+Fedora host from `mios.toml [packages.devcontainer]` through MiOS's own
+`packages.sh`; the projection above anywhere else, without rebuilding an existing image),
+`setup-antigravity.sh`, and the Global MiOS System Prompt fetched from the deployed
+`/usr/share/mios/ai/system.md`, else the local MiOS checkout, else MiOS `main` on
+GitHub, written to `${XDG_CACHE_HOME:-~/.cache}/mios/system.md` with its sha256 and source
+printed; the skill then has the agent read and adopt it, report agy auth, and orient on
+the MiOS ledger. Idempotent; `--plan` changes nothing. Found while building it: sourcing
+MiOS's `packages.sh` from a MiOS checkout inside the Fedora image resets `MIOS_TOML` to
+`/usr/share/mios/mios.toml` (its `userenv.sh` twin exports it), so `mios-init.sh` sources
+the resolver from `/` and sets `MIOS_TOML` again afterwards.
+
 **Commit from the host, not the container.** A cloud session signs commits
 through a platform helper (`gpg.ssh.program=/tmp/code-sign`, a symlink into
 `/opt/env-runner/`), and neither path is mounted into the container. So
@@ -195,6 +283,22 @@ down, container gone) 1.45s; first-use build through the wrapper with no
 `FEDORA_DEVCONTAINER_*` in the environment 3m14s. Inside: Fedora 44, just
 1.57.0, bootc 1.16.13, cargo 1.98.1, venv Python 3.11.16, agy 1.2.11, claude,
 gemini, copilot, podman, ShellCheck, `MIOS_DEVCONTAINER=1`.
+
+**Measured with the lifecycle prebuild (2026-09-25, quiet VM, build cache
+pruned):** the whole setup took 452s through the Dev Containers CLI (the plain
+Containerfile path took 419s). Host provisioning took ~3s with agy already installed
+(a fresh VM adds its apt install). The CLI install plus the image build with features
+took ~265s, and the lifecycle prebuild 184s. That is well over the ~5-minute budget.
+**Identity, both sides:** the image this path builds from MiOS and a
+`devcontainer build` of mios-bootstrap's devcontainer were compared on their full RPM
+set, npm globals, agent venv, agy version and `mios-dev` uid, and all 574 lines were
+identical. The plain Containerfile build differed from that same devcontainer by 16
+RPMs, which is why the CLI is used. The result is
+`mios-dev:latest` with `miosd` (it runs), 18 native binaries in `/opt/mios/bin`, the
+`/usr/share/mios` + `/usr/libexec/mios` overlay, agy 1.2.11 with its headless
+settings, and the sibling repos in `/workspaces`. What the platform does with an
+overrunning setup script was not observed from inside a session; if the environment
+cache stops building, set `FEDORA_SETUP_BUDGET_S` so the prebuild defers.
 
 Trust was checked on both sides against a host the proxy actually intercepts:
 the proxy MITMs only some hosts (`github.com` yes; `dl.fedoraproject.org`,

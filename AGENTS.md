@@ -130,7 +130,12 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
 
 Canonical scripts: `skills/dev-loop/scripts/env/` (docs: `references/environment.md`; there is
 no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubuntu apt.
-`.devcontainer/` defaults to **Fedora 44**; `.devcontainer/ubuntu/` is the apt variant.
+`.devcontainer/Containerfile` is a byte-identical mirror of **MiOS's one dev image** (gated by
+`tests/test_devcontainer_mirror.py`; edit it in MiOS, never here). It is context-independent: built
+from this repo's root it shallow-clones MiOS and resolves `[packages.devcontainer]` from the clone,
+and `devcontainer.json` runs MiOS's lifecycle from `/workspaces/MiOS`. Operator decision
+(2026-09-25): every MiOS dev environment -- the three repos' devcontainers, Codespaces, Cloud Shell,
+the cloud-session projection -- builds those same bytes. The Ubuntu variant was removed.
 
 - `bash skills/dev-loop/scripts/env/setup-antigravity.sh` — idempotent provisioning (also run
   by the SessionStart hook in `.claude/settings.json` and devcontainer `postCreateCommand`).
@@ -146,6 +151,24 @@ no other copy — no wrappers). Distro-aware: Fedora/RHEL dnf first, Debian/Ubun
   With `FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS` it instead projects MiOS's
   `.devcontainer/Containerfile` (built unedited on a locally shadowed, CA-trusting fedora:44)
   and installs `/usr/local/bin/mios-dev` (+ `fedora`). Measured 3m32s first run, 1.45s cold.
+  It now also provisions the HOST (agy, keyring, grants; the plugin's SessionStart hook revives
+  the keyring per session). It builds with the Dev Containers CLI (features included) and commits
+  the devcontainer.json lifecycle into the image (miosd, root overlay). Measured 452s cold, over the
+  ~5 min budget; `FEDORA_SETUP_BUDGET_S` defers the lifecycle if that stops the cache building.
+  Its image and a mios-bootstrap `devcontainer build` compared identical (574-line package census).
+- **Operator principle (2026-09-25): ALL MiOS images are equivalent and are full MiOS systems.**
+  A devcontainer, the cloud-session projection, the WSL2 dev machine, a Codespace, an OCI artifact:
+  each is the same MiOS system built by the one SSOT-driven pipeline, not a toolchain image with its
+  own package list. Where container storage limits (cloud) constrain it, the same pipeline yields
+  the CORE MiOS components first and the rest degrades open. Everything is rendered from SSOT
+  mechanisms (`mios.toml`) controlled by static Rust binaries plus Python, hosted by the local
+  server/container (miosd, agent-pipe), and backed by the MiOS database systems (the pgvector
+  datastore; `check_db_seed_coverage` requires every SSOT section seeded). Every MiOS repo carries
+  the same devcontainer definition, byte-identical and gated, buildable from its own root -- no
+  sibling-checkout pointer (restored 2026-09-26: MiOS#38, mios-bootstrap#10, and this repo's
+  mirror; the Ubuntu variant stays removed). The hand-authored
+  `[packages.devcontainer]` list and `FEDORA_PACKAGES` in `cloud-fedora-setup.sh` are interim and
+  must give way to the core profile of the real pipeline. Design: task #11 (SPIKE in flight).
   Details: `references/environment.md` § Fedora in a Claude Code *cloud environment*.
 - **In a cloud session, a detached job does not outlive the container.** `job.py spawn` survives
   the monitor's turn, but not the container, and an idle session's container is reclaimed.
