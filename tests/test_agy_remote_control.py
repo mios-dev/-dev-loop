@@ -142,6 +142,11 @@ def test_reaches_the_binary() -> None:
     with tempfile.TemporaryDirectory() as td:
         got = recorded_argv(Path(td), [])
         check("without it, the binary did NOT", got and "--remote-control" not in got, str(got))
+    with tempfile.TemporaryDirectory() as td:
+        got = recorded_argv(Path(td), ["--conversation", "a7417589-8ebe-4711-aa44-5e3864f58021"])
+        check("with --conversation <id>, the binary saw both tokens",
+              "--conversation" in got and got[got.index("--conversation") + 1] == "a7417589-8ebe-4711-aa44-5e3864f58021",
+              str(got))
 
 
 def test_host_passes_it_through() -> None:
