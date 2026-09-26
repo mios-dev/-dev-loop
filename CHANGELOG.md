@@ -14,6 +14,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 ### Fixed
 - `scripts/env/fetch-installer.sh`: the `agy` installer fetch decodes the CDN's unsolicited gzip and refuses a non-script payload (`tests/test_agy_installer_fetch.py`).
 - `hooks/format.sh` parses `.sh` files with the interpreter their shebang names instead of always `sh -n` (`tests/test_format_hook.py`).
+- `scripts/job.py`: the wrapper's TERM/INT traps now exit. A signal caught before `timeout` started wrote a 143 receipt and then ran the job for its whole budget, which made `test_job_receipt.py` flake about 1 run in 4 (`test_term_before_the_work_starts_stops_the_job`).
 ### Removed
 - `.devcontainer/Dockerfile` and the Ubuntu variant `.devcontainer/ubuntu/`: superseded by MiOS's one image.
 
