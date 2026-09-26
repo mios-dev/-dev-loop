@@ -167,6 +167,18 @@ else
     PROMPT="/teamwork-preview $OBJECTIVE"
 fi
 
+write_session_prompt_file() {
+    out=$1
+    kickoff=$2
+    if [ -n "${AGY_HOST_CONVERSATION:-}" ]; then
+        printf '%s\n' \
+            "Resume this existing manager conversation. Work is already on disk. Continue from the current conversation and repository state; do not restart the kickoff prompt or re-plan from scratch." \
+            > "$out"
+    else
+        printf '%s\n' "$kickoff" > "$out"
+    fi
+}
+
 case "$MODE" in
     print)
         printf '%s\n' "$PROMPT"
@@ -174,7 +186,7 @@ case "$MODE" in
     teamwork)
         command -v agy >/dev/null 2>&1 || { echo "agy not installed" >&2; exit 69; }
         PROMPT_FILE=$(mktemp)
-        printf '/teamwork-preview %s\n' "$OBJECTIVE" > "$PROMPT_FILE"
+        write_session_prompt_file "$PROMPT_FILE" "/teamwork-preview $OBJECTIVE"
         ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
         EVENTS_FILE=${AGY_HOST_EVENTS:-$RUN_ROOT/.devloop/native/session-events.ndjson}
         mkdir -p "$(dirname "$EVENTS_FILE")"
@@ -260,7 +272,7 @@ case "$MODE" in
         # lane in $LANES has written .devloop/native/report-<id>.json. Same denial check
         # as the single-shot path -- a held session can be auto-denied just as quietly.
         PROMPT_FILE=$(mktemp)
-        printf '%s\n' "$PROMPT" > "$PROMPT_FILE"
+        write_session_prompt_file "$PROMPT_FILE" "$PROMPT"
         ENV_FILE=${AGY_HOST_ENVELOPE:-$(mktemp)}
         EVENTS_FILE=${AGY_HOST_EVENTS:-$RUN_ROOT/.devloop/native/session-events.ndjson}
         mkdir -p "$(dirname "$EVENTS_FILE")"
