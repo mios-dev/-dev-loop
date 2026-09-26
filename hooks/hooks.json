@@ -53,6 +53,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*__(merge_pull_request|enable_pr_auto_merge|update_pull_request_branch)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/no-merge.sh\"",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
