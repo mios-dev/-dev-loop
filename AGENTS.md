@@ -106,6 +106,14 @@ that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web c
   at most **2** of them teamwork trees (the rest solo); a held session counts. Waves launch right
   after a pool refill. Launchers refuse a fifth and callers wait for a slot. A held session is
   stopped (its STOP file, never a kill) as soon as the monitor has reviewed and committed its work.
+- **Legibility drain (operator, 2026-09-26):** a separate `drain:` PR runs automatically per repo
+  after every 3-5 commits to main (MiOS thresholds: `[legibility].drain_after_commits` /
+  `drain_max_commits` once they exist): it re-measures the legibility ratchets, proposes
+  consolidations with proof (callers, gates both sides), asks the operator every judgement call
+  through the native question UI, and opens a ready-for-review PR labelled `drain`. It never raises
+  a floor, deletes a test to shrink a count, or merges. Feature PRs do not offset ratchet growth
+  themselves; the drain does. Carried by the Routine "Legibility drain (per repo, every 3-5
+  commits)".
 - **Pull requests (operator, 2026-09-25):** verified work goes up as a PR ready for review; the
   operator reviews and merges from the GitHub app. The monitor never merges.
 - **Test doubles (operator, 2026-09-25):** tests replay REAL captured agy/claude transcripts;
