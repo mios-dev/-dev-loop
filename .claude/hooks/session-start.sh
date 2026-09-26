@@ -32,9 +32,19 @@ fi
 # FEDORA_WRAPPER_DIR is honoured here and by the setup script (default
 # /usr/local/bin), so a test can point both at a scratch directory.
 WRAPPER_DIR="${FEDORA_WRAPPER_DIR:-/usr/local/bin}"
+SETUP="$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/cloud-fedora-setup.sh"
 if [ ! -e "$WRAPPER_DIR/fedora" ]; then
-    bash "$CLAUDE_PROJECT_DIR/skills/dev-loop/scripts/env/cloud-fedora-setup.sh" --wrapper-only ||
+    bash "$SETUP" --wrapper-only ||
         echo "fedora wrapper not installed — run manually: bash skills/dev-loop/scripts/env/cloud-fedora-setup.sh"
+else
+    # The wrapper is left alone, but the copy of the setup script it runs for
+    # an on-demand build (its SETUP_SCRIPT, $FEDORA_BUILD_CTX/cloud-fedora-setup.sh)
+    # is refreshed from this checkout. Every other mode caches as a side
+    # effect, so this hook was the per-session refresher until the guard above
+    # skipped it: measured, an existing wrapper left the cached copy at an
+    # older sha than the checkout. --refresh-cache does only the cache: no
+    # runtime, no daemon, no wrapper, always exit 0.
+    bash "$SETUP" --refresh-cache
 fi
 
 exit 0

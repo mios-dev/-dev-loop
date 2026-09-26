@@ -1,29 +1,43 @@
 #!/usr/bin/env python3
 """FEDORA_RUNTIME selection in cloud-fedora-setup.sh (MiOS is Podman-native),
-FEDORA_WRAPPER_DIR, and the repo SessionStart hook's wrapper install.
+FEDORA_WRAPPER_DIR, --refresh-cache, and the repo SessionStart hook's wrapper
+install and cache refresh.
 
 Drives the REAL script, the REAL hook and the REAL podman/docker binaries; the
 only things a test controls are PATH (how "podman is absent" is produced
-without uninstalling anything), a stub `podman` that only exits 125 (how
-"podman is on PATH but cannot run" is produced), and the image stores, into
-which a layerless probe image is imported from an empty tar (no network) and
-removed again. A case whose runtime is not installed is SKIPPED, never passed.
-Negative controls run a MUTATED COPY of the script or hook and check the
-original's sha256 is unchanged afterwards.
+without uninstalling anything), stubs on that PATH (a `podman` that only exits
+125 is one that cannot run; a `docker` that only exits 1 is a client with no
+daemon; a `dockerd` that only records its argv is a daemon that never comes
+up; recorders for all three prove a mode makes no runtime call), and the image
+stores, into which a layerless probe image is imported from an empty tar (no
+network) and removed again. A case whose runtime is not installed is SKIPPED,
+never passed. Negative controls run a MUTATED COPY of the script or hook and
+check the original's sha256 is unchanged afterwards. The host's real dockerd
+is never stopped: a run that would launch the stub dockerd gets a private
+mount namespace with a scratch /var/log, because the script redirects dockerd
+into /var/log/dev-loop-dockerd.log, the file the real daemon here writes.
 
 Policy under test:
   auto   -> with both installed: the runtime whose store already holds
             FEDORA_IMAGE; else the first one that can run here (podman info /
-            dockerd up), the reason for a skip logged; else podman.
-            With one installed: that one.
+            dockerd up), the reason for a skip logged -- including a docker
+            passed over in the image-home check because its daemon cannot
+            come up; else podman. With one installed: that one.
   podman / docker -> that runtime, or an error naming it: never a fallback,
             not when it is missing and not when it cannot run here
   anything else   -> an error naming the value
 An error always ends in exit 0 (the setup-script contract) and builds nothing.
 
+--refresh-cache re-caches the script at FEDORA_BUILD_CTX/cloud-fedora-setup.sh
+(the copy every installed wrapper runs for its on-demand build) and does
+nothing else: no runtime selection, no dockerd, no wrapper.
+
 The hook installs the wrapper only when FEDORA_WRAPPER_DIR/fedora is absent:
 the environment's own setup script may have installed one for another mode
 or runtime, and a rewrite would make the next `fedora` call rebuild everything.
+When it leaves the wrapper alone it runs --refresh-cache instead, because
+every other mode caches as a side effect and the hook was the per-session
+refresher of the copy the wrapper runs.
 
 Manual control (heavy, needs ~1 min and network; run on demand):
   env -u FEDORA_DEVCONTAINER_REPO FEDORA_IMAGE=rt-test:44 FEDORA_CONTAINER=rt-test \
@@ -36,6 +50,7 @@ Manual control (heavy, needs ~1 min and network; run on demand):
 import hashlib
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -53,6 +68,10 @@ BASH = shutil.which("bash") or "/bin/bash"
 TOOLS = ("dirname", "basename", "grep", "mkdir", "cp", "mv", "cat", "rm", "tr", "chmod", "sleep")
 # Never a real image name: the "neither store holds it" case.
 ABSENT = "absent-test:none"
+# Where the script sends dockerd's output; the host's real daemon writes it too.
+DOCKERD_LOG = "/var/log/dev-loop-dockerd.log"
+SENTINEL = "#!/bin/sh\necho sentinel wrapper, installed by the environment\n"
+STALE = "#!/bin/sh\n# stale cloud-fedora-setup copy\n"
 
 
 def sha256(path):
@@ -60,8 +79,30 @@ def sha256(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def run(args, path, extra=None, script=SCRIPT):
-    """The script under a controlled env. extra values of None unset a key."""
+def shadowed(varlog, cmd):
+    """`cmd` in a private mount namespace whose /var/log is `varlog`, so a
+    stub dockerd the script launches cannot truncate the real daemon's log.
+    Absolute paths throughout: the caller's PATH is the minimal test one."""
+    unshare, sh, mount = (shutil.which(t) for t in ("unshare", "sh", "mount"))
+    return [unshare, "-m", "--propagation", "private", sh, "-c",
+            f'{shlex.quote(mount)} --bind "$1" /var/log && shift && exec "$@"', "_", varlog] + cmd
+
+
+def can_shadow_varlog():
+    if not all(shutil.which(t) for t in ("unshare", "sh", "mount")):
+        return False
+    d = tempfile.mkdtemp(prefix="rt-ns-")
+    try:
+        r = subprocess.run(shadowed(d, ["/bin/sh", "-c", "echo probe > /var/log/probe"]),
+                           capture_output=True, timeout=30)
+        return r.returncode == 0 and os.path.exists(os.path.join(d, "probe")) and not os.path.exists("/var/log/probe")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def run(args, path, extra=None, script=SCRIPT, varlog=None):
+    """The script under a controlled env. extra values of None unset a key.
+    varlog: run inside a namespace whose /var/log is that directory."""
     env = {"PATH": path, "HOME": os.environ.get("HOME", "/root"),
            "FEDORA_PROVISION_HOST": "0", "FEDORA_IMAGE": ABSENT}
     for k, v in (extra or {}).items():
@@ -69,8 +110,10 @@ def run(args, path, extra=None, script=SCRIPT):
             env.pop(k, None)
         else:
             env[k] = v
-    return subprocess.run([BASH, script] + args, env=env, capture_output=True,
-                          text=True, timeout=120)
+    cmd = [BASH, script] + args
+    if varlog is not None:
+        cmd = shadowed(varlog, cmd)
+    return subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=120)
 
 
 def installed(*runtimes):
@@ -84,16 +127,16 @@ def store_holds(runtime, image):
 def setUpModule():
     """dockerd needs containerd/runc/iptables that the tests' minimal PATH
     hides, so if the daemon is down it is started ONCE here, through the
-    script's own ensure_dockerd under the full PATH (an explicit docker pick
-    followed by its usability check)."""
+    script's own ensure_dockerd under the full PATH. An auto --print-runtime
+    reaches it whenever docker is on PATH: through image_home when podman is
+    installed too (docker's store must be asked before auto can keep an image
+    there), else through docker's usability check. It writes nothing -- no
+    wrapper, no cache. An explicit FEDORA_RUNTIME=docker would not do: an
+    explicit pick is taken from PATH alone and --print-runtime returns before
+    ensure_runtime. DockerdDown.test_auto_names_the_docker_whose_daemon_never_comes_up
+    is the control that this call reaches dockerd (its stub records the launch)."""
     if installed("docker") and subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
-        d = tempfile.mkdtemp(prefix="rt-mod-")
-        try:
-            run(["--wrapper-only"], os.environ["PATH"],
-                {"FEDORA_RUNTIME": "docker", "FEDORA_WRAPPER_DIR": os.path.join(d, "bin"),
-                 "FEDORA_BUILD_CTX": os.path.join(d, "ctx")})
-        finally:
-            shutil.rmtree(d, ignore_errors=True)
+        run(["--print-runtime"], os.environ["PATH"])
 
 
 class Base(unittest.TestCase):
@@ -116,20 +159,47 @@ class Base(unittest.TestCase):
             os.symlink(src, os.path.join(d, t))
         return d
 
+    def stub(self, d, name, body):
+        """A `name` on PATH that is only `body`: an exit code, or a recorder."""
+        p = os.path.join(d, name)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\n" + body)
+        os.chmod(p, 0o755)
+        return p
+
+    def recorder(self, d, name, log):
+        """A `name` that appends its argv to `log` and exits 0, for every argv."""
+        return self.stub(d, name, f"printf '%s\\n' \"{name} $*\" >> {shlex.quote(log)}\nexit 0\n")
+
     def stub_podman(self, d, code=125):
         """A podman that is on PATH but cannot run: it only exits with `code`
         (podman's own exit status for a failed command), for every argv."""
-        p = os.path.join(d, "podman")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write(f"#!/bin/sh\nexit {code}\n")
-        os.chmod(p, 0o755)
+        self.stub(d, "podman", f"exit {code}\n")
         return d
 
-    def pick(self, value, path, extra=None, script=SCRIPT):
+    def plant_wrapper(self, wd):
+        """A sentinel wrapper in `wd`, as the environment's setup script might
+        have left one; returns its path and sha256."""
+        os.makedirs(wd, exist_ok=True)
+        p = os.path.join(wd, "fedora")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(SENTINEL)
+        os.chmod(p, 0o755)
+        return p, sha256(p)
+
+    def stale_cache(self):
+        """A cached copy under the build context that is not the checkout."""
+        os.makedirs(self.ctx, exist_ok=True)
+        p = os.path.join(self.ctx, "cloud-fedora-setup.sh")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(STALE)
+        return p, sha256(p)
+
+    def pick(self, value, path, extra=None, script=SCRIPT, varlog=None):
         e = dict(extra or {})
         if value:
             e["FEDORA_RUNTIME"] = value
-        r = run(["--print-runtime"], path, e, script)
+        r = run(["--print-runtime"], path, e, script, varlog)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.last = r
         return r.stdout.strip()
@@ -339,6 +409,146 @@ class Usability(Base):
         self.assertEqual(self.pick(None, path), "docker")
 
 
+class DockerdDown(Base):
+    """auto names the docker it passes over when docker's daemon cannot come
+    up (H2). image_home can ask docker's store only through a running daemon,
+    so with both runtimes on PATH a docker whose dockerd never starts is
+    skipped there and auto ends on podman; before the fix that log had
+    ensure_dockerd's failure line but nothing naming docker as passed over.
+    The host's real daemon is never touched: a stub `docker` whose every
+    command fails is a client with no daemon, and a stub `dockerd` that only
+    records its argv is a daemon that never comes up. The script launches
+    dockerd with its output redirected to DOCKERD_LOG, the file the real
+    daemon here writes, so a run that launches the stub gets a private mount
+    namespace with a scratch /var/log. Such a run waits out the script's 45s
+    dockerd loop for real."""
+
+    LOG_CALL = 'log "auto: $RT_WHY -- skipping docker"'
+    LINE = "auto: docker's daemon is down and could not be started -- skipping docker"
+
+    def setUp(self):
+        super().setUp()
+        if not installed("podman"):
+            self.skipTest("podman is not installed (the runtime auto ends on)")
+        self.calls = os.path.join(self.tmp, "dockerd-calls")
+        self.varlog = os.path.join(self.tmp, "varlog")
+        os.makedirs(self.varlog)
+
+    def dead_docker(self, with_dockerd):
+        """Real podman, a docker with no daemon, and (optionally) a dockerd
+        that never comes up. Skips when the run could not be kept away from
+        the real daemon's log."""
+        d = self.bindir("podman")
+        self.stub(d, "docker", "exit 1\n")
+        if with_dockerd:
+            if not can_shadow_varlog():
+                self.skipTest(f"cannot shadow /var/log: the stub dockerd would truncate {DOCKERD_LOG}")
+            self.recorder(d, "dockerd", self.calls)
+        return d
+
+    def dockerd_launches(self):
+        try:
+            with open(self.calls, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return ""
+
+    # --- positive ---------------------------------------------------------
+    def test_auto_names_the_docker_whose_daemon_never_comes_up(self):
+        path = self.dead_docker(with_dockerd=True)
+        self.assertEqual(self.pick(None, path, varlog=self.varlog), "podman")
+        self.assertIn(self.LINE, self.last.stderr)
+        self.assertIn("dockerd did not come up in 45s", self.last.stderr)
+        self.assertIn("dockerd", self.dockerd_launches(), "the script never tried to start the daemon")
+        self.assertTrue(os.path.exists(os.path.join(self.varlog, os.path.basename(DOCKERD_LOG))),
+                        "the stub's output should have landed in the scratch /var/log")
+
+    def test_auto_names_the_docker_with_no_dockerd(self):
+        """The other way a daemon cannot be started: dockerd is not on PATH.
+        Same line; ensure_dockerd's own line before it says which."""
+        path = self.dead_docker(with_dockerd=False)
+        self.assertEqual(self.pick(None, path), "podman")
+        self.assertIn(self.LINE, self.last.stderr)
+        self.assertIn("dockerd is not installed", self.last.stderr)
+
+    # --- negative ---------------------------------------------------------
+    def test_without_the_log_call_docker_is_passed_over_silently(self):
+        """Cut the log call away: the same dead docker is skipped the same way
+        (ensure_dockerd's failure line is still there), podman is still chosen,
+        and nothing names docker as passed over -- the under-report as found."""
+        path = self.dead_docker(with_dockerd=True)
+        before = sha256(SCRIPT)
+        cut = self.mutated(SCRIPT, self.LOG_CALL, ":")
+        self.assertEqual(self.pick(None, path, script=cut, varlog=self.varlog), "podman")
+        self.assertNotIn("skipping docker", self.last.stderr)
+        self.assertIn("dockerd did not come up in 45s", self.last.stderr)
+        self.assertEqual(sha256(SCRIPT), before, "the real script must be untouched")
+
+
+class RefreshCache(Base):
+    """--refresh-cache re-caches the script at FEDORA_BUILD_CTX and does
+    nothing else (H1, script side). Every installed wrapper runs that copy for
+    its on-demand build, so it must track the checkout even in a session whose
+    hook leaves an existing wrapper alone. podman, docker and dockerd are
+    recorders here: a runtime call of any kind is a failure."""
+
+    MODE = "--refresh-cache) REFRESH_CACHE=1 ;;"
+
+    def setUp(self):
+        super().setUp()
+        self.calls = os.path.join(self.tmp, "runtime-calls")
+        self.path = self.bindir()
+        for name in ("podman", "docker", "dockerd"):
+            self.recorder(self.path, name, self.calls)
+        self.wd = os.path.join(self.tmp, "bin")
+        self.cache = os.path.join(self.ctx, "cloud-fedora-setup.sh")
+
+    def runtime_calls(self):
+        try:
+            with open(self.calls, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return ""
+
+    def refresh(self, script=SCRIPT):
+        r = run(["--refresh-cache"], self.path,
+                {"FEDORA_BUILD_CTX": self.ctx, "FEDORA_WRAPPER_DIR": self.wd}, script)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r
+
+    # --- positive ---------------------------------------------------------
+    def test_refreshes_a_stale_cache_and_touches_nothing_else(self):
+        p, before = self.plant_wrapper(self.wd)
+        cache, stale = self.stale_cache()
+        self.assertNotEqual(stale, sha256(SCRIPT))
+        r = self.refresh()
+        self.assertEqual(sha256(cache), sha256(SCRIPT), "the cached copy must equal the checkout")
+        self.assertEqual(sha256(p), before, "--refresh-cache rewrote the wrapper")
+        self.assertEqual(self.runtime_calls(), "", "--refresh-cache made a runtime call")
+        self.assertIn(f"cached this script at {cache}", r.stdout)
+        self.assertNotIn("installed", r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.ctx, "Dockerfile")), "no build context either")
+
+    def test_creates_the_cache_and_no_wrapper_when_neither_exists(self):
+        self.refresh()
+        self.assertEqual(sha256(self.cache), sha256(SCRIPT))
+        self.assertFalse(os.path.exists(os.path.join(self.wd, "fedora")), "--refresh-cache is not an install")
+        self.assertEqual(self.runtime_calls(), "", "--refresh-cache made a runtime call")
+
+    # --- negative ---------------------------------------------------------
+    def test_without_the_mode_the_flag_is_a_full_run(self):
+        """Cut the mode away: the same call falls through to the full
+        provision, which asks the runtime (the recorders see it) and rewrites
+        the wrapper -- everything --refresh-cache exists to avoid."""
+        p, before = self.plant_wrapper(self.wd)
+        script_before = sha256(SCRIPT)
+        cut = self.mutated(SCRIPT, self.MODE, "--refresh-cache) : ;;")
+        self.refresh(script=cut)
+        self.assertIn("podman info", self.runtime_calls(), "the full run should have asked the runtime")
+        self.assertNotEqual(sha256(p), before, "the full run should have rewritten the wrapper")
+        self.assertEqual(sha256(SCRIPT), script_before, "the real script must be untouched")
+
+
 class WrapperDir(Base):
     """FEDORA_WRAPPER_DIR moves every wrapper write (R3, script side)."""
 
@@ -364,12 +574,13 @@ class WrapperDir(Base):
 
 class Hook(Base):
     """The repo SessionStart hook installs the wrapper only when none exists
-    (R3, hook side). It is run for real, so it also runs setup-antigravity.sh
-    --quiet (idempotent, ~2s with agy present; without agy it would install it
-    over the network, so the case is skipped there)."""
+    (R3, hook side) and refreshes the cached script copy when it leaves one
+    alone (H1, hook side). It is run for real, so it also runs
+    setup-antigravity.sh --quiet (idempotent, ~2s with agy present; without
+    agy it would install it over the network, so the case is skipped there)."""
 
     GUARD = 'if [ ! -e "$WRAPPER_DIR/fedora" ]; then'
-    SENTINEL = "#!/bin/sh\necho sentinel wrapper, installed by the environment\n"
+    REFRESH = 'bash "$SETUP" --refresh-cache'
 
     def setUp(self):
         super().setUp()
@@ -379,6 +590,7 @@ class Hook(Base):
             self.skipTest("no container runtime installed")
         self.wd = os.path.join(self.tmp, "bin")
         os.makedirs(self.wd)
+        self.cache = os.path.join(self.ctx, "cloud-fedora-setup.sh")
 
     def hook_env(self):
         # The session's own FEDORA_* would make the mode depend on the host.
@@ -394,17 +606,24 @@ class Hook(Base):
         return r
 
     def plant(self):
-        p = os.path.join(self.wd, "fedora")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write(self.SENTINEL)
-        os.chmod(p, 0o755)
-        return p, sha256(p)
+        return self.plant_wrapper(self.wd)
 
     # --- positive ---------------------------------------------------------
     def test_existing_wrapper_is_untouched(self):
         p, before = self.plant()
         r = self.run_hook()
         self.assertEqual(sha256(p), before, "the hook rewrote an existing wrapper")
+        self.assertNotIn("installed fedora", r.stdout)
+
+    def test_existing_wrapper_still_gets_the_cache_refreshed(self):
+        """The guard must not also stop the per-session refresh of the copy
+        the wrapper runs (measured: /opt's copy stale against the checkout)."""
+        p, before = self.plant()
+        cache, stale = self.stale_cache()
+        r = self.run_hook()
+        self.assertEqual(sha256(p), before, "the hook rewrote an existing wrapper")
+        self.assertEqual(sha256(cache), sha256(SCRIPT), "the cached copy must equal the checkout")
+        self.assertIn(f"cached this script at {cache}", r.stdout)
         self.assertNotIn("installed fedora", r.stdout)
 
     def test_absent_wrapper_is_installed(self):
@@ -414,6 +633,9 @@ class Hook(Base):
         with open(p, encoding="utf-8") as f:
             self.assertIn("\nRUNTIME=", f.read())
         self.assertIn(f"installed fedora in {self.wd}", r.stdout)
+        # The install path caches as a side effect, so calling --refresh-cache
+        # there would be harmless but is not needed.
+        self.assertEqual(sha256(self.cache), sha256(SCRIPT), "the install run caches the script too")
 
     def test_plugin_hook_never_installs_the_wrapper(self):
         """hooks/session-start.sh (the plugin hook) only revives the keyring;
@@ -432,6 +654,16 @@ class Hook(Base):
         self.assertNotEqual(sha256(p), before, "the unguarded hook should have rewritten the wrapper")
         with open(p, encoding="utf-8") as f:
             self.assertIn("\nRUNTIME=", f.read())
+        self.assertEqual(sha256(HOOK), hook_before, "the real hook must be untouched")
+
+    def test_without_the_refresh_call_the_cache_stays_stale(self):
+        p, before = self.plant()
+        cache, stale = self.stale_cache()
+        hook_before = sha256(HOOK)
+        cut = self.mutated(HOOK, self.REFRESH, ":")
+        self.run_hook(cut)
+        self.assertEqual(sha256(p), before, "the wrapper is untouched either way")
+        self.assertEqual(sha256(cache), stale, "without the refresh call the cached copy should have stayed stale")
         self.assertEqual(sha256(HOOK), hook_before, "the real hook must be untouched")
 
 

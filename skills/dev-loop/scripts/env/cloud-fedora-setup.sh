@@ -101,6 +101,13 @@
 #   so a SessionStart hook can install it in well under a second and the first
 #   `fedora …` call builds the image on demand. Use that when an environment
 #   dialog offers no Setup script field, or to keep session startup instant.
+#   `--refresh-cache` only re-caches this script at $FEDORA_BUILD_CTX/
+#   cloud-fedora-setup.sh, the copy every installed wrapper runs for its
+#   on-demand build (same write-then-rename as the wrapper). No runtime
+#   selection, no daemon, no wrapper: the repo's SessionStart hook runs it
+#   whenever it leaves an existing wrapper alone, so the cached copy keeps
+#   tracking the checkout. Every other mode caches as a side effect; this one
+#   does only that. Exits 0 like every mode.
 
 set -u
 
@@ -138,10 +145,12 @@ fi
 WRAPPER_ONLY=0
 LIFECYCLE_ONLY=0
 PRINT_RUNTIME=0
+REFRESH_CACHE=0
 case "${1:-}" in
     --wrapper-only) WRAPPER_ONLY=1 ;;
     --lifecycle) LIFECYCLE_ONLY=1 ;;
     --print-runtime) PRINT_RUNTIME=1 ;;
+    --refresh-cache) REFRESH_CACHE=1 ;;
 esac
 FEDORA_RUNTIME="${FEDORA_RUNTIME:-auto}"
 # The chosen container runtime binary; set by select_runtime, used by every call.
@@ -210,7 +219,13 @@ image_home() {
     IMAGE_HOME=""
     for r in podman docker; do
         command -v "$r" >/dev/null 2>&1 || continue
-        if [ "$r" = docker ]; then ensure_dockerd || continue; fi
+        # A docker whose daemon cannot come up is passed over here, and auto
+        # then ends on podman: say so, or the log never names why docker was
+        # not consulted (ensure_dockerd's own line above says what failed).
+        if [ "$r" = docker ] && ! runtime_usable docker; then
+            log "auto: $RT_WHY -- skipping docker"
+            continue
+        fi
         if "$r" image inspect "$FEDORA_IMAGE" >/dev/null 2>&1; then IMAGE_HOME=$r; return 0; fi
     done
     return 1
@@ -699,6 +714,14 @@ main() {
     if [ "$PRINT_RUNTIME" = 1 ]; then
         # The log line goes to stderr so stdout is the runtime name or nothing.
         select_runtime >&2 && printf '%s\n' "$RT"
+        return 0
+    fi
+    if [ "$REFRESH_CACHE" = 1 ]; then
+        # Only the cache: no runtime, no daemon, no wrapper. The hook runs this
+        # when it leaves an existing wrapper alone, and that wrapper runs the
+        # cached copy for its on-demand build, so the copy must track the checkout.
+        cache_self && log "cached this script at $SCRIPT_CACHE" ||
+            log "could not cache this script at $SCRIPT_CACHE — first-use builds need a manual re-run"
         return 0
     fi
     cache_self || log "could not cache this script at $SCRIPT_CACHE — first-use builds need a manual re-run"
