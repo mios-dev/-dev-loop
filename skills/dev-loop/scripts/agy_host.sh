@@ -167,7 +167,7 @@ else
     PROMPT="/teamwork-preview $OBJECTIVE"
 fi
 
-write_session_prompt_file() {
+write_session_prompt_file() (
     out=$1
     kickoff=$2
     if [ -n "${AGY_HOST_CONVERSATION:-}" ]; then
@@ -177,7 +177,7 @@ write_session_prompt_file() {
     else
         printf '%s\n' "$kickoff" > "$out"
     fi
-}
+)
 
 case "$MODE" in
     print)
