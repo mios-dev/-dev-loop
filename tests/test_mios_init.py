@@ -118,7 +118,10 @@ import hashlib
 import http.server
 import json
 import os
-import pwd
+try:
+    import pwd
+except ImportError:
+    pwd = None  # type: ignore[assignment]
 import re
 import shutil
 import socket
@@ -200,13 +203,16 @@ def closed_port() -> int:
     return port
 
 
+BASH_BIN = shutil.which("bash") or "bash"
+
+
 def run(args, env_extra, prefix=(), script=SCRIPT, cwd=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("MIOS_", "FEDORA_"))}
     env.update(env_extra)
     if prefix:  # the container sees only what `env` passes it explicitly
-        cmd = list(prefix) + ["env"] + [f"{k}={v}" for k, v in env_extra.items()] + ["bash", str(script), *args]
+        cmd = list(prefix) + ["env"] + [f"{k}={v}" for k, v in env_extra.items()] + [BASH_BIN, str(script), *args]
     else:
-        cmd = ["bash", str(script), *args]
+        cmd = [BASH_BIN, str(script), *args]
     p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=900, cwd=cwd)
     last = p.stdout.strip().splitlines()[-1] if p.stdout.strip() else "{}"
     try:
@@ -539,7 +545,7 @@ class Flags(unittest.TestCase):
 
 def unprivileged_user() -> str | None:
     """A real unprivileged account this (root) suite can run a command as, via runuser."""
-    if not shutil.which("runuser"):
+    if not shutil.which("runuser") or pwd is None:
         return None
     for name in ("ubuntu", "vscode", "mios-dev", "nobody"):
         try:
@@ -609,7 +615,7 @@ class AsRoot(unittest.TestCase):
         # from inside the child (the file must exist, 0600, while the command runs).
         self.probe = ('sh -c \'printf "%s|%s|%s\\n" "${FEDORA_DEVCONTAINER_NAME:-}" "${MIOS_TOML:-}" "${HTTPS_PROXY:-}"; '
                       f'stat -c "%a" {self.tdir}/mios-init-env.* 2>/dev/null || echo "no env file"\'')
-        if os.geteuid() != 0:
+        if not hasattr(os, "geteuid") or os.geteuid() != 0:
             self.runner = []
         else:
             user = unprivileged_user()
@@ -694,13 +700,13 @@ class PlanMode(unittest.TestCase):
         self.assertEqual(list((self.tmp / "ws").iterdir()), [], "--plan cloned into the workspace")
 
     def test_unknown_flag_is_rejected(self):
-        p = subprocess.run(["bash", str(SCRIPT), "--bogus"], capture_output=True, text=True)
+        p = subprocess.run([BASH_BIN, str(SCRIPT), "--bogus"], capture_output=True, text=True)
         self.assertEqual(p.returncode, 2)
         self.assertIn("unknown argument: --bogus", p.stderr)
 
 
 def down_daemon_control_reason() -> str | None:
-    if os.geteuid() != 0:
+    if not hasattr(os, "geteuid") or os.geteuid() != 0:
         return "not root: unshare -m and the setup script's daemon start need root"
     if not shutil.which("podman"):
         return "podman not on PATH: the fallback's podman-first order is what the negative shows"
@@ -1036,7 +1042,7 @@ class FedoraPackages(unittest.TestCase):
 
 
 def wrapper_control_reason() -> str | None:
-    if os.geteuid() != 0:
+    if not hasattr(os, "geteuid") or os.geteuid() != 0:
         return "not root: the runtime probe (dockerd) and the setup script need root"
     if host_is_fedora():
         return "host is Fedora: the projection branch does not run here"

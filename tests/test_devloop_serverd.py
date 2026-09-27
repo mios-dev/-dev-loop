@@ -41,6 +41,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -110,7 +111,7 @@ def plant(state_dir: Path, *, pid: int, pidstart: str, heartbeat_age: float,
     doc = {
         "schema": "serverd.v1",
         "daemon": {"state": daemon_state, "pid": pid, "pidstart": pidstart,
-                   "host": host or os.uname().nodename, "started_at": time.time() - 600,
+                   "host": host or platform.node(), "started_at": time.time() - 600,
                    "heartbeat_at": time.time() - heartbeat_age, "tick": 99, "interval_s": 5},
         "workers": workers,
         "verdict": claim,
@@ -422,7 +423,7 @@ def test_a_second_supervisor_is_refused() -> None:
     pid, pidstart = live_pid()
     (sd / "daemon.pid").write_text(json.dumps(
         {"pid": pid, "pidstart": pidstart, "started_at": time.time(),
-         "host": os.uname().nodename}))
+         "host": platform.node()}))
     w = write_workers(d, [{"id": "mgr", "kind": "manager", "argv": ["sh", "-c", "sleep 5"]}])
     r = serverd("run", "--root", str(d), "--workers", str(w), "--once")
     check("exit 2", r.returncode == 2, f"rc={r.returncode} {r.stderr[:200]}")
@@ -434,7 +435,7 @@ def test_a_second_supervisor_is_refused() -> None:
     stale.wait()
     (sd / "daemon.pid").write_text(json.dumps(
         {"pid": stale.pid, "pidstart": mod.pidstart_of(stale.pid), "started_at": time.time(),
-         "host": os.uname().nodename}))
+         "host": platform.node()}))
     r2 = serverd("run", "--root", str(d), "--workers", str(w), "--once")
     check("a stale lock does not block a restart", r2.returncode == 0,
           f"rc={r2.returncode} {r2.stderr[:200]}")

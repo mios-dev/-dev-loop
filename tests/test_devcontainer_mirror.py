@@ -83,6 +83,8 @@ def reference() -> tuple[bytes, str] | list[str]:
 
 def compare(local: bytes, ref: bytes, ref_label: str) -> str | None:
     """None when identical; otherwise a message naming the mirror and the first difference."""
+    local = local.replace(b"\r\n", b"\n")
+    ref = ref.replace(b"\r\n", b"\n")
     if local == ref:
         return None
     n = min(len(local), len(ref))
@@ -96,7 +98,7 @@ def compare(local: bytes, ref: bytes, ref_label: str) -> str | None:
 class DevcontainerMirror(unittest.TestCase):
     def test_local_copy_exists_and_is_the_one_image(self):
         self.assertTrue(LOCAL.is_file(), f"missing: {MIRROR} (the MiOS dev image mirror)")
-        data = LOCAL.read_bytes()
+        data = LOCAL.read_bytes().replace(b"\r\n", b"\n")
         self.assertIn(SIGNATURE, data, f"{MIRROR} is not a Fedora Containerfile")
         self.assertIn(b"the one MiOS dev image", data,
                       f"{MIRROR} lacks the mirror header; it is not MiOS's Containerfile")
@@ -114,7 +116,7 @@ class DevcontainerMirror(unittest.TestCase):
 
     def test_one_changed_byte_is_named(self):
         self.assertTrue(LOCAL.is_file(), f"missing: {MIRROR}")
-        good = LOCAL.read_bytes()
+        good = LOCAL.read_bytes().replace(b"\r\n", b"\n")
         i = len(good) // 2  # any one byte, so this does not depend on the file's text
         bad = good[:i] + bytes([good[i] ^ 0x01]) + good[i + 1:]
         self.assertIsNone(compare(good, good, "self"))

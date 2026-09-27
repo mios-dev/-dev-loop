@@ -195,6 +195,8 @@ class TestGuardScope(unittest.TestCase):
         fake = bindir / "agy"
         fake.write_text(EDITING_FAKE)
         fake.chmod(0o755)
+        if sys.platform == "win32":
+            (bindir / "agy.cmd").write_text(f'@"{sys.executable}" "%~dp0agy" %*\n')
         prompt = tmp / "p.txt"
         prompt.write_text("go")
         argv = [sys.executable, str(SCRIPTS / "agy_session.py"), "--prompt-file", str(prompt),
@@ -204,7 +206,7 @@ class TestGuardScope(unittest.TestCase):
             lanes.write_text(json.dumps({"lanes": [{"id": "n1", "worker": {"harness": "antigravity"}}]}))
             argv += ["--lanes", str(lanes)]
         cp = subprocess.run(argv, capture_output=True, text=True, timeout=180,
-                            env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+                            env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
                                  "FAKE_AGY_REPO": str(repo)})
         return cp.returncode, cp.stderr
 

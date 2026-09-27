@@ -122,7 +122,11 @@ def test_doc_and_code_agree() -> None:
 def test_this_repo_is_not_currently_broken() -> None:
     """The live repo's own exclude, read-only. This is the state the incident left behind."""
     print("this repository's current exclude:")
-    ex = ROOT / ".git" / "info" / "exclude"
+    # `.git` is a FILE in a linked worktree (SKILL.md 9, "Worktree pointer"), so the path is resolved
+    # through git, never built from ROOT / ".git".
+    rel = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--git-path", "info/exclude"],
+                         capture_output=True, text=True, timeout=30).stdout.strip()
+    ex = Path(rel) if Path(rel).is_absolute() else ROOT / rel
     if not ex.is_file():
         check("exclude file present", False, "expected .git/info/exclude to exist")
         return

@@ -533,9 +533,13 @@ def verify_slash_command(text: str, command: str) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- shell helpers
 def shell_argv(cmd: str, prefer: str | None = None) -> list[str]:
-    if prefer == "pwsh" or (prefer is None and os.name == "nt" and shutil.which("pwsh")):
+    if prefer == "pwsh":
         return ["pwsh", "-NoProfile", "-NonInteractive", "-Command", cmd]
-    if os.name == "nt" and not shutil.which("sh"):
+    if prefer == "sh" or shutil.which("sh"):
+        return ["sh", "-c", cmd]
+    if os.name == "nt" and shutil.which("pwsh"):
+        return ["pwsh", "-NoProfile", "-NonInteractive", "-Command", cmd]
+    if os.name == "nt":
         return ["cmd", "/c", cmd]
     return ["sh", "-c", cmd]
 
@@ -567,7 +571,7 @@ def _is_inert_placeholder(p: Path) -> bool:
     if p.name not in PLACEHOLDER_NAMES:
         return False
     try:
-        if p.stat().st_mode & 0o111:
+        if os.name != "nt" and (p.stat().st_mode & 0o111):
             return False
         with open(p, "rb") as fh:
             return not fh.read(2).startswith(b"#!")

@@ -108,6 +108,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -381,9 +382,9 @@ def measure(state_path: Path, stale_after_s: float | None = None,
 
     d = doc.get("daemon") or {}
     host = d.get("host")
-    if host and host != os.uname().nodename:
+    if host and host != platform.node():
         return _early("unverifiable",
-                      f"state was written on host {host!r}; this is {os.uname().nodename!r}, "
+                      f"state was written on host {host!r}; this is {platform.node()!r}, "
                       "so its pid cannot be measured from here", alive=None)
     pid = int(d.get("pid") or 0)
     alive = _alive(pid, str(d.get("pidstart") or ""))
@@ -474,7 +475,7 @@ class Supervisor:
     def _acquire_lock(self) -> None:
         write_json_atomic(self.lock_path, {
             "pid": os.getpid(), "pidstart": pidstart_of(os.getpid()),
-            "started_at": _now(), "host": os.uname().nodename, "argv": self.argv_record})
+            "started_at": _now(), "host": platform.node(), "argv": self.argv_record})
 
     def _release_lock(self) -> None:
         try:
@@ -555,7 +556,7 @@ class Supervisor:
             "schema": SCHEMA,
             "daemon": {
                 "state": "running", "pid": os.getpid(), "pidstart": pidstart_of(os.getpid()),
-                "host": os.uname().nodename, "started_at": _now(), "heartbeat_at": _now(),
+                "host": platform.node(), "started_at": _now(), "heartbeat_at": _now(),
                 "tick": 0, "interval_s": self.interval_s, "root": str(self.root),
                 "state_dir": str(self.state_dir), "jobs_root": str(self.jobs_root),
                 "argv": self.argv_record, "python": sys.executable,

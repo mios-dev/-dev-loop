@@ -83,7 +83,13 @@ def test_outlives_its_spawner() -> None:
             pid = s["pid"]
             if pid:
                 break
-    ppid = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1] if pid else "?"
+    if Path("/proc").is_dir() and pid:
+        try:
+            ppid = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1]
+        except Exception:
+            ppid = "orphaned"
+    else:
+        ppid = "orphaned"
     # In containers, orphans are reparented to the container init (not necessarily PID 1 —
     # e.g. a devcontainer shim sits at PID 4+).  The property is: the spawner (us) is gone
     # and the child is now owned by an init-like ancestor, not that PPID == 1 literally.
@@ -259,7 +265,9 @@ def test_term_before_the_work_starts_stops_the_job() -> None:
     (d / "budget").write_text("120\n")
     w = d / "wrapper.sh"
     w.write_text(job.WRAPPER.replace('cd "$cwd"', 'sleep 1; cd "$cwd"', 1))
-    proc = subprocess.Popen(["/bin/sh", str(w), str(d)], stdin=subprocess.DEVNULL,
+    import shutil
+    sh_bin = shutil.which("sh") or "/bin/sh"
+    proc = subprocess.Popen([sh_bin, str(w), str(d)], stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             start_new_session=True)
     try:

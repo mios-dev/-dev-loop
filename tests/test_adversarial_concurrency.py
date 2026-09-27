@@ -150,8 +150,13 @@ report_path.write_text(json.dumps(rep))
 
         # Run devloop.sh with --concurrent --layout headless
         t0 = time.time()
+        cmd = [str(self.devloop_sh), str(spec_path), "--concurrent", "--layout", "headless"]
+        if sys.platform == "win32":
+            sh_exe = shutil.which("sh") or shutil.which("bash")
+            if sh_exe:
+                cmd = [sh_exe, str(self.devloop_sh), str(spec_path), "--concurrent", "--layout", "headless"]
         res = subprocess.run(
-            [str(self.devloop_sh), str(spec_path), "--concurrent", "--layout", "headless"],
+            cmd,
             cwd=str(self.sandbox),
             capture_output=True,
             text=True,

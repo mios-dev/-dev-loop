@@ -100,6 +100,8 @@ def run_session(tmp: Path, mode: str, lanes: list[str], poll_max: int = 3):
     fake = bindir / "agy"
     fake.write_text(FAKE)
     fake.chmod(0o755)
+    if sys.platform == "win32":
+        (bindir / "agy.cmd").write_text(f'@"{sys.executable}" "%~dp0agy" %*\n')
 
     native = tmp / ".devloop" / "native"
     native.mkdir(parents=True, exist_ok=True)
@@ -112,7 +114,8 @@ def run_session(tmp: Path, mode: str, lanes: list[str], poll_max: int = 3):
     env_out = tmp / "envelope.json"
 
     env = {**os.environ,
-           "PATH": f"{bindir}:{os.environ['PATH']}",
+           "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+           "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
            "FAKE_AGY_MODE": mode,
            "FAKE_AGY_NATIVE": str(native),
            "FAKE_AGY_LANES": ",".join(lanes)}
