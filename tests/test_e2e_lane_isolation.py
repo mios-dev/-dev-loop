@@ -811,16 +811,16 @@ class TestTier4RealWorldApplicationScenarios(SandboxTestCase):
         before = base_tree_state(self.sandbox)
 
         # Simulate negative control writing stray root password / fixture into base repository
-        stray_path = self.sandbox / "boot_secret.env"
-        stray_path.write_text("ROOT_PASSWORD=leak\n", encoding="utf-8")
+        stray_path = self.sandbox / "boot_stray.env"
+        stray_path.write_text("MOCK_CREDENTIAL=leak\n", encoding="utf-8")
 
         now = base_tree_state(self.sandbox)
         strays = stray_base_edits(before, now, self.allowed)
 
         # Verify stray identification and diagnostic message format
-        self.assertEqual(strays, ["boot_secret.env"])
+        self.assertEqual(strays, ["boot_stray.env"])
         diagnostic_message = f"BASE TREE LEAKAGE DETECTED: {', '.join(strays)}"
-        self.assertIn("boot_secret.env", diagnostic_message)
+        self.assertIn("boot_stray.env", diagnostic_message)
 
     def test_t4_38_scenario_3_pre_existing_untracked_survives_without_false_alarm(self) -> None:
         """Scenario 3: Pre-existing untracked file in base repository survives multi-lane run without triggering false alarm."""

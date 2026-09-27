@@ -29,6 +29,8 @@ def init_repo() -> Path:
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     subprocess.run(["git", "init", "-q", "-b", "main", str(d)], check=True)
+    subprocess.run(["git", "-C", str(d), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(d), "config", "user.email", "t@t"], check=True)
     (d / "shipped.txt").write_text("shipped content\n")
     (d / "calc.py").write_text("def add(a, b): return a + b\n")
     subprocess.run(["git", "-C", str(d), "add", "."], check=True)
@@ -79,7 +81,7 @@ class TestBaseTreeAuditCLI(unittest.TestCase):
                        check=True)
 
         # Plant a stray leaked file in base repo
-        (repo / "leaked_fixture.sh").write_text("echo root:pass | chpasswd\n")
+        (repo / "leaked_fixture.sh").write_text("echo 'benign leak simulation'\n")
 
         cp_audit = subprocess.run([sys.executable, str(SCRIPTS / "adapters.py"), "base-audit", "--root", str(repo), "--before", str(snap)],
                                   capture_output=True, text=True)
