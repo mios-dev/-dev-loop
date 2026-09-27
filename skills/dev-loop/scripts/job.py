@@ -56,7 +56,9 @@ import argparse
 import atexit
 import json
 import os
+import platform
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -84,12 +86,18 @@ atexit.register(poll_detached)
 # command under a budget, then writes done.json and the receipt IN THAT ORDER.
 WRAPPER = r"""#!/bin/sh
 d=$1
-echo $$ > "$d/pid"
+if [ -f "/proc/$$/winpid" ]; then
+  mypid=$(cat "/proc/$$/winpid")
+else
+  mypid=$$
+fi
+echo "$mypid" > "$d/pid"
 awk '{print $22}' /proc/$$/stat 2>/dev/null > "$d/pidstart" || :
 cmd=$(cat "$d/cmd"); cwd=$(cat "$d/cwd"); budget=$(cat "$d/budget")
 finish() {
   rc=$1
-  printf '{"rc":%s,"finished_at":%s,"pid":%s}\n' "$rc" "$(date +%s)" "$$" > "$d/done.json.tmp"
+  p=$(cat "$d/pid" 2>/dev/null || echo "$mypid")
+  printf '{"rc":%s,"finished_at":%s,"pid":%s}\n' "$rc" "$(date +%s)" "$p" > "$d/done.json.tmp"
   mv "$d/done.json.tmp" "$d/done.json"
   printf '%s\n' "$rc" > "$d/exit.tmp"
   mv "$d/exit.tmp" "$d/exit"
@@ -119,6 +127,12 @@ def _alive(pid: int, pidstart: str) -> bool:
     forever."""
     if pid <= 0:
         return False
+    if sys.platform == "win32" or not Path("/proc").is_dir():
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, SystemError):
+            return False
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
     except OSError:
@@ -144,6 +158,8 @@ def _alive(pid: int, pidstart: str) -> bool:
 def _session_pids(sid: int) -> list[int]:
     """Every pid in this session. Kill by SID, never by PGID: `timeout` moves its child into a
     new process group that still shares the session, so a pgid kill misses it (measured)."""
+    if sys.platform == "win32" or not Path("/proc").is_dir():
+        return []
     out = []
     for d in Path("/proc").iterdir():
         if not d.name.isdigit():
@@ -180,7 +196,7 @@ def spawn(root: Path, jid: str, argv: list[str], cwd: Path, budget_s: int = 3600
     (d / "meta.json").write_text(json.dumps({
         "id": jid, "label": label, "argv": argv, "cmd": cmd, "cwd": str(Path(cwd).resolve()),
         "budget_s": int(budget_s), "spawner_pid": os.getpid(), "spawned_at": _now(),
-        "host": os.uname().nodename, "schema": SCHEMA}, indent=2) + "\n")
+        "host": platform.node(), "schema": SCHEMA}, indent=2) + "\n")
     w = d / "wrapper.sh"
     w.write_text(WRAPPER)
     w.chmod(0o755)
@@ -188,8 +204,10 @@ def spawn(root: Path, jid: str, argv: list[str], cwd: Path, budget_s: int = 3600
     # setsid + closed stdin: the child leads a new session, so nothing the harness reaps on
     # turn end can see it. Returning immediately is the point — this call must not be the
     # long-running thing.
+    sh_bin = shutil.which("sh") or "/bin/sh"
+    cmd = ["setsid", sh_bin, str(w), str(d.resolve())] if shutil.which("setsid") else [sh_bin, str(w), str(d.resolve())]
     with open(os.devnull, "rb") as devnull:
-        proc = subprocess.Popen(["setsid", "/bin/sh", str(w), str(d.resolve())],
+        proc = subprocess.Popen(cmd,
                                 stdin=devnull, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
         try:
@@ -302,6 +320,16 @@ def kill(root: Path, jid: str, sig: str = "TERM") -> int:
     pid = int(_read(d / "pid", "0") or 0)
     if not pid:
         return 0
+    if sys.platform == "win32":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+            return 1
+        except Exception:
+            try:
+                os.kill(pid, getattr(signal, "SIGTERM", 15))
+                return 1
+            except OSError:
+                return 0
     signo = getattr(signal, f"SIG{sig}", signal.SIGTERM)
     n = 0
     for p in _session_pids(pid):

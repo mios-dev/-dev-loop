@@ -11,6 +11,7 @@ Run directly:  python3 tests/test_goal_criteria.py
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,7 +39,7 @@ class CriterionEvaluation(unittest.TestCase):
 
     def make_repo(self):
         d = Path(tempfile.mkdtemp(prefix="goal-gate-"))
-        self.addCleanup(subprocess.run, ["rm", "-rf", str(d)])
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         subprocess.run(["git", "init", "-q", str(d)], check=True)
         for k, v in (("user.email", "t@t"), ("user.name", "t")):
             subprocess.run(["git", "-C", str(d), "config", k, v], check=True)
@@ -47,14 +48,14 @@ class CriterionEvaluation(unittest.TestCase):
         subprocess.run(["git", "-C", str(d), "commit", "-qm", "init"], check=True)
         scripts = d / "skills" / "dev-loop" / "scripts"
         scripts.mkdir(parents=True)
-        (scripts / "artifacts.py").write_text(ARTIFACTS_PY.read_text())
+        (scripts / "artifacts.py").write_text(ARTIFACTS_PY.read_text(encoding="utf-8"), encoding="utf-8")
         return d
 
     def evaluate(self, repo, criteria):
         engine = self.goal.GoalEngine(str(repo))
         engine.init_goal("gate", "true", criteria=criteria)
         engine.evaluate()
-        state = json.loads((repo / ".devloop" / "goal_state.json").read_text())
+        state = json.loads((repo / ".devloop" / "goal_state.json").read_text(encoding="utf-8"))
         return {c["id"]: c for c in state["criteria"]}
 
     # --- the skip-as-pass cases -------------------------------------------------

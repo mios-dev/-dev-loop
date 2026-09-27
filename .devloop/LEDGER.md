@@ -186,3 +186,10 @@
 - next: operator questions from the relay SPIKE and dispositions; implementation lanes
 - blockers: -
 - unverified: everything in the relay design (not yet written)
+
+## 2026-09-27 · native-research-lanes · done
+- objective: dispatch and execute research lanes acp-p6 and design-audit from .devloop/lanes.research.json concurrently via native Antigravity subagent machinery
+- done: dispatched acp-p6 and design-audit subagents in isolated workspaces. acp-p6 evaluated ACP vs NDJSON transport (VERDICT: REFUTED/WAIT; no native --acp in agy 1.2.12; fidelity loss for denials/subagents). design-audit adversarially audited translation layer against vacuous checks (VERDICT: PARTLY_CONFIRMED; identified 6 unmeasured claims, 6 loose/vacuous gates, 0 automated scope refusals). Positive and negative controls verified on both findings files. Reports written to .devloop/native/report-acp-p6.json and report-design-audit.json.
+- next: address design-audit findings in loop-translation-layer design; keep NDJSON transport for agy_session.py
+- blockers: -
+- unverified: -

@@ -568,9 +568,10 @@ def kill_descendants(limit_s: float = 10.0) -> int:
         live = [p for p, st in _descendants(me) if st != "Z"]
         if not live:
             break
+        sig = getattr(signal, "SIGKILL", getattr(signal, "SIGTERM", 15))
         for p in live:
             try:
-                os.kill(p, signal.SIGKILL)
+                os.kill(p, sig)
                 killed.add(p)
             except OSError:
                 pass
@@ -602,7 +603,9 @@ def cmd_supervise(a) -> None:
 
     # Installed BEFORE the child exists: a TERM in between would kill this process with its
     # default action and hand the lane's orphans to init.
-    for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    for s in (s for s in (getattr(signal, "SIGTERM", None),
+                           getattr(signal, "SIGINT", None),
+                           getattr(signal, "SIGHUP", None)) if s is not None):
         signal.signal(s, on_signal)
     proc = subprocess.Popen(argv)
     rc = proc.wait()

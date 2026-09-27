@@ -55,6 +55,7 @@ ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 # ---------------------------------------------------------------- frontmatter (no YAML library needed)
 def split_frontmatter(text):
     """Return (frontmatter_lines, body) or raise ValueError."""
+    text = text.replace("\r\n", "\n")
     if not text.startswith("---\n"):
         raise ValueError("SKILL.md does not open with a '---' frontmatter line")
     m = re.search(r"\n---[ \t]*(\n|$)", text[3:])

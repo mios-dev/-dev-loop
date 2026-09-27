@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
@@ -182,7 +183,16 @@ class GoalEngine:
 
         for c in self.goal.criteria:
             if c.criterion_type in ("test", "invariant") and c.command:
-                res = subprocess.run(c.command, shell=True, cwd=self.repo_root, capture_output=True, text=True)
+                if os.name == "nt":
+                    sh_exe = shutil.which("sh") or shutil.which("bash")
+                    if sh_exe:
+                        res = subprocess.run([sh_exe, "-c", c.command], cwd=self.repo_root, capture_output=True, text=True)
+                    elif c.command.strip() == "true":
+                        res = subprocess.run("exit 0", shell=True, cwd=self.repo_root, capture_output=True, text=True)
+                    else:
+                        res = subprocess.run(c.command, shell=True, cwd=self.repo_root, capture_output=True, text=True)
+                else:
+                    res = subprocess.run(c.command, shell=True, cwd=self.repo_root, capture_output=True, text=True)
                 c.passed = (res.returncode == 0)
                 c.details = f"Exit code {res.returncode}"
             elif c.criterion_type == "git_clean":

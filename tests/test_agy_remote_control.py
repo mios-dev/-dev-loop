@@ -73,13 +73,20 @@ for _ in sys.stdin:
 '''
 
 
+def make_fake_agy(bindir: Path, content: str = FAKE) -> Path:
+    bindir.mkdir(parents=True, exist_ok=True)
+    fake = bindir / "agy"
+    fake.write_text(content)
+    fake.chmod(0o755)
+    if sys.platform == "win32":
+        (bindir / "agy.cmd").write_text(f'@"{sys.executable}" "%~dp0agy" %*\n')
+    return fake
+
+
 def recorded_argv(tmp: Path, extra: list[str]) -> list[str]:
     """Run agy_session.py against the fake and return the argv the binary actually saw."""
     bindir = tmp / "bin"
-    bindir.mkdir(parents=True, exist_ok=True)
-    fake = bindir / "agy"
-    fake.write_text(FAKE)
-    fake.chmod(0o755)
+    make_fake_agy(bindir, FAKE)
     argv_out = tmp / "argv.json"
     prompt = tmp / "prompt.txt"
     prompt.write_text("do the thing")
@@ -87,7 +94,8 @@ def recorded_argv(tmp: Path, extra: list[str]) -> list[str]:
         [sys.executable, str(SESSION), "--prompt-file", str(prompt),
          "--run-root", str(tmp), "--poll-max", "0", *extra],
         capture_output=True, text=True, timeout=120,
-        env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+        env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+             "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
              "FAKE_AGY_ARGV": str(argv_out)})
     return json.loads(argv_out.read_text()) if argv_out.is_file() else []
 
@@ -115,6 +123,24 @@ def test_flag_order_survives() -> None:
     check("no bare -p anywhere", "-p" not in argv, str(argv))
 
 
+def test_resume_is_a_switch() -> None:
+    """Both sides. A relaunch of a manager that died must RESUME its conversation: a fresh
+    one re-plans work already on disk (2026-09-25, a37caaad redid a7417589's M1-M4). And a
+    resume flag that leaked into every launch would glue unrelated runs together."""
+    print("--conversation is a real switch:")
+    on = session_argv(remote_control=True, conversation="a7417589-8ebe-4711-aa44-5e3864f58021")
+    off = session_argv(remote_control=True)
+    check("on  -> --conversation <id> present, as two tokens",
+          "--conversation" in on and on[on.index("--conversation") + 1] == "a7417589-8ebe-4711-aa44-5e3864f58021", str(on))
+    check("off -> --conversation ABSENT", "--conversation" not in off, str(off))
+    check("an empty id is no resume", "--conversation" not in session_argv(conversation=""), "")
+    check("-p= stays last when resuming", on[-1] == "-p=", str(on))
+    fwd = 'set -- "$@" --conversation "$AGY_HOST_CONVERSATION"'
+    src = HOST.read_text()
+    check("agy_host.sh forwards AGY_HOST_CONVERSATION on both session paths (teamwork, lanes)",
+          src.count(fwd) == 2, f"found {src.count(fwd)} forwarding line(s)")
+
+
 def test_reaches_the_binary() -> None:
     """The builder is only half the claim; the flag has to survive subprocess launch."""
     print("the flag reaches the agy binary:")
@@ -124,6 +150,11 @@ def test_reaches_the_binary() -> None:
     with tempfile.TemporaryDirectory() as td:
         got = recorded_argv(Path(td), [])
         check("without it, the binary did NOT", got and "--remote-control" not in got, str(got))
+    with tempfile.TemporaryDirectory() as td:
+        got = recorded_argv(Path(td), ["--conversation", "a7417589-8ebe-4711-aa44-5e3864f58021"])
+        check("with --conversation <id>, the binary saw both tokens",
+              "--conversation" in got and got[got.index("--conversation") + 1] == "a7417589-8ebe-4711-aa44-5e3864f58021",
+              str(got))
 
 
 def test_host_passes_it_through() -> None:
@@ -142,13 +173,57 @@ def test_host_passes_it_through() -> None:
           "a single-turn run would register a session that is gone before anyone can open it")
 
 
+HOST_MSG_FAKE = r'''#!/usr/bin/env python3
+import json, os, sys
+open(os.environ["FAKE_AGY_MSG"], "w").write("")
+print(json.dumps({"event": "init", "conversation_id": "fake-conv",
+                  "init": {"cwd": os.getcwd(), "tools": [], "permission_mode": "yolo"}}),
+      flush=True)
+for line in sys.stdin:
+    open(os.environ["FAKE_AGY_MSG"], "w").write(line)
+    print(json.dumps({"event": "result", "result": {"conversation_id": "fake-conv",
+                      "status": "ok", "response": "done", "num_turns": 1}}), flush=True)
+'''
+
+
+def teamwork_host_first_message(conversation: str | None) -> str:
+    """Run the real teamwork launcher through agy_session.py and return its first user turn."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        bindir = tmp / "bin"
+        make_fake_agy(bindir, HOST_MSG_FAKE)
+        msg = tmp / "msg.ndjson"
+        env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+               "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
+               "FAKE_AGY_MSG": str(msg), "AGY_HOST_CLAUDE_LANES": "0",
+               "AGY_HOST_TIMEOUT": "30s"}
+        if conversation:
+            env["AGY_HOST_CONVERSATION"] = conversation
+        subprocess.run(["sh", str(HOST), "--teamwork", "Build the thing"],
+                       capture_output=True, text=True, timeout=120, env=env)
+        if not msg.is_file():
+            return ""
+        return json.loads(msg.read_text()).get("message", {}).get("content", "")
+
+
+def test_host_resume_note_replaces_the_kickoff_prompt() -> None:
+    """A resumed held session's first NEW turn must be a resume note, not the original
+    /teamwork-preview kickoff command that would re-trigger planning."""
+    print("agy_host.sh resume note:")
+    fresh = teamwork_host_first_message(None)
+    check("fresh teamwork launch sends the kickoff prompt",
+          fresh.startswith("/teamwork-preview Build the thing"), repr(fresh[:120]))
+    resumed = teamwork_host_first_message("a7417589-8ebe-4711-aa44-5e3864f58021")
+    check("resumed teamwork launch sends a resume note",
+          resumed.startswith("Resume this existing manager conversation."), repr(resumed[:160]))
+    check("the resume note does NOT replay /teamwork-preview",
+          "/teamwork-preview" not in resumed, repr(resumed[:160]))
+
+
 def run_held(tmp: Path, extra: list[str], stop_after: float | None = None) -> tuple[float, str]:
     """Run the fake session with a hold and return (elapsed, stderr)."""
     bindir = tmp / "bin"
-    bindir.mkdir(parents=True, exist_ok=True)
-    fake = bindir / "agy"
-    fake.write_text(FAKE)
-    fake.chmod(0o755)
+    make_fake_agy(bindir, FAKE)
     prompt = tmp / "prompt.txt"
     prompt.write_text("do the thing")
     stop = tmp / "STOP"
@@ -159,7 +234,8 @@ def run_held(tmp: Path, extra: list[str], stop_after: float | None = None) -> tu
         [sys.executable, str(SESSION), "--prompt-file", str(prompt), "--run-root", str(tmp),
          "--poll-max", "0", "--hold-file", str(stop), *extra],
         capture_output=True, text=True, timeout=180,
-        env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+        env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+             "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
              "FAKE_AGY_ARGV": str(tmp / "argv.json")})
     return time.monotonic() - t0, cp.stderr
 
@@ -221,10 +297,7 @@ def test_the_driver_writes_its_own_run_marker() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         bindir = tmp / "bin"
-        bindir.mkdir(parents=True)
-        fake = bindir / "agy"
-        fake.write_text(FAKE)
-        fake.chmod(0o755)
+        make_fake_agy(bindir, FAKE)
         prompt = tmp / "p.txt"
         prompt.write_text("go")
         events = tmp / "native" / "session-events.ndjson"
@@ -232,7 +305,8 @@ def test_the_driver_writes_its_own_run_marker() -> None:
             [sys.executable, str(SESSION), "--prompt-file", str(prompt), "--run-root", str(tmp),
              "--poll-max", "0", "--events-out", str(events), "--remote-control"],
             capture_output=True, text=True, timeout=120,
-            env={**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}",
+            env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+                 "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
                  "FAKE_AGY_ARGV": str(tmp / "argv.json")})
         marker = events.parent / "session.status"
         check("a marker is written beside the events file", marker.is_file(),
@@ -268,16 +342,15 @@ def turns_taken(extra: list[str]) -> int:
     /teamwork-preview behaviour) and return how many turns it was given."""
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        (tmp / "bin").mkdir()
-        fake = tmp / "bin" / "agy"
-        fake.write_text(COUNTING_FAKE)
-        fake.chmod(0o755)
+        bindir = tmp / "bin"
+        make_fake_agy(bindir, COUNTING_FAKE)
         (tmp / "p.txt").write_text("draft a plan")
         turns = tmp / "turns"
         subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
                         "--run-root", str(tmp), "--poll-max", "0", *extra],
                        capture_output=True, text=True, timeout=120,
-                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                       env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+                            "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
                             "FAKE_AGY_TURNS": str(turns)})
         return int(turns.read_text()) if turns.is_file() else 0
 
@@ -340,10 +413,8 @@ def relay_messages(with_relay: bool) -> list[str]:
     """Drive a 4-turn session and return the text of every user message the manager got."""
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        (tmp / "bin").mkdir()
-        fake = tmp / "bin" / "agy"
-        fake.write_text(RELAY_FAKE)
-        fake.chmod(0o755)
+        bindir = tmp / "bin"
+        make_fake_agy(bindir, RELAY_FAKE)
         (tmp / "p.txt").write_text("read the relay first")
         relay = tmp / "monitor-relay.md"
         relay.write_text("item 1: old finding\n")
@@ -352,7 +423,8 @@ def relay_messages(with_relay: bool) -> list[str]:
         subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
                         "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3", *extra],
                        capture_output=True, text=True, timeout=120,
-                       env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                       env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+                            "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
                             "FAKE_MSGS": str(msgs), "FAKE_RELAY": str(relay)})
         out = []
         for line in msgs.read_text().splitlines() if msgs.is_file() else []:
@@ -409,17 +481,16 @@ for n, line in enumerate(sys.stdin, 1):
 def ended(mode: str, done_cmd: str) -> tuple[int, str]:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        (tmp / "bin").mkdir()
-        fake = tmp / "bin" / "agy"
-        fake.write_text(QUOTA_FAKE)
-        fake.chmod(0o755)
+        bindir = tmp / "bin"
+        make_fake_agy(bindir, QUOTA_FAKE)
         (tmp / "p.txt").write_text("do the work")
         cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
                              "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", "3",
                              "--done-cmd", done_cmd, "--hold-file", str(tmp / "STOP"),
                              "--hold-max-s", "3"],
                             capture_output=True, text=True, timeout=120,
-                            env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+                                 "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
                                  "FAKE_MODE": mode})
         return cp.returncode, cp.stderr
 
@@ -456,17 +527,16 @@ for n, line in enumerate(sys.stdin, 1):
 def drive(mode: str, done_cmd: str, auto: str = "30") -> tuple[int, str, list[str]]:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        (tmp / "bin").mkdir()
-        fake = tmp / "bin" / "agy"
-        fake.write_text(MSG_FAKE)
-        fake.chmod(0o755)
+        bindir = tmp / "bin"
+        make_fake_agy(bindir, MSG_FAKE)
         (tmp / "p.txt").write_text("do the work")
         msgs = tmp / "msgs.ndjson"
         cp = subprocess.run([sys.executable, str(SESSION), "--prompt-file", str(tmp / "p.txt"),
                              "--run-root", str(tmp), "--poll-max", "0", "--auto-continue", auto,
                              "--done-cmd", done_cmd],
                             capture_output=True, text=True, timeout=120,
-                            env={**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}",
+                            env={**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}",
+                                 "AGY_BIN": str(bindir / "agy.cmd") if sys.platform == "win32" else str(bindir / "agy"),
                                  "FAKE_MSGS": str(msgs), "FAKE_MODE": mode})
         got = [json.dumps(json.loads(l).get("message", {}).get("content", ""))
                for l in (msgs.read_text().splitlines() if msgs.is_file() else [])]
@@ -494,8 +564,10 @@ def test_continue_says_why_and_stops_when_stuck() -> None:
 def main() -> int:
     test_builder_is_a_switch()
     test_flag_order_survives()
+    test_resume_is_a_switch()
     test_reaches_the_binary()
     test_host_passes_it_through()
+    test_host_resume_note_replaces_the_kickoff_prompt()
     test_hold_keeps_the_session_alive()
     test_no_hold_means_no_hold()
     test_hold_warns_when_it_is_pointless()
