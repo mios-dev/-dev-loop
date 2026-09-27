@@ -43,6 +43,7 @@ sys.path.insert(0, str(SCRIPTS))
 import global_monitor as gm     # noqa: E402  for the unit-level invariants
 import job                      # noqa: E402  real jobs, so liveness is measured not mocked
 
+SIGKILL = getattr(signal, "SIGKILL", getattr(signal, "SIGTERM", 15))
 FAILURES: list[str] = []
 
 
@@ -220,7 +221,7 @@ def test_a_live_pid_is_never_stale() -> None:
             # NEGATIVE CONTROL: kill the wrapper so no receipt is written. Same directory, same
             # silence threshold -- only liveness changed, and the verdict must flip.
             pid = int((run / "jobs" / "alive" / "pid").read_text().strip())
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, SIGKILL)
             deadline = time.time() + 15
             while time.time() < deadline:
                 if job.status(run / "jobs", "alive")["state"] == "lost":
@@ -240,7 +241,7 @@ def test_a_live_pid_is_never_stale() -> None:
         finally:
             for p in (run / "jobs" / "alive" / "pid",):
                 try:
-                    os.kill(int(p.read_text().strip()), signal.SIGKILL)
+                    os.kill(int(p.read_text().strip()), SIGKILL)
                 except (OSError, ValueError):
                     pass
 
@@ -776,7 +777,7 @@ def test_a_128_second_silent_agent_is_not_reported_stale() -> None:
                   and rep2["agents"]["stale"] == 0, str(lane2)[:200])
         finally:
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, SIGKILL)
             except (OSError, TypeError):
                 pass
 

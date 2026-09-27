@@ -57,6 +57,7 @@ import json
 import os
 import re
 import select
+import shutil
 import subprocess
 import sys
 import time
@@ -481,6 +482,9 @@ def hold_open(proc, events, on_result, stop_file: Path, max_s: float,
             return "budget"
         if proc.poll() is not None:
             return "exited"
+        if sys.platform == "win32":
+            time.sleep(min(poll_s, 0.1))
+            continue
         try:
             ready, _, _ = select.select([proc.stdout], [], [], poll_s)
         except (OSError, ValueError):
@@ -651,8 +655,10 @@ def main() -> int:
         # line-buffered: a monitor tailing this must see each event as it happens, not at exit
         events = open(a.events_out, "w", buffering=1)
 
+    bin_cmd = os.environ.get("AGY_BIN") or shutil.which(argv[0]) or argv[0]
+    exec_argv = [bin_cmd] + argv[1:]
     try:
-        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        proc = subprocess.Popen(exec_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, bufsize=1,
                                 env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
     except FileNotFoundError:

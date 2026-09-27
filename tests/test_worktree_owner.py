@@ -72,6 +72,22 @@ def hook_input(wt: Path) -> str:
     return json.dumps({"tool_name": "Edit", "cwd": str(wt), "tool_input": {"file_path": str(wt / "a.txt")}})
 
 
+def kill_proc(p: subprocess.Popen) -> None:
+    try:
+        p.kill()
+    except Exception:
+        pass
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(p.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        except Exception:
+            pass
+    try:
+        p.wait(timeout=5)
+    except Exception:
+        pass
+
+
 def test_positive() -> None:
     with tempfile.TemporaryDirectory() as t:
         wt = repo(Path(t))
@@ -87,7 +103,7 @@ def test_positive() -> None:
             check("hook denies a session outside the lane tree", '"permissionDecision":"deny"' in out.stdout,
                   out.stdout + out.stderr)
         finally:
-            os.killpg(a.pid, signal.SIGKILL); a.wait()
+            kill_proc(a)
         inner = hold(wt, f"printf '%s' '{hook_input(wt)}' | sh '{HOOK}'")
         so, _ = inner.communicate(timeout=30)
         check("hook allows the lane's own tree", "deny" not in so and inner.returncode == 0, so)
@@ -97,7 +113,7 @@ def test_negative() -> None:
     with tempfile.TemporaryDirectory() as t:
         wt = repo(Path(t))
         a = hold(wt)
-        os.killpg(a.pid, signal.SIGKILL); a.wait()
+        kill_proc(a)
         free = sh(f"python3 '{LOCK}' owner --wt '{wt}'")
         check("SIGKILLed owner leaves the worktree free", free.returncode == 0, free.stdout)
         rec = Path(lock_path(wt)).with_name("devloop-owner.json")
