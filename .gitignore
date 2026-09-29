@@ -9,3 +9,4 @@ __pycache__/
 
 # install.sh --harness gemini-spark emits the Spark upload package here; a build output, never tracked.
 /dist/
+/bridge/target/

@@ -1,0 +1,13 @@
+FROM docker.io/library/rust:1.97-alpine AS build
+RUN rustup target add x86_64-unknown-linux-musl
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --target x86_64-unknown-linux-musl --locked
+
+FROM scratch
+COPY --from=build /src/target/x86_64-unknown-linux-musl/release/devloop-bridge /devloop-bridge
+USER 65532:65532
+EXPOSE 8765
+ENTRYPOINT ["/devloop-bridge"]
+CMD ["serve"]
