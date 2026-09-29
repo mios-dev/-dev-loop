@@ -1663,6 +1663,6 @@ _Rendered from `.devloop/tasks.jsonl` — edit the JSONL (or `artifacts.py tasks
 - [ ] **AGY-2223** PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge  (WS-APP | P1 | M)
 - [ ] **AGY-2271** Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge  (WS-VFIO | P1 | M)
 - [ ] **AGY-2376** Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon  (WS-APP | P1 | M)
-- [ ] **T-1118** Retire MiOS-Cat and /cat/; fold all behavior into canonical MiOS-Field componentry
+- [x] **T-1118** Retire MiOS-Cat and /cat/; fold all behavior into canonical MiOS-Field componentry
 
-_1535/1642 done · 2026-09-29_
+_1536/1642 done · 2026-09-29_
