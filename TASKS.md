@@ -4,12 +4,1665 @@ _Rendered from `.devloop/tasks.jsonl` — edit the JSONL (or `artifacts.py tasks
 
 ## T-001 · loop.v1 normaliser is unwired and duplicates adapters.py · `open` · goal G-001
 
-- [ ] **T-002** no CI: every gate in this repo runs only when a human remembers
+
+## AGY-40..44 · Batch banner and coordination gate for the tech-debt / ADR-0010+0011 batch (file ownership + Law-14 fence)  (WS-DEBT | P1 | S) **[DONE]** · `done` · goal E-02 Technical-debt retirement -- the TD-1..TD-8 register is worked in a shared tree without two agents clobbering each other's staged hunks.
+
+
+## AGY-45..49 · Batch banner for tech-debt batch 2 (TD-3/4/5) plus the ADR-0010/0011 follow-ons  (WS-DEBT | P1 | S) **[DONE]** · `done` · goal E-02 Technical-debt retirement -- the remaining TD-3/TD-4/TD-5 register items are worked on a now-clean shared tree.
+
+
+## AGY-51..54 · Batch-3 charter: first Rust proof, deeper god-module decomposition, bake-ref audit, gate negative-tests  (WS-LANG,WS-DEBT | P1 | L)  **[DONE]** · `done` · goal E-02 Technical-debt retirement: the TD-1..TD-8 register -- bundles the four 2026-07-16 work items that move the debt register and plant the compiled-tier seed in one review pass.
+
+
+## AGY-57..58 · ADR-0010 completion charter: extend `mios-theme-render` IN PLACE, no `mios-dotfiles-render` fork  (WS-DOTFILES | P2 | L)  **[DONE]** · `done` · goal E-22 Dotfiles projection: one engine, every surface, both platforms -- fixes the design contract for the `kind` axis so the merge modes land in one engine rather than a competing second renderer.
+
+
+## AGY-59..60 · ADR-0010 finish charter: registry kind + merge-surface test coverage, ON MAIN, no branches  (WS-DOTFILES | P2 | M)  **[DONE]** · `done` · goal E-22 Dotfiles projection: one engine, every surface, both platforms -- scopes the last two pieces that complete ADR-0010's engine.
+
+
+## AGY-96..105 · Campaign banner: convert the ~20h ghcr publish firefight into enforced gates, tests and docs  (WS-HARDEN | P1 | L)  **[DONE]** · `done` · goal E-16 The bake plane -- the three failure classes that broke the 0.3.0 publish are fixed systemically, so a stock GitHub runner can bake and publish as a true equal.
+
+
+## AGY-106..122 · Campaign banner: installer consolidation, runtime wiring, server.py decomposition, Rust ports and Mini foundations  (WS-INSTALL | P1 | L)  **[DONE]** · `done` · goal E-21 One deploy front door -- the Linux/Python/shared half of the installer-unification plan lands alongside the runtime-wiring and language-port frontier.
+
+
+## AGY-123..259 · Batch-3 register: 137 grounded, code-only tasks across 14 MiOS domains  (WS-BATCH3 | P1 | L)  **[DONE]** · `done` · goal E-06 Test and documentation harness: negative self-tests, coverage, doc integrity -- a written, self-contained work register an arriving agent can pick up cold.
+
 
 ## Unassigned
 
 - [x] **T-003** e2e-mixed-lanes README still prescribes --headless --yolo for native subagent management
 - [x] **T-004** skills/research cannot write files: allowed-tools lacks Write
-- [ ] **T-005** GOALS.md is double-tracked: goal.py writes root, scaffold and SKILL §3 say docs/
+- [x] **T-006** A1 -- Unified `[agents.*]` Template + `_defaults` Inheritance
+- [x] **T-007** A2 -- Agent Schema Drift Validator ← T-006
+- [x] **T-008** A3 -- Fix opencode Gateway (`:8633` real output) ← T-006
+- [x] **T-009** A4/FED -- hermes-worker Boot Ordering ← T-006
+- [x] **T-010** FED-G2 Follow-up -- Auth at All 4 Remaining Dispatch Sites ← T-006
+- [x] **T-011** FED-G3 -- Live Membership Reload ← T-001, T-006
+- [x] **T-012** FED-G4 -- Self-Describing + Signed AgentCard ← T-006
+- [x] **T-013** FED-G5 -- LAN-Native mDNS Discovery (avahi) ← T-011, T-001
+- [x] **T-014** FED-G6 -- Authenticated Inbound Delegation + Least-Privilege ← T-012, T-001
+- [x] **T-015** C0 -- code-server Port Remap `:8080` -> `:8800`
+- [x] **T-016** C1 -- Add 7 `[pods.*]` Blocks to `mios.toml` ← T-015
+- [x] **T-017** C2 -- Attach `Pod=` to Members + Validate All Pods Healthy ← T-016
+- [x] **T-018** E1 -- Persist OWUI Location Fix (Firstboot Wiring)
+- [x] **T-019** SCHED-01 -- Turn-Boundary Preemption (PriorityGate + KV-Paging) ← T-006
+- [x] **T-020** SCHED-02 -- Token-Time Slicing Queue in agent-pipe ← T-019
+- [x] **T-021** MEM-01 -- KV Slot-Save/Restore + `--swa-full` Guard ← T-019
+- [x] **T-023** OBS-01 -- OTel GenAI Spans
+- [x] **T-024** A5 -- Council Honesty: Report Single-Agent Mode
+- [x] **T-025** A6 -- Kernel Stage-2 Hot-Path Migration [VM] ← T-019
+- [x] **T-026** B1 -- Flip Safe Governance Gates ON
+- [x] **T-027** B2 -- Verify K-LRU Tiering Loop End-to-End
+- [x] **T-028** ORCH-01 -- DCI 14-Act Deliberation Vocabulary
+- [x] **T-030** ORCH-03 -- Dual-Ledger + Typed-Output Synthesis ← T-006
+- [x] **T-031** ORCH-04 -- ReAct+Reflexion Durable Loop
+- [x] **T-032** SEC-01 -- Hermetic MCP Sandboxing (microVM per tool) [VM]
+- [x] **T-034** SEC-03 -- SHA-256 Cryptographic Event Bus Chaining
+- [x] **T-035** MEM-02 -- Self-Editing Tiered Memory (MemGPT-style) ← T-021, T-027
+- [x] **T-036** MEM-03 -- Context Compaction + Stale Tool Result Clearing ← T-035
+- [x] **T-037** SEC-04 -- Per-Agent Access Control + HITL at MCP Chokepoint
+- [x] **T-039** OBS-02 -- AIOS-Bench Harness (Task Accuracy x Systems Metrics) ← T-049
+- [x] **T-040** OBS-03 -- Record-and-Replay Determinism ← T-034
+- [x] **T-041** C3 -- De-publish searxng + Drop Heavy-Alt Stray Port
+- [x] **T-042** C4 -- Port Collapse (Render PublishPort from `[ports]` SSOT) ← T-015
+- [x] **T-043** D1 -- Remote/Edge Agent Template + Auto-Join ← T-006, T-010
+- [x] **T-044** F1 -- Re-vectorize OWUI Documentation Knowledge Collection ← T-018
+- [x] **T-045** F2 -- Build the coderun-sandbox Image [NET] ← T-032
+- [x] **T-046** WS-G -- MEMORY.md Honesty Reconciliation
+- [x] **T-047** GAP-1 -- RouteMoA Pre-Synthesis Input Diversity Gate ← T-006, T-021
+- [x] **T-048** GAP-2 -- MOSAIC Confidence-Aware Aggregation Bypass ← T-047, T-039
+- [x] **T-049** GAP-3 -- pass^k as Hard Skill-Promotion Gate
+- [x] **T-050** GAP-5 -- Rechunking Delta Distribution for Edge/Offline OCI Upda ← T-034
+- [x] **T-051** FED-G7 -- Route on AgentCard Skills ← T-012
+- [x] **T-052** FED-G8 -- Caller-Key Store (`mios_principal` + CRL) ← T-001
+- [x] **T-053** FED-G9 -- Loopback-Default Bind + Scoped Publish ← T-001
+- [x] **T-054** ORCH-06 -- Deterministic Orchestration via Conductor CLI ← T-031
+- [x] **T-055** MEM-04 -- Hindsight Multi-Strategy Memory Engine ← T-035
+- [x] **T-056** MEM-05 -- KV Hierarchy + Sleep-Time Consolidation ← T-035, T-021
+- [x] **T-057** ORCH-07 -- Personal Knowledge Graph Rich Edges ← T-035
+- [x] **T-058** SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] ← T-019, T-020
+- [x] **T-059** DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory ← T-012
+- [x] **T-060** DATA-02 -- Storage Versioning + Rollback for Self-Edited Core Fa ← T-035
+- [x] **T-061** ORCH-09 -- Code-Mode for Heavy Verbs/Recipes ← T-045
+- [x] **T-062** B3 -- Self-Improve ACT Half (Proposal + Commit) ← T-064, T-049
+- [x] **T-063** B4 -- promptver Consumer (Version-Resolved Prompt Registry)
+- [x] **T-064** GAP-4 -- DGM Formal Proof-of-Utility Sandbox for Self-Rewrites ← T-049, T-034
+- [x] **T-066** B5 -- A2A Federation Loopback Smoke Test
+- [x] **T-067** B6 -- `expandvars` Over All `*_endpoint` Fields ← T-006
+- [x] **T-068** B7 -- Multi-Tenant RLS Wiring (`SET LOCAL mios.owner_user`)
+- [x] **T-069** C5 -- Pod-Gen in Build Render Step ← T-017
+- [x] **T-070** D2 -- Pi/Edge Join Documentation ← T-043
+- [x] **T-071** E2/E3 -- OWUI Cosmetic Fixes
+- [x] **T-072** F3 -- Code Mode `/run/coderun.sock` Per-Session Broker ← T-045
+- [x] **T-073** F4 -- mios build Driver + move_window + es.exe Upgrade
+- [x] **T-074** FED-G10/G11 -- Cardless Join + `/v1/agents` Registry ← T-013, T-059
+- [ ] **T-075** H6 -- LAKE Federated Query (Spice.ai Rust Engine) ← T-048, T-050
+- [x] **T-076** GWY-01 -- Deploy Letta Server as Memory Complement (Phase 1) ← T-003, T-028
+- [x] **T-077** GWY-02 -- Wire Letta Self-Editing Memory to agent-pipe Verbs (Ph ← T-076, T-035, T-036
+- [x] **T-078** GWY-03 -- Build mios-gateway-agent FastAPI Service (Phase 2) ← T-076, T-028
+- [x] **T-079** GWY-04 -- smolagents ToolCallingAgent as Tool-Loop Engine (Phase ← T-078, T-080
+- [x] **T-080** GWY-05 -- MCP Client: stdio â†’ mios-mcp-server (Phase 2) ← T-078, T-024
+- [x] **T-081** GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (P ← T-079, T-080
+- [x] **T-082** GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Pha ← T-078
+- [x] **T-084** STRG-01 -- CephFS SSOT Block in mios.toml
+- [x] **T-085** STRG-02 -- mios-cephfs-provision Script + PAM Integration ← T-084
+- [x] **T-086** STRG-03 -- Per-Session XDG_RUNTIME_DIR Isolation ← T-084, T-085
+- [x] **T-087** STRG-04 -- CephFS Automount Template (systemd.automount) ← T-085, T-086
+- [x] **T-089** STRG-06 -- CephX Per-User Capability Management ← T-085, T-084
+- [x] **T-090** STRG-07 -- XDG Profile Script (mios-xdg-cephfs.sh) in bootc Imag ← T-086
+- [x] **T-091** STRG-08 -- xdg-user-dirs Template + mios-xdg-userdir-init.servic ← T-087, T-090
+- [x] **T-092** STRG-09 -- CephFS Greenboot Health Checks ← T-084, T-089
+- [x] **T-093** STRG-10 -- CephFS SSOT Drift-Check + Documentation ← T-084, T-087, T-090
+- [x] **T-094** CONV-01 -- [converge] SSOT Block in mios.toml
+- [x] **T-095** CONV-02 -- GatewayQueue Module + GatewayWorker + smolagents Wiri ← T-094
+- [x] **T-096** CONV-03 -- GatewayQueue Test Suite ← T-095
+- [x] **T-097** CONV-04 -- llama-swap Shared Prefix Cache + Parallel Slots ← T-094
+- [x] **T-098** CONV-05 -- vLLM Multi-LoRA Heavy Lane Upgrade ← T-094
+- [x] **T-099** CONV-06 -- LoRA Load/List API Endpoints in agent-pipe ← T-094, T-098
+- [x] **T-100** CONV-07 -- mios-llm-heavy-alt Retirement Documentation ← T-098, T-099
+- [x] **T-1000** GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot ← T-996
+- [x] **T-1003** PREFLIGHT-01 -- built as src/mios-rs/mios-probe; thresholds now resolve from SSOT and the shell probe is retired
+- [x] **T-101** CONV-08 -- sqlite-vec Scratchpad Module ← T-094
+- [ ] **T-1011** LANG-07 -- mios-serve: the daemon tier
+- [x] **T-102** CONV-09 -- Cold Eviction Module + zstd Export ← T-094, T-101
+- [ ] **T-1021** GATECAT-01 -- collapse 209 drift checks and 337 test files into categorised binaries, auditable by hand
+- [x] **T-1022** SECRED-01 -- check_secret_handling is red and nobody knows what it flags; the repo is public
+- [ ] **T-1023** QUEUE-01 -- two backlogs, ~40k lines, no machine-selectable next task; one queue + a DONE archive
+- [ ] **T-1024** LAYOUT-01 -- survey field/ config/ images/ installation/ specs/ and collapse them where they belong
+- [ ] **T-1025** ROLLBACK-01 -- bootc rollback has never been exercised; the recovery story is unproven
+- [ ] **T-1026** SERVERPY-01 -- decompose the 8,961-line server.py while nothing uses the plane
+- [ ] **T-1027** DOCGEN-02 -- docs/design outside the generative pipeline, thin man coverage, ungated mirror
+- [ ] **T-1028** BAKECI-01 -- no CI job bakes the image, so no build-path change has ever been verified by the pipeline
+- [x] **T-103** CONV-10 -- sqlite-vec Scratchpad Wired into GatewayWorker ← T-095, T-101
+- [x] **T-1031** PYSYNTAX-01 -- tools/render-globals.py does not PARSE below py3.12, so the SSOT-globals gate cannot run locally
+- [x] **T-1032** PYSHIM-01 -- the drift gate runs all 209 checks on a cached copy of a different Python than the rest of the build
+- [x] **T-1033** BSPATH-01 -- the Law 15 cross-repo gate looks for mios-bootstrap at a hardcoded Windows path, so it is CI-only
+- [x] **T-1039** BAKEPLAN-01 -- stage 85's already-live Rust tier drops every locally-built image from the bake plan and omits the size_gb column
+- [x] **T-104** CONV-11 -- Cold-Archive Retention Sweep + Drift-Check ← T-102, T-094
+- [x] **T-1042** BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail
+- [x] **T-1044** PYTEST-01 -- the HEADLINE was stale (the gate had 304 lines of slack, not zero) but the PREMISE was confirmed and is worse than a blocked test: max_tooling_python_lines declares its subject as "script mass that converts to Rust binaries", and 36% of what it measured was TEST code -- 573 files, 43452 lines -- which is not a port target and which check_module_test_coverage actively demands more of. The two gates pulled against each other, so the cheapest way to stay green was to not write the test. The precedent was already in the SAME function: max_libexec_verbs excludes sibling tests via _TEST_BASENAME with a comment saying exactly this; the Python counter never got it. FIX: apply _TEST_BASENAME to the Python counter and pull the floor to the new measurement, 121210 -> 77454, per the ceiling's own stated convention (never leave slack). A FALL is the allowed ratchet direction. CONTROLS, both with the probe git-add -N'd because the counter censuses git ls-files -- the first attempt planted untracked files and moved the number by ZERO, proving nothing: a 40-line tooling file takes it to 77494 and BITES; a 400-line test file leaves it at 77454. Both arms added to test_legibility_ratchet, which previously exercised only max_shell_lines
+- [x] **T-1045** STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading
+- [x] **T-1047** BUDGETKEYS-01 -- check_agent_pipe_budgets walked a hardcoded 9 of 128 keys and announced it had checked all of them
+- [x] **T-1048** PROJREG-01 -- check_projection_registry validates the entries it has and never asks whether the registry is complete; 16 of 21 generators are absent ← T-1047
+- [x] **T-1049** LAWPTR-01 -- four laws point at enforcer names that exist only in a comment after `exit 0`, and check_law_enforcers substring-matches that comment
+- [x] **T-105** CONV-12 -- Hummingbird Distroless Containerfile ← T-095
+- [x] **T-1050** LAW11KEYS-01 -- CONFIRMED and worse than filed. `[identity.ipa].otp` was projected VERBATIM by tools/generate-ipa-enroll-env.py into `etc/mios/ipa-enroll.env`, which is TRACKED at mode 0644 -- so an operator-set OTP was committed to git twice (SSOT + projection) before any gate ran. All THREE gates that could catch it measure a proxy and miss: 99-postcheck's `_law11_secret_re` matches three literal names plus two crypt prefixes; check_secret_handling matches PEM/DSN/AKIA/ghp_/glpat SHAPES and an OTP has none; mios-gate credentials.rs matches a PASSWORD/SECRET/APIKEY/TOKEN substring and walks only the two unit dirs, not etc/. Proved by simulating a real OTP through each predicate: all three CLEAN. The Law-11 subject set over the tree is 2 files and 0 flagged, so its success line prints over an empty set. FIX: the SSOT carries a POINTER (otp_file/otp_key), the projection emits MIOS_IPA_OTP_FILE/_KEY, and the consumer reads the value from a 0600 file. STILL OPEN as T-1070: the three-name list is a literal duplicated in 4 executable places with nothing asserting they agree ← T-1022
+- [x] **T-1051** SIZERATCHET-01 -- max_tracked_mb is 83% vendored payloads Law 12 forbids shedding, at 1 MiB resolution, so `202/202` meant 15 KiB from red
+- [x] **T-1052** VARCLOSURE-01 -- Law 9's gate reports `emitted=2879 referenced=0` and PASSes; its scan filters hide 461 referenced-but-unemitted vars
+- [x] **T-1053** IPANAME-01 -- CONFIRMED by reading both ends. tools/generate-ipa-enroll-env.py emits MIOS_IPA_ENROLL_PRINCIPAL and (formerly) MIOS_IPA_OTP; usr/libexec/mios/mios-freeipa-enroll.sh required MIOS_IPA_PRINCIPAL and MIOS_IPA_PASSWORD. NEITHER name matches, so the required-var loop exits 1 on the first one and enrollment has never been able to run. The two names it required are emitted by nothing in either repo -- they were carried as rows in the Law 9 closure ledger, which is where the mismatch was visible all along. FIX: the consumer requires the name the projection actually writes. Landed with T-1050 because both are the same contract: every credential-bearing name in that file disagreed with its consumer ← T-1052
+- [x] **T-1054** VARCLOSURE-02 -- CONFIRMED, but the count was wrong: THREE false-positive rows (MIOS_IPA_REALM/DOMAIN/SERVER), not 11, against a ledger of 418 rows, not 425. emitted_set() had three legs (render-globals, mios.toml table prefixes, userenv.sh) and no leg for a tracked .env projection, which is a fourth way a name legitimately reaches a consumer -- mios-freeipa-enroll.sh sources the file rather than resolving. The 11-vs-3 gap is because referenced_set's CONSUMER_GLOBS omits *.env, so only names a scanned consumer actually reads ever surfaced. The T-1052 Empty-Set Pass is confirmed still fixed (referenced=418, not 0). FIX: discover .env surfaces from [laws.projection_registry], drain 3 rows, ceiling 418->415; the mios.toml leg's `except: pass` became an EMIT_ERRORS append ← T-1052
+- [x] **T-1055** RATCHETSEC-01 -- the row's LITERAL premise is STALE: T-1051's port already deleted the two dotted entries (`build.ratchet`, `security.privileged_quadlets`) and the Python twin tools/check-ratchet-direction.py no longer exists. The CLASS survives and was unguarded. MEASURED against the real SSOT: of the 14 entries, `gates` names no top-level table at all, and only ONE (`ai_tag`, via ai_tag.hint_max_chars) captures any key through the section rule -- the other 13 buy nothing, so a register that reads as scoping 14 sections scopes one. The unreachability is by CONSTRUCTION: `section` is `full.split('.').next()`, which can never contain a dot, so a dotted entry fails contains() for every key in every possible SSOT. The Done-When's demanded guard ("no entry can fail to match by construction") had never been written, and no test referenced RATCHET_SECTIONS at all. FIX: a unit test reading the real SSOT that rejects BOTH dead shapes -- a dot, and a name no table has -- plus `gates` deleted, len 14->13. Two controls, each firing on its OWN assertion line so neither half masks the other. Captured ceilings unchanged at 80, which is the point: this removes phantom scope, not real coverage. NOT taken: adding `build` to capture build.rechunk_max_layers -- widening a shrink-only register is a policy call, filed as T-1071 ← T-1051
+- [x] **T-1056** NAMESGEN-01 -- the dispatch was the LESSER half. The Rust twin was transliterated from a pre-fix revision of the Python leg and never called, so five later corrections landed on one side only and NOTHING compared them: measured, it emitted referenced_names.txt at 3486 lines / 98129 bytes where the Python leg emits 1229 / 26443, and the Containerfile still copies it to /usr/libexec/mios/. Running it once would have rewritten the registry and turned check_names_registry red. The five divergences, by blast: (1) WalkDir census with a hardcoded skip-list still containing `build`, silently dropping tracked files, vs git ls-files that REFUSES on an unanswerable census; (2) four missing emitter_suffixes (globals.sh, globals.ps1, render-globals.py, render-ports.py) -- the generated namespace-DEFINING files were scanned as consumers, so 2273 of the 2340 extra names were the registry citing itself; (3) a line-wide assignment skip losing 16 names that ride on env-prefix lines; (4) no rstrip of a trailing `_`, producing 73 junk names and losing their 48 real forms; (5) the 19 static non-MIOS_ lines dropped on rewrite. Plus `starts_with("Containerfile")` where fnmatchcase needs the dot, and a non-atomic write. A SIXTH found while fixing: toml::Value::Table is a BTreeMap, so the section walk was alphabetical while check_names_registry compares line ORDER -- document order is now derived from one linear scan of the SSOT text rather than unifying the toml crate's preserve_order feature across all 17 workspace crates. FIX: both artefacts byte-identical; check_names_registry_equivalence + test_names_registry_equivalence hold them there; dispatch flipped only after parity
+- [x] **T-1058** SOCKETREND-01 -- mios-cockpit-link.socket shipped ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}; the renderer's find filter had no *.socket
+- [x] **T-1059** TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94
+- [x] **T-106** CONV-13 -- Unified MCPClientPool ← T-095, T-094
+- [x] **T-1060** BARESAFE-01 -- all five Done-When clauses hold: emit() returns 1, the gate captures stderr, MIOS_AI_ENDPOINT is present because the resolver EXPANDED it, tests/test-baresafe-emit.py guards emit()'s reject path, and check_protected_refs already carries the referenced-subset-of-emitted closure against the live render
+- [ ] **T-1061** GPUSSOT-01 -- [gpu].device models one vendor while mios-gpu-passthrough hardcodes three; its only code consumer was stage 34's deleted allowlist
+- [x] **T-1062** TWINFIX-01 -- check_resolver_twin_parity was a SELF-COMPARISON, not a vacuous fixture. Its Python leg read `section(load_merged())` (the raw merged table, not the resolver), and its bash leg ran userenv.sh, which under `env -i` with no native binary on PATH falls through tiers 1-2 to tier 3 -- mios_toml.py. PROVEN by mutation: disabling resolve_cross_references in mios_toml.py changed the BASH leg's output, and the check still passed. FIXED: Python leg now calls emit_exports() (the twin Law 13 names); the bash leg gets the native mios-resolver symlinked onto its PATH so tier 1 fires, with an absent binary a violation under MIOS_DRIFT_REQUIRE_TOOLS=1 rather than a silent self-comparison; the fixture carries a ${MIOS_PORT_AGENT_PIPE} reference in the WINNING (host) layer, since on the vendor layer it was overridden and still could not fail; binary discovery prefers debug over release, matching check_resolver_differential_parity and what CI builds. Negative control now catches a twin that stops resolving cross-references
+- [x] **T-1063** TWINSERIAL-01 -- process_val rendered a list of TABLES with str(dict), a PYTHON REPR ({'ordinal': '01', 'fatal': True}) that only Python can parse, against the Rust resolver's TOML inline tables. That was the entire residual of check_resolver_differential_parity: 12 values against a ceiling of 12, with no headroom. FIXED: _toml_inline() renders TOML inline syntax byte-compatible with the toml crate -- scalars and arrays sorted alphabetically, nested TABLES last, and a LITERAL (single-quoted) string when the content holds a backslash, which is how the crate avoids escaping Windows paths. Divergence 12 -> 0 and max_value_divergence tightened 12 -> 0, so a single new divergence now fails; verified by planting one (rc=1, names the key)
+- [x] **T-1064** CREDBAKE-01 -- FIRST HALF (e8ef25b8): check_credential_literals scanned only `Environment=` and was blind to `--env KEY=V` on Exec lines; proven by two controls (same literal passed at rc=0 on ExecStart, failed on Environment=). credential_pairs() now reads both. SECOND HALF: the recorded fork (registry vs inference) was THE WRONG QUESTION. Both options decide WHETHER to protect a ref; measuring found the defect is that nothing ever decided whether a protected name can ARRIVE. declares_unit_environment is a NECESSARY condition and correct by construction -- without [Service] env systemd expands a bare ${VAR} to empty, so protecting one there would be actively wrong -- but it is not SUFFICIENT: a unit can declare EnvironmentFile=-/etc/mios/install.env and still reference a name install.env never carries. MEASURED on the shipped tree: 5 of the 14 protected refs arrived as "". Four are A2O keys Law 10 keeps out of install.env (a space, parentheses, a {} placeholder, or an empty value the resolver drops) -- including MIOS_A2O_LANE_B_MODEL, whose own SSOT comment documents that a wrong --model silently falls back to the (Medium) effort tier, which is exactly what "" produces. The fifth was MIOS_PORT_HERMES_DASHBOARD (see T-1067). FIX: the four are declared in the unit's own [Service] Environment= (renderer bakes the `:-` form from SSOT at stage 34; EnvironmentFile= still comes last so install.env wins when it does carry the name), mirrored into [units."mios-agents.service".Service]. GATE: `mios-gate protected-refs` + check_protected_refs reads [build.quadlet_render] -- the renderer's OWN scope table -- so it can never judge a narrower set than the renderer renders; refs_checked==0 is could_not_run, not a clean pass. Four controls: drop one Environment= supply -> fails naming only that name; revert T-1067 -> fails naming only MIOS_PORT_HERMES_DASHBOARD; empty root -> rc=2; strip all [Service] env -> rc=2 rather than a vacuous rc=0. Registered in tests/drift-gate-negatives.sh as test_protected_refs
+- [x] **T-1065** TWINVAL-01 -- a LIVE BAKE DEFECT, not a cosmetic divergence, and the opposite of the first diagnosis. automation/36-ceph-k3s.sh does K3S_TAG="${MIOS_K3S_VERSION:-}" then ${K3S_TAG/-k3s/+k3s}; common.sh sources userenv.sh BEFORE globals.sh and globals.sh guards its assignments, so the value comes from userenv.sh, whose PREFERRED tier is the native binary at /usr/libexec/mios/. mios-resolver did not split the tag, so that path produced K3S_TAG=docker.io/rancher/k3s:v1.36.3+k3s1. 06-enable-external-repos.sh:77 reads it too. FIXED by adding the split to the two emitters that lacked it (emit.rs and render-globals.build_exports), so all three agree on the tag while _IMAGE keeps the full ref -- no new duplicate groups, parity stays 0/0. The split had been REMOVED once on cosmetic grounds ("MIOS_ADGUARD_VERSION reads latest"); two Rust tests now pin it and name the consumer. Earlier claim of zero consumers was wrong: the grep required ${NAME} or $NAME and missed ${NAME:-default}
+- [x] **T-1066** SNAPTRUNC-01 -- mios-env-snapshot piped `env` into `grep '^MIOS_'`, so a multi-line value lost every line after the first: continuations do not start with MIOS_. MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE reached the baseline as NINE characters of 2633; MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS as 74 of 288. FIXED: `env -0` read with `read -r -d ''`, values escaped onto one line (backslash first, then newline, so the transform reverses). Round-trip decode of both now equals the resolver value EXACTLY. Refusing to emit multi-line values was rejected: two exist, so the baseline could never be generated. 38 of 2622 keys change representation (2 for newlines, 36 for backslashes in regex/path values) -- verified safe: no consumer reads VALUES from env-baseline.txt (97-ssot-lint and mios-ssot-lint grep `^NAME=`, check_resolved_env_lossless regenerates and diffs, so both sides share the encoding). Note the gate named check_resolved_env_lossless had been diffing two equally-truncated renders and passing
+- [x] **T-1067** PORTPROJ-01 -- system-sync-env.sh emitted MIOS_PORT_* from a HAND-TYPED list of 20 names while [ports] resolves 46, and it is the LAST writer of /etc/mios/install.env: stage 35 renders every port there via miosd, then this script `mv -f`s a full replacement over that same file at deploy (build-mios.ps1, `miosd sync-env`). The 26 it never named were written at bake and silently removed at deploy. MIOS_PORT_HERMES_DASHBOARD was one, and hermes-dashboard.service reads it as a bare ${VAR} on ExecStart, so the dashboard bound to :"". The list also carried MIOS_PORT_OPENCODE, a name the resolver has never emitted (the lane is MIOS_PORT_OPENCODE_GATEWAY) -- a hand-maintained second projection drifts in BOTH directions. FIX: enumerate `compgen -v MIOS_PORT_` and keep only the three non-prefixed legacy aliases named. Render goes 20 -> 46 ports, 69 -> 94 keys, nothing lost (comm -23 empty). Caught independently by check_protected_refs (T-1064)
+- [x] **T-1068** SYNCORDER-01 -- WITHDRAWN: this was MY OWN misdiagnosis, not a defect in tools/sync-generated.sh. The row claimed one pass does not leave the tree clean when a change adds a new file, citing a "Tracked files" count oscillating 3,311<->3,312. PROVED otherwise in an isolated git worktree: two consecutive sync-generated runs with NOTHING in between produce byte-identical manual-corpus.tsv and ROADMAP.md, and with a genuinely new untracked file present, ONE pass leaves both check_roadmap_index and check_manual_ledger GREEN (count 3,313). The oscillation was caused by the procedure I was running AROUND it: `git reset -q` after the sync, then `roadmap-index.py --write` and `mios-manual ledger --write` invoked STANDALONE. Those two bypass step 0 `_register_new_files`, which does `git add -N` precisely so the census can see a new file, so after the reset they counted 3,312 against a tree the sync had measured at 3,313. Same worktree, same commit: sync-only = 3,313 and green; reset-then-standalone = 3,312 and stale. CORRECT PROCEDURE: run tools/sync-generated.sh and do NOT git reset afterwards and do NOT re-run those generators by hand -- it already runs both (step 4b roadmap, step 7 ledger). The intent-to-add it creates is the mechanism, not a side effect to undo
+- [ ] **T-1069** ENVWRITERS-01 -- /etc/mios/install.env now has THREE writers with no declared order and last-write-wins semantics: automation/35-render-ports.sh (miosd, every [ports] key, bake), usr/libexec/mios/system-sync-env.sh (`mv -f` full replacement, deploy) and build-mios.ps1:7413/7433 (base64 identity block written straight over the file). T-1067 fixed the 35-vs-sync-env half by enumeration; the PowerShell writer was not measured. QUESTION: does the quadlet-overlay `mios-sync-env` call at build-mios.ps1:2804 run before or after the identity write, and does either lose keys the other supplied? Law 15: build-mios.ps1 is mios-bootstrap-owned and appears in both trees -- measure and fix there, not here. DO NOT fix by adding a fourth writer
+- [x] **T-107** CONV-14 -- rechunk CI Step ← T-094
+- [ ] **T-1070** LAW11LIST-01 -- the SECOND half of T-1050, which fixed the leak but not the class. "Secret-bearing" is decided by a literal three-name list duplicated in FOUR executable places (automation/99-postcheck.sh:564 and :581, usr/libexec/mios/system-sync-env.sh:211 and :213) with NOTHING asserting the copies agree, so they can drift silently and a credential added under any other name is invisible by construction. Lift it to `[security.secret_keys]` in mios.toml beside the existing [security.non_bare_env] and [security.credential_literals], with a `min_keys` FLOOR (never a ceiling -- a ceiling makes it a Count-Only Ratchet that lets one name be swapped for another), read by both consumers with no literal left, and have mios-gate credentials.rs consult it so the name heuristic and the explicit register share one source. WARNING measured: widening the predicate WILL flag files that pass today -- triage before committing. max_shell_lines is shrink-only, so factor ONE reader and delete the four literals rather than inlining awk four times
+- [ ] **T-1071** RATCHETSCOPE-01 -- deferred from T-1055 and unanswered since T-1051's port. `build.rechunk_max_layers` (67, an image-build tuning value) is checked by NOTHING: it fails the `max_`/`stay_max_`/`_ceiling` PREFIX rule and `build` is not in RATCHET_SECTIONS, so the contains-rule never reaches it. Adding `build` to the register captures exactly that one key (measured: 80 -> 81 ceilings, `security` would capture nothing because its only candidate already matches by prefix). The question is whether a layer-count tuning value SHOULD be shrink-only -- rechunking trades layer count against pull size, so a ceiling that only falls may be the wrong shape, the way [drift].generated_ceilings already exempts legibility.max_tracked_mb. Decide, then either add `build` or record the exemption; do not leave it checked by neither
+- [ ] **T-1072** BAKERETIRE-01 -- the retirement half of T-1057, which needs an explicit yes because every step is a DELETION and no bake has been run on this branch. The two producers render byte-identical output today, so this is about binding the identity, not about correctness: (a) drop stage 85's `elif ! python3 tools/generate-bake-plan.py` fallback so a missing native binary is a hard failure rather than a silent change of program; (b) delete miosd's `BakePlan` subcommand -- the variant, its dispatch arm and run_bake_plan -- which is the last caller of run_repo_generator("tools/generate-bake-plan.py") and is invoked by nothing in automation/, the Justfile or usr/libexec/; (c) repoint the [laws.projection_registry] row's generator to tools/native/mios-bake-plan/src/main.rs, matching the mios-size-ceiling and mios-toolchain-pin rows -- note check_projection_registry only tests that the named file EXISTS, so it cannot detect a wrong-producer row today, which is its own defect; (d) usr/libexec/mios/mios-build-driver invokes the Python with `
+- [ ] **T-1073** RATCHETBASE-01 -- the CI half of T-1046. mios-gate ratchet-direction now compares against the merge base with the default branch, which makes it real on a full clone; .github/workflows/mios-ci.yml uses actions/checkout@v4 with no fetch-depth, so CI has depth 1, no origin/main, no merge base, and the gate falls back to the HEAD self-comparison it has always done. Behaviour is therefore UNCHANGED in CI and the 19-violation baseline is preserved -- but the ratchet is still inert exactly where it matters most. Two ways to wire it, both needing a CI round-trip to verify: set fetch-depth: 0 on the drift-gate job (simple, costs a full clone of a ~200MB tracked tree), or export MIOS_RATCHET_BASE from github.event.pull_request.base.sha plus a targeted `git fetch --depth=1 origin <sha>` so the blob is readable (cheap, PR-only, needs a fallback for push events). Measure the clone cost before choosing
+- [x] **T-108** CONV-15 -- Phase 4 Drift-Check Suite + Documentation ← T-105, T-107
+- [x] **T-1080** DOCS-01 -- Clear stale comment references in usr/libexec/mios (srf-libexec)
+- [x] **T-1081** DOCS-02 -- Clear stale comment references in usr/lib (srf-lib)
+- [x] **T-1082** DOCS-03 -- Clear stale comment references in tests/ (srf-tests)
+- [x] **T-1083** DOCS-04 -- Clear stale comment references in Rust/generators (srf-native)
+- [x] **T-109** CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer-
+- [x] **T-1090** CONSOL -- Fold the empirical-stress serial set
+- [ ] **T-1091** CONSOL -- Fold tests/ into subject modules ← T-1090
+- [x] **T-1092** CONSOL -- Fold the agent-pipe sibling tests
+- [ ] **T-1093** CONSOL -- Fold the agent-pipe modules into planes ← T-1092
+- [ ] **T-1094** CONSOL -- Fold usr/libexec/mios by subdirectory
+- [ ] **T-1095** CONSOL -- Finish tools/ — the 50 that were not gates
+- [x] **T-1096** CONSOL -- Delete or register every orphaned test
+- [ ] **T-1097** CONSOL -- Delete modules nothing imports
+- [ ] **T-1098** CONSOL -- Prune snapshots and fixtures with no live consumer
+- [x] **T-1099** CONSOL -- Ratchets follow the deletions down
+- [x] **T-110** FV-01 -- Canonical typed-event schema + per-surface routing + su
+- [x] **T-1100** CONSOL -- Restart the branch from the merged main
+- [x] **T-1101** CONSOL -- Gate and merge the four AGY stale-ref lanes
+- [x] **T-1102** CONSOL -- The comment corpus is blind to the libexec verbs
+- [x] **T-111** CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-cat ← T-112, T-110
+- [x] **T-112** CHATQ-03 -- First-class list_dir verb + cwd act-before-answer gr ← T-032
+- [x] **T-113** FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no r
+- [x] **T-114** FAB-02 -- pipeline fabricates web/news content + invents entitie
+- [x] **T-115** CQ1 refine scaffold STILL leaking on CLI + redundant refine pass ← T-109
+- [x] **T-116** OSCTL-01 -- Hermes browser opens NEW WINDOWS instead of reusing
+- [x] **T-117** OSCTL-02 -- Hermes container-exec: stale container name + intera
+- [x] **T-118** HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (baked hea
+- [x] **T-119** TOOLARG-01 -- Native typed launch-arguments for ALL tools/skills ← T-111, T-116
+- [x] **T-120** NOHC-01 -- Reconcile the `[ports]` SSOT renumber drift (8xxx) ac
+- [x] **T-121** NOHC-02 -- De-hardcode port literals in libexec + agent-pipe cod ← T-120, T-125
+- [x] **T-122** NOHC-03 -- Register the 6 unowned first-party service ports in ` ← T-120
+- [x] **T-123** NOHC-04 -- Purge baked operator identity + wire endpoint env var
+- [x] **T-124** NOHC-05 -- De-hardcode English keyword-gates in agent-pipe  [P1] ← T-119
+- [x] **T-125** NOHC-06 -- Extend NO-HARDCODE enforcement to ports/IPs in code (
+- [x] **T-126** NOHC-07 -- SSOT hygiene: subnet IPs, dead bridge rows, configura
+- [x] **T-127** WIN-01 -- `Get-MiOS.ps1` entry-path prereq fallbacks (git + podm
+- [x] **T-128** WIN-02 -- Move the virtualization probe earlier (before disk-shr
+- [x] **T-129** WIN-03 -- Podman CLI-only default + optional Desktop, and a logi
+- [x] **T-130** WIN-04 -- Residual minimal-Win11 hardening (GPU driver / long-pa ← T-127
+- [x] **T-131** WIN-05 -- Zero-touch offline multi-user Win11 provisioning via S ← T-127
+- [x] **T-132** WISO-01 -- Shared install-time provisioning core (`MiOS-Provisio
+- [x] **T-133** WISO-02 -- NTLite preset sanitizer (`ConvertTo-MiOSPreset.ps1` - ← T-132
+- [x] **T-134** WISO-03 -- Schneegans autounattend generator + 128 GB C: carve  ( ← T-132, T-147
+- [x] **T-135** WISO-04 -- Existing-Windows parity path (`Invoke-MiOSProvision.p ← T-132
+- [x] **T-136** WISO-05 -- OEM driver export for slipstream (`Export-MiOSDrivers
+- [x] **T-137** WISO-06 -- UUP-Dump source-ISO automation (`mios-uup-fetch`)  [P
+- [x] **T-138** WISO-07 -- DISM-native debloat + oscdimg assembly + CI  [P2] ← T-137, T-133, T-134
+- [x] **T-139** WISO-08 -- Stage MiOS branding assets into the image  [P2] ← T-143
+- [x] **T-140** XBOX-01 -- Xbox Full Screen Experience out of the box  [P2] ← T-142
+- [x] **T-141** XBOX-02 -- Gaming loadout + Xbox tuning  [P3] ← T-140
+- [x] **T-142** XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-t ← T-146
+- [x] **T-143** WBRAND-01 -- Global Windows branding/theme from SSOT  [P2] ← T-132
+- [x] **T-145** WBRAND-03 -- Re-assert branding on Windows update drift  [P3] ← T-143
+- [x] **T-146** WEDITION-01 -- Editions SSOT matrix  [P2]
+- [x] **T-147** WEDITION-02 -- SSOT keys + configurator for the ISO/branding sur ← T-133
+- [x] **T-148** WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`) ← T-146, T-137
+- [x] **T-149** WEDITION-04 -- Fold reverting generated-file changes into the ge ← T-129, T-147
+- [x] **T-150** ACCT-01 -- Account SSOT schema + install-time seeding (pgvector ← T-132, T-147
+- [x] **T-151** ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 ← T-150
+- [x] **T-152** ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX) ← T-150, T-151
+- [x] **T-153** ACCT-04 -- DB account management surfaces + consumer cutover  [P ← T-150, T-151, T-152
+- [x] **T-162** WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permis
+- [x] **T-163** WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quic ← T-162
+- [x] **T-164** WBRAND-06 -- Windows animated background + SSOT living-wallpaper ← T-162
+- [x] **T-167** SHELL-01 -- Persistent PTY / stateful shell substrate  [P2]
+- [x] **T-170** GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1]
+- [x] **T-171** CONS-01 -- Weighted multi-judge consensus pipeline  [P2] ← T-049
+- [x] **T-172** CONS-02 -- JSD drift monitor  [P2] ← T-171, T-049
+- [x] **T-173** GUARD-01 -- Daemon runaway controls, FULLY implemented. `escalation_cooldown_s`/`escalation_max_attempts` were declared-and-dead (zero consumers); `_escalation_allowed()` now suppresses repeat escalation of the same concern inside the cooldown, parks it permanently at the attempt cap, keeps concerns independent, bounds its table and degrades open at cooldown<=0 -- applied at the refusal AND launch-verifier escalation sites. The host-pressure governor covered only 5 of 11 loops; the 6 that bypassed it (launch-verifier, fs-watcher, task-collector, index, satisfaction, rolling-report) now consult it, with fs-watcher still DRAINING inotify under pressure so the fd cannot overflow. `check_daemon_governor` (gate 160) makes it non-regressable: every autonomous loop must consult the gate, every [daemon] knob must have a real consumer (a mention in a comment or a test file does not count), and agent-pipe budget fallbacks must match the SSOT. 9-case + 7-case sibling tests, negative test. ← T-174
+- [x] **T-174** GUARD-02 -- Aggregate token/turn budget + background preemption. Verified ENFORCED end to end: `chat.py` admits autonomous work against `autonomous_max_inflight` with a pruned in-flight set and debits a rolling `window_s` bucket; `agent_call.py` trims history when `conversation_token_ceil`/`autonomous_token_ceil` are exceeded and caps dispatch depth. FIXED: chat.py's fallback defaults had drifted MORE PERMISSIVE than the SSOT (autonomous_token_ceil 1,000,000 vs 400,000; autonomous_max_inflight 2 vs 1), so a failed TOML read silently ran 2.5x the token ceiling and double the concurrency. Now equal, and `check_daemon_governor` fails any future drift.
+- [x] **T-176** DURA-02 -- Secret/PII redaction on persist + federate. FEDERATE was already wired (a2a.py redacts every outbound task payload). PERSIST covered only 4 of the schema's 50 tables via a hardcoded tuple in `memory/pg.py`, leaving free-text sinks -- `scratch`, `session`, `gateway_sessions`, `fact_ledger`, `log_digest`, `kanban`, `tasks`, `mios_rag`, `skill_invocation`, `progress_ledger`, `pending_action`, `directory_entry`, `config_event`, `peer_reputation` -- writing raw. New `[security.redact]` SSOT classifies ALL 50 tables (18 redacted / 32 exempt, with structured key/config tables exempt because redaction would corrupt them, e.g. `agent_keypair.public_key_pem`). pg.py now reads the SSOT and FAILS CLOSED: a redaction error refuses the write instead of silently persisting raw text (CLAUDE.md: never persist secrets). `check_redact_coverage` (gate 161) fails any table classified in neither/both lists, any classified table absent from the schema, any free-text table dropped from the redact side, and any return to a hardcoded tuple. 8-case sibling test + negative test. ← T-001, T-014
+- [x] **T-201** FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync
+- [x] **T-202** FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i
+- [ ] **T-203** FBM-04 -- Portal model-provisioning status tile + air-gapped pre ← T-201
+- [x] **T-204** OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3]
+- [x] **T-205** OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cur
+- [x] **T-206** OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3]
+- [x] **T-207** OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index`
+- [x] **T-208** OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image ← T-201
+- [x] **T-209** OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3]
+- [ ] **T-210** IGPU-00 -- Wave-0 hardware verify probes (iGPU-WSL, heavy-lane 4
+- [x] **T-223** OAI-02 -- Tier-1 `usage` detail fields + strict function schemas
+- [x] **T-224** OAI-03 -- Persistent PTY/tmux stateful shell + PowerShell object ← T-072
+- [x] **T-225** OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG
+- [x] **T-226** KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3]
+- [x] **T-228** KACT-03 -- Per-user quota keying + persistence on verified princ ← T-001
+- [x] **T-230** KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`m
+- [ ] **T-231** KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI q
+- [ ] **T-232** UISHELL-01 -- Native QML Services/Swarm views (replace web-Porta
+- [ ] **T-233** UISHELL-02 -- Login-prompt QML popup (`PortalData.login()`)  [P3
+- [x] **T-234** UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3
+- [ ] **T-235** UISHELL-04 -- Cockpit native-vs-web decision  [P3] ← T-232
+- [x] **T-241** OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type
+- [x] **T-242** VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m
+- [x] **T-243** VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T ← T-242
+- [x] **T-244** VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve ← T-242, T-243
+- [ ] **T-245** VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables
+- [x] **T-248** BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( ← T-250, T-251
+- [x] **T-249** BLADE-01 -- Universal-core + blade-type activation gate (`Conditi ← T-248, T-250
+- [x] **T-250** MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 ← T-252
+- [x] **T-251** SBOM-01 -- build-time provenance beyond images (model/pkg hashes) ← T-250, T-252
+- [x] **T-252** RELTOP-01 -- credential-driven registry selection (GHCR else Forg
+- [x] **T-253** DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation ← T-249, T-250
+- [x] **T-255** DOCS -- ADR system (done) + generated roadmap index + lean thematic roadmap + Diátaxis
+- [ ] **T-257** CAT-02 -- Verb dispatch (stage/install/build/update/provision/manual) + tri-launcher parity
+- [ ] **T-264** CATFLAT-01 -- Dead-weight purge + leave-nothing-behind (drop bundled binaries)
+- [ ] **T-265** CATFLAT-02 -- ADR root breadcrumb (ADR.md + cat\ADR-0008.md) + spec cross-ref ← T-255
+- [x] **T-266** CATFLAT-03 -- mios.toml seed-copy consolidation (63/68 KB seeds vs 597 KB SSOT)
+- [x] **T-267** CONFIG-01 -- Fold mios.html into the MiOS Portal at :8640/ (one web + API door) ← T-253
+- [x] **T-268** DEBT-01 -- Collapse version/SSOT to one value (TD-2: 3x mios.toml + 0.2.4 root + 37x headers) ← T-272, T-266
+- [x] **T-269** DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1)
+- [x] **T-270** DOTFILES-01 -- [dotfiles.registry.*] + mios-dotfiles-render + apply verb + both-sides gate (ADR-0010) ← T-267
+- [x] **T-271** TEMPLATE-01 -- Compiled file-pattern system + mios new + conformance check + Law-14 (ADR-0011) ← T-272
+- [x] **T-272** LANG-01 -- Stand up Rust workspace + port first fragile bash tool (drift-runner/verb dispatcher) ← T-269
+- [x] **T-274** CATREPO-FIX -- MiOS-Cat stages `repos/` onto the DATA partition instead of the REPO partition (WS-CATREPO, rel T-260). Repos (config/source clone) belong on the small always-present MiOS-Repo (E:); MiOS-Data is caches/models/user-DBs/deps ONLY. Fix the staging path in `cat/MiOS-Cat.bat` + `.ps1` so repos land on MiOS-Repo. **Done-when:** a fresh `cat stage` places `repos/` on MiOS-Repo, nothing repo-class on MiOS-Data, kickstart path aligned.
+- [x] **T-275** WALL-RUST -- Consolidate the WebView2 wallpaper host + the WSLg gui-watch daemon into ONE silent native **Rust** service (WS-LANG / Law 14): `wry` WorkerW host + `windows-service`, fold gui-watch, drop both `Run` keys (MiOSWallpaper + MiOS-GuiWatch), window never surfaces + no console flash. Compile via the now-provisioned Rust (Install-MiosRust). **Done-when:** login shows the wallpaper with zero visible windows/terminals; one auto-start service; Run keys gone.
+- [x] **T-276** WALL-BAKE -- Bake the reworked living-wallpaper (calm 16-colour ocean: pure blend, role-weighted proc, tamed highlights, zen pace, colour-spill-from-void intro, black bg, live theme sync) into MiOS-Xbox provisioning: regen `Get-MiOSLivingWallpaperHtmlB64` from the canonical `usr/share/mios/branding/living-wallpaper.html` + emit the `a0..a15` (mode-less) URL in `MiOS-Provision.lib.ps1`. **Done-when:** a freshly-flashed MiOS-Xbox desktop matches the live wallpaper exactly.
+- [x] **T-277** XBOX-VIRTIO-VERIFY -- Confirm the virtio-win w11 guest drivers actually baked INSIDE `MiOS-Xbox.iso` (mount + inspect the injected driver subtree in the install media), not merely that the ISO is valid. **Done-when:** the w11 virtio (vioscsi/netkvm/viostor/ivshmem) tree is present in the baked image.
+- [x] **T-278** TASKBAR-ALIGN -- Taskbar reverted to LEFT-aligned; MiOS must pin the intended alignment. Set `HKCU\...\Explorer\Advanced\TaskbarAl` in the per-user branding (`Get-MiOSPerUserBrandingReg`) + Default hive so it survives updates/reprovision and is SSOT-driven (`branding.taskbar_align`). **Done-when:** taskbar shows the MiOS-intended alignment on every profile + after reprovision.
+- [x] **T-279** CAT-XBOX-DEPLOY -- Harden the full MiOS-Cat -> MiOS-Xbox deploy path beyond the ISO build: audit every failure surfaced during flashing (repo/data partition placement T-274, autounattend/kickstart wiring, WinPE/DISM staging, Ventoy menu, boot). **Done-when:** a clean `MiOS-Cat` flash deploys a bootable MiOS-Xbox with repos on MiOS-Repo, drivers baked, and no manual fixups.
+- [x] **T-280** SYSTEMPROFILE-DESKTOP -- Modal error on MiOS-Xbox: `C:\WINDOWS\system32\config\systemprofile\desktop is not accessible. Access is denied.` A process running as SYSTEM/systemprofile touches a non-existent Desktop folder. Fix: pre-create `%WINDIR%\System32\config\systemprofile\Desktop` (+ SysWOW64 mirror) in provisioning, AND/OR run the offending step (SetupComplete/task/service) as the interactive user not SYSTEM. **Done-when:** no such modal on boot/login.
+- [x] **T-281** NET-DRIVERS-BAKE -- WiFi + LAN drivers NOT baked for most systems -> no network after MiOS-Xbox install on much hardware. Bake a broad NIC/WLAN driver pack into the image (offline `DISM /Add-Driver /Recurse` of a curated driver set) so common wired+wireless adapters work out-of-box. **Done-when:** mainstream Intel/Realtek/MediaTek WiFi+LAN come up on a fresh install with no network.
+- [x] **T-282** PE-DRIVER-INSTALLER -- MiOS-PE must ship a PORTABLE offline driver installer (e.g. Snappy Driver Installer Origin) among its portable apps, so missing WiFi/LAN drivers can be injected during staging/install without connectivity. (User: should already be present.) **Done-when:** MiOS-PE portable-apps menu includes a working offline driver installer.
+- [x] **T-283** XBOX-PROVISION-NOTAPPLIED -- Operator audit of the FLASHED MiOS-Xbox: the operator-supplied XMLs/autounattend branding is NOT applied. Desktop icons visible (XML said none); Start layout is default (no app pins, only Personal/Network/Settings/Explorer shortcuts); Start centered but SEARCH NOT VISIBLE; no taskbar pins; NO wallpaper at all; built-in static wallpaper NOT disabled. Root-cause why the preset/branding (ConvertTo-MiOSPreset + MiOS-Provision.lib.ps1 branding + the operator XMLs) doesn't reach the image. **Done-when:** a flashed MiOS-Xbox matches the operator XMLs (no icons, pinned Start layout, search visible, taskbar pins, living wallpaper, no static wallpaper).
+- [x] **T-284** XBOX-ACCOUNT-FLOW -- WRONG account+setup order: MiOS setup runs AFTER a visible desktop, logged into an auto-created `User` (User/user) account -- NOT the intended `MiOS-Sudo` (built-in Administrator). Accounts are not set up properly at all. Must: create the SSOT accounts (MiOS-Sudo=Administrator) in the autounattend, run MiOS provisioning during OOBE/SetupComplete (SYSTEM) BEFORE first interactive desktop, and NOT fall back to a default User/user. **Done-when:** first boot provisions on the built-in Administrator (MiOS-Sudo) before any desktop; no stray User/user account.
+- [x] **T-285** XBOX-MODE-NOTBAKED -- "Xbox Mode" (the gaming/Xbox edition feature set) is NOT baked into the MiOS-Xbox image. Ensure the Xbox-mode preset/features actually apply during the build. **Done-when:** a flashed MiOS-Xbox has Xbox Mode present.
+- [x] **T-286** VERIFY-FLASHED-IMAGE -- Claims about MiOS-Xbox must be verified INSIDE the flashed image (mount install.wim / inspect the deployed system), never inferred from the live dev box or a valid-ISO check. Add a post-build image-audit step that asserts branding/accounts/wallpaper/Xbox-mode are actually present. **Done-when:** the build emits a verifiable provisioning-applied report from within the image.
+- [x] **T-287** LOGBOOT-01 -- harden+complete `tools/log-to-bootstrap.sh`: purged-ollama `:11434` RAG snippet -> MiOS `/v1` lane (`:8642`, OpenAI-compatible); `--retry` on the example; `jq --rawfile` graph injection; SSOT endpoint. Producer follow-on = AGY-103
+- [x] **T-288** UPSTREAM-01 -- float the last hand-pinned image refs: pgvector `0.8.3-pg17` -> the `pg17` family tag (resolves newest every build), and k3s -> `v1.36.3-k3s1` since it publishes no usable channel tag and its version-shaped tag feeds the k8s-repo-minor derivation. **Done-when:** no hand-pinned pgvector version remains in `[image.sidecars]`, `[build.bake].core`, the Quadlet, plan.d or any generated twin, and its `check_version_ssot` literal exemption is withdrawn.
+- [x] **T-289** UPSTREAM-02 -- derive the `mios-resolve-latest` ref list from `[image.sidecars]` instead of a hand-mirrored array (four refs had silently drifted: `pg16`, `valkey:8.0`, `ceph:v18`, `open-webui:latest`). **Done-when:** deleting a ref from the SSOT changes the resolver's set with no script edit; a parity drift-check covers the surface.
+- [x] **T-290** UPSTREAM-03 -- Renovate customManager for the exact-pinned `[image.sidecars]` entries so the SSOT's "Bump via Renovate" comment becomes true. **Done-when:** a stale exact pin (pgvector, k3s) produces a Renovate PR; float `:latest`/`:main` refs stay unmanaged.
+- [x] **T-291** UPSTREAM-04 -- warn-tier greenboot probe asserting the booted kernel honors the `lockdown=integrity` karg the image declares. **Done-when:** probe passes on a lockdown-enabled boot, warns on mismatch, stays silent where the lockdown LSM is absent (WSL2).
+- [x] **T-292** UPSTREAM-05 -- PG-major migration for the mios-pgvector data dir, so the `pgNN` tag can advance; ref moved to `pg18`. `mios-pgvector-major-upgrade.service` dumps the old cluster with an image of the OLD major into `[pgvector].restore_sql` (bind-mounted into `docker-entrypoint-initdb.d`), stashes rather than deletes the old data dir, and is non-destructive on every failure path. **Done-when:** a populated older cluster comes up on the newer major via the replayed dump, the old data dir survives as a stash, and a failed/absent dump leaves everything untouched rather than initialising an empty cluster.
+- [x] **T-293** UPSTREAM-06 -- re-render the stale doc port/lane tables from the `[ports]` SSOT. Three retired schemes circulated (84xx lanes, 11450/11441, 3030/8888); the contract docs (README/CLAUDE/GEMINI/AGENTS/SECURITY/ai-instructions/api.md/llms*.txt) now reference `[ports]` KEYS, api.md carries derived `ports:<category>` marker tables, and the swapped heavy-lane engine claims (heavy=vLLM `vllm`, alt=SGLang `sglang` per the quadlets) are corrected in README/GEMINI/AGENTS. **Done-when (met):** `check_doc_port_scheme` greps `[docs].retired_ports` out of every `[docs].port_clean` file (negative-tested); wider payload surfaces split to T-304.
+- [x] **T-294** DOCGEN-01 -- gate the corpus ledger and repair the landing predicate: `Policy.landing_min_word_ratio` wired from `[docs]` so `mios-manual landed()` stops raising, `check_manual_ledger` + negative test, ledger regenerated as the LAST step of `tools/sync-generated.sh`, both manual surfaces added to the Law-8 projection registry, `test_mios_comments.py` wired into the gate. **Done-when:** `ledger --check` green, landing ratio correct at the 0.90 boundary, ratchet held at ceiling without raising it.
+- [x] **T-295** DOCGEN-02 -- durable ratchet floor (`coverage --write-floor` + low-water mark) so a lowered ceiling cannot be silently raised back; monotone gate currently compares only against HEAD and exits 0 when the previous TOML will not parse. **Done-when:** lowering then raising a ceiling in one commit fails the gate.
+- [x] **T-296** DOCGEN-03 -- `mios-manual harvest`, the missing link: move a MIGRATE comment block into an authored doc passage, stamp the `mios-src:<sha12>` anchor, fill the ledger's landed_* columns. **Done-when:** a harvested block flips `landed()` false->true and the narrative count falls by one.
+- [x] **T-297** DOCGEN-04 -- `check_comment_landing` + `mios-manual prune`: delete a source comment only once its knowledge is provably landed. **Done-when:** prune refuses when the predicate is false; round-trip covered by a test.
+- [x] **T-298** DOCGEN-05 -- widened render scope to every tracked `.md` and added four deriver families (pipeline, verbs, root-exceptions, boilerplate), taking the set from 2 to 6; unknown deriver ARGs now fail loudly via `DeriverError` instead of silently rendering everything. **Done-when:** each family renders from the SSOT and is drift-gated. Remaining families (index/related/api) and the marker-scope negative-test phase split out as T-301.
+- [x] **T-299** DOCGEN-06 -- de-rot the shipped manual: its law section is now a MIOS-GEN marker interior derived from `[laws]` (it claimed seven laws against a registry of sixteen, and two Law-6 root exceptions against twelve), 154 retired `:8642` endpoint literals replaced with the NAME `MIOS_AI_ENDPOINT`, 50 `file:///C:/MiOS/...` links rewritten repo-relative, and the `just manual` target retired because its generator owned the whole file and dropped the H1/ToC/markers. **Done-when:** no retired port literal, Windows path or hand-written law list remains in manual.md, and render is idempotent over it. Full authored-chapter rebuild + llms.txt marker treatment split out as T-302.
+- [x] **T-300** DOCGEN-07 -- cross-repo participation: run the doc CLIs against `mios-bootstrap.git` by root (69 of its 98 taggable files already carry AI-hints, but it ships no docgen tooling) without duplicating any tool across repos (Law 15). **Done-when:** one command documents either repo.
+- [x] **T-301** DOCGEN-08 -- the three remaining deriver families (`index:<glob>`, `related:<path>`, `api:<path>`), plus the second negative-test phase for `check_manual_generated` proving prose OUTSIDE a marker stays green -- without it the gate could be satisfied by a generator that owns a whole file, the exact failure the marker protocol exists to prevent. **Done-when:** all nine families render from the SSOT and the marker gate asserts both directions.
+- [x] **T-302** DOCGEN-09 -- finish the manual rebuild: manual.md split into 51 authored chapter files under `usr/share/doc/mios/manual/ch*.md` (line-lossless, anchors preserved), manual.md reduced to intro + ToC + a derived chapter index; `llms-full.txt` de-rotted onto laws/root-exceptions/pipeline markers via the new `[docs].render_extra` scope; `usr/share/doc/mios/README.md` entry point landed earlier. `llms.txt` markers deferred to the T-303 ownership decision (Law 15). **Done-when (met):** `render --check` is idempotent-green and a hidden chapter file turns `check_manual_generated` red (third negative-test phase).
+- [x] **T-303** DOCGEN-10 -- root `llms.txt` ownership resolved: mios.git now ships its OWN machine-readable index (Containerfile/automation/SSOT/quadlets/doc surfaces; installer entry points to mios-bootstrap's llms.txt), with `MIOS-GEN` markers for the what-MiOS-is boilerplate, all 16 laws and the 12 root exceptions (added to `[docs].render_extra`). The bootstrap mirror question dissolves: each repo indexes itself, divergence is now intentional (Law 15 justified). **Done-when (met):** mios.git's llms.txt describes mios.git; markers render idempotently.
+- [x] **T-304** DOCGEN-11 -- retire the old port schemes from the runtime AI-payload surfaces, batch 1 (12 files, 85 edits): `ai/INDEX.md` (31), `docs/agents/AI-ARCHITECTURE.md` (21), `docs/ai-pipeline-map.md` (15), `ai/audit-prompt.md`, `etc/mios/ai/system-prompt.md`, `etc/mios/system-prompts/mios-reviewer.md`, two hermes SKILL.md, `cookbooks/ingest-kb.md`, `tools/README.md`, root `system-prompt.md`, `security/README.md`. Every edit drafted then adversarially verified (0 rejections). The sweep also corrected INDEX.md's swapped heavy-lane engines and its `ConditionPathExists` paths, which matched neither Quadlet. **Done-when (met):** all 12 in `[docs].port_clean`, gate green. Batch 2 = T-305.
+- [x] **T-305** DOCGEN-12 -- batch 2 of the payload de-rot: 24 files, 127 verified edits (17 full-mode + 7 AI-hint headers whose rot projected into the generated indexes). Covers `ai/system.md`, `ai/hermes-soul-full.md`, both remaining `etc/mios/system-prompts/*`, `mios-environment` + `opencode-delegation` SKILL.md, `open-webui/system-prompts/mios-agent.md`, both remaining cookbooks, `docs/day-0/FIRST-BOOT.md`, `docs/agents/PC-CONTROL-LOCAL.md`, `docs/terminal/INVOCATIONS.md`, `installation/UNIFY.md`, `tools/windows/README-WINDOWS.md`, the manual ToC blurbs and chapters ch04/ch10, and the seven hint-only docs. Runnable `curl` examples now resolve the port from the environment instead of hardcoding it. The verifier pass also proved its own worth by rejecting 87 proposals that were already applied. **Done-when (met):** 39 files in `[docs].port_clean`; `check_doc_port_scheme` green; hint-only files deliberately excluded because their bodies are historical.
+- [x] **T-306** DOCGEN-13 -- de-rot the documentation long tail: 74 files, 310 verified edits across ADRs, concepts, guides, upstream notes, reference docs and distilled manual pages (388 sites in, 38 out). `[docs].port_clean` grows 39 -> 107 files. The verifiers rejected 10 proposals, among them a rewrite that would have made an engine claim wrong, a mis-mapped key (8642 read as `llm_light`), a runnable `export` that would have stopped running, and two edits inside `mios-src` anchored passages. Historical archives (knowledge/, archive/, audits/, roadmap/history/, upstream-gaps) stay verbatim by design. **Done-when (met):** gate green over 107 files.
+- [x] **T-307** DOCGEN-14 -- de-rot the AI-hint headers the generated indexes read from: 35 source files (headers only, bodies untouched) plus four systemd units fixed at their source under `usr/lib/systemd/system` with golden-master snapshots refreshed (`cargo test --test golden_master` green). After re-render `tool-index.md` and `README.md` carry ZERO retired ports -- they healed from the corrected hints, which is the generative pipeline working as designed. Two enumerated port lists (`mios-firewall-ports`, `service-health.sh`) now name `[ports]` categories instead of literal lists that drift; the latter's hint was also truncated mid-word and is repaired. **Done-when (met):** generated indexes clean, gate green.
+- [x] **T-308** ROADMAP-01 -- TASKS.md summary table and task sections agreed
+- [x] **T-310** SEC-TLS-01 -- Five outbound clients disable TLS verification
+- [ ] **T-311** NAME2-04 -- Rename the globals that are truly mutated at runtime
+- [x] **T-312** BLADE-01 -- Total [urls]: one canonical address per service ← T-313
+- [x] **T-313** BLADE-02 -- [blades] becomes the machine registry; nodes gain a blade
+- [x] **T-314** BLADE-03 -- Give greenboot's role-awareness an SSOT it actually reads ← T-312
+- [x] **T-315** BLADE-04 -- Finish WS-BLADE: karg producer, role-apply demotion, [profile] fold ← T-312
+- [x] **T-316** ADDR-01 -- 17 executable retired-port fallbacks; Hermes binds an unassigned port ← T-312
+- [x] **T-317** UNITGEN-01 -- [units] is an SSOT that projects to nothing; the golden master guards a copy against a copy
+- [x] **T-318** ADDR-02 -- Seven sidecar ports were allocated but never bound; the collision check guards numbers nothing uses ← T-312
+- [x] **T-319** BLADE-05 -- The activation axis gates 3 of 23 services, so a seat still starts the whole service plane
+- [x] **T-320** ADDR-03 -- The front door bound a retired port: 54 stale literals beside MIOS_PORT_* names ← T-316
+- [x] **T-321** ADDR-04 -- A generator rewrote the fixtures that prove it works; four addresses could never be offloaded ← T-320
+- [x] **T-322** MINI-01 -- The seat-vs-blade comparison is generated from the SSOT, so it cannot go stale ← T-312, T-313, T-315, T-319
+- [x] **T-323** MINI-02 -- A seat could not tell an unreachable blade from a broken model ← T-322
+- [x] **T-325** SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable
+- [x] **T-326** BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree
+- [x] **T-334** MINI-06 -- The fleet had no declared size, so nothing could see a one-node-only config
+- [x] **T-336** SEC-03 -- A ReDoS on model-controlled input in the dispatch path
+- [x] **T-339** SCHED-04 -- Engine-level Priority Scheduling on Heavy Lanes
+- [x] **T-340** SCHED-05 -- Turn-boundary Preemption & Snapshot-Suspend-Resume ← T-339
+- [x] **T-341** MAO-02 -- Structured Deliberation with DCI Grammar & Decision Packets
+- [x] **T-342** MAO-03 -- Document-Mutation Event-Bus Coordination via PostgreSQL LISTEN/NOTIFY
+- [x] **T-343** MAO-04 -- Manifest-Guided Progressive-Disclosure Tree Retrieval
+- [x] **T-344** MAO-07 -- IntrospecLOO Marginal Contribution Evaluation for Swarm/Council
+- [x] **T-345** MAO-06 -- Identity-Aware Delegation & Progressive Payload Negotiation
+- [x] **T-346** NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node
+- [x] **T-347** NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports ← T-346
+- [x] **T-348** NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes ← T-346
+- [x] **T-349** NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake ← T-346
+- [x] **T-350** VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT
+- [x] **T-351** DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer
+- [x] **T-352** STRG-11 -- Multi-tenant CephFS User Directory & CephX Auto-Provisioning
+- [x] **T-353** SEC-04 -- UKI and fs-verity Boot Chain End-to-End Verification
+- [x] **T-354** VFIO-01 -- Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer
+- [x] **T-355** SEC-05 -- Quadlet Credential Hardening & 0600 secrets.env Rotation Service
+- [x] **T-356** CAT-05 -- MiOS-Cat Tri-Launcher Hardening & MiOS-Repo vs MiOS-Data Staging
+- [x] **T-357** WISO-09 -- DISM-Native Windows 11 Driver Slipstreaming & WLAN/LAN Driver Pack
+- [x] **T-358** WALL-02 -- Unified Rust-native Living Wallpaper Service (mios-wallpaperd)
+- [x] **T-359** Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe
+- [x] **T-360** Continuous batch preemption metrics exporter for Prometheus on port 8640
+- [x] **T-361** Speculative decoding multi-model lane configuration with quantized draft models
+- [x] **T-362** Adaptive context window truncation with needle-in-a-haystack retention heuristics
+- [x] **T-363** Zero-copy KV-cache transfer over shared memory between co-located Python worker processes
+- [x] **T-364** Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop
+- [x] **T-365** Dynamic temperature and top-p scheduler based on task entropy estimation
+- [x] **T-366** Structured output JSON schema compiler utilizing constrained decoding grammar engines
+- [x] **T-367** Asynchronous tool execution batching for non-dependent parallel tool invocations
+- [x] **T-368** Graceful worker shutdown and SIGTERM drain handler in server.py
+- [x] **T-369** Hot-reload of model routing tables without dropping active WebSocket and SSE streams
+- [x] **T-370** Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon
+- [x] **T-371** Tension-tracking ledger in DCI deliberation to quantify unresolved objections
+- [x] **T-372** Cross-turn episodic memory compaction into hierarchical semantic trees
+- [x] **T-373** Vector similarity re-ranking using local cross-encoder model in RAG pipeline
+- [x] **T-374** Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning
+- [x] **T-375** Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes
+- [x] **T-376** Automatic skill synthesis and extraction from successful multi-step task execution traces
+- [x] **T-377** MCP server sandboxing using isolated bubblewrap and unshare namespaces
+- [x] **T-378** Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls
+- [x] **T-379** Distributed graph traversal over pgvector knowledge triples with recursive CTEs
+- [x] **T-380** Contextual prompt compression using selective linguistic token pruning
+- [x] **T-381** Agent-to-Agent mutual capability exchange protocol and cryptographic attestation
+- [x] **T-382** Autonomous self-healing code remediation agent triggered on systemd unit failures
+- [x] **T-383** Synthetic training data pipeline generating Q&A pairs from local system documentation
+- [x] **T-384** Dynamic agent persona synthesis based on task domain classification
+- [x] **T-385** Bounded reflection loops with convergence criteria to prevent circular reasoning
+- [x] **T-386** Async TCP frame reader and writer actor in mios-node using Tokio
+- [x] **T-387** Node heartbeat monitor and automatic dead-peer eviction from cluster routing table
+- [x] **T-388** Ed25519 mutual handshake and session key derivation for inter-node wire encryption
+- [x] **T-389** Wasm host import for local hardware GPIO and I2C access on embedded edge nodes
+- [x] **T-390** Dynamic CPU core pinning and cgroup limits for mios-node worker threads
+- [x] **T-391** CRDT state compaction and snapshot garbage collection in mios-node
+- [x] **T-392** Task offloading priority queue in mios-node with work-stealing scheduler
+- [x] **T-393** Zero-copy network buffer pooling to reduce memory allocations in mios-node
+- [x] **T-394** Edge node capability advertising in Announce frames
+- [x] **T-395** BLE beaconing for offline local mesh bootstrap
+- [x] **T-396** Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned
+- [x] **T-397** Standalone compiled miosd daemon in Rust replacing Python supervisor loops
+- [x] **T-398** Rust implementation of SSOT mios.toml validation and type checker
+- [x] **T-399** High-performance binary CLI dispatcher (/usr/bin/mios) in Rust
+- [x] **T-400** Hardware watchdog timer integration (/dev/watchdog) in mios-node
+- [x] **T-401** Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector
+- [x] **T-402** Transactional ledger replication across CephFS pools with integrity hashing
+- [x] **T-403** CephFS dynamic quota enforcement per tenant subvolume
+- [x] **T-404** S3-compatible object storage gateway (radosgw) sidecar for bulk model distribution
+- [x] **T-405** Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives
+- [x] **T-406** Hot-standby PostgreSQL replica provisioning over local cluster nodes
+- [x] **T-407** Database corruption detector and automated repair script for SQLite and PostgreSQL stores
+- [x] **T-408** Fast delta snapshot transfer for remote off-site backup synchronization
+- [x] **T-409** Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency
+- [x] **T-410** Automated tmpfs spill-to-NVMe manager under memory pressure conditions
+- [x] **T-411** Unified log aggregation pipeline streaming journald events to pgvector
+- [x] **T-412** Zero-downtime database schema migration runner with rollback safety checks
+- [x] **T-413** Automated IOMMU group parsing and ACS override recommendation tool
+- [x] **T-414** Dynamic VFIO device unbind and rebind script without host reboot
+- [x] **T-415** Looking Glass B6 spice-direct host input client configuration and keybinding integration
+- [x] **T-416** Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay
+- [x] **T-417** Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests
+- [x] **T-418** Hugepages automatic allocation and compaction manager for KVM guests
+- [x] **T-419** VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access
+- [x] **T-420** Automatic CPU governor switching to performance mode during active guest execution
+- [x] **T-421** Guest battery and power state passthrough for laptop VM deployments
+- [x] **T-422** USB hotplug manager routing external controllers and headsets dynamically to guests
+- [x] **T-423** Multi-monitor Looking Glass display synchronizer across heterogeneous displays
+- [x] **T-424** GPU thermal and clock frequency watchdog preventing guest thermal throttling
+- [x] **T-425** UKI signing key generation and TPM2 NV index enrollment script
+- [x] **T-426** Composefs manifest signature verification against hardware PCR measurements
+- [x] **T-427** Cosign container image signature verification during bootc upgrade
+- [x] **T-428** SLSA Level 3 provenance generator in GitHub Actions and Forgejo CI
+- [x] **T-429** Automated vulnerability scanner for layered RPM packages using Grype
+- [x] **T-430** SELinux custom policy module for rootless Podman AI sidecar isolation
+- [x] **T-431** Auditd rule generator monitoring /etc/mios/ and /usr/share/mios/ modifications
+- [x] **T-432** Kernel lockdown enforcement probe in greenboot pre-flight test suite
+- [x] **T-433** Zero-trust network segmentation policies for inter-container communication
+- [x] **T-434** Cryptographic attestation generator verifying host image integrity to remote peers
+- [x] **T-435** Automated emergency rollback trigger on repeated kernel panics
+- [x] **T-436** Memory sanitization on container termination preventing VRAM residual data leaks
+- [x] **T-437** MiOS-Cat USB partition formatter supporting hybrid GPT/MBR and multi-OS boot
+- [x] **T-438** Offline OCI image archive extractor streaming layers directly to storage
+- [x] **T-439** DISM unattended Windows 11 answer file customization with debloat scripts
+- [x] **T-440** Intel, AMD, and Realtek Wi-Fi 6E/7 and 2.5GbE driver slipstreaming into boot.wim
+- [x] **T-441** Automated disk partitioning script supporting dual-boot alongside existing Windows installations
+- [x] **T-442** Fast bootc install-to-disk bare-metal pipeline with hardware discovery
+- [x] **T-443** First-boot setup wizard in Quickshell and Wayland for initial user credential setup
+- [x] **T-444** NetworkManager offline connection profiler pre-seeding known Wi-Fi networks
+- [x] **T-445** USB flash drive write verification with SHA-256 block hash validation
+- [x] **T-446** Windows Terminal profile injector adding MiOS SSH and WSL sessions
+- [x] **T-447** Automated PowerShell execution policy and developer mode configuration in Windows
+- [x] **T-448** ISO generation script for headless server installation with serial console support
+- [x] **T-449** Portable drive LUKS2 FIDO2 token enrollment helper
+- [x] **T-450** Automated validation of Windows unattend XML schema against official Microsoft XSD
+- [x] **T-451** Real-time wallpaper shader renderer adapting to system CPU and GPU load
+- [x] **T-452** Cross-platform palette synchronizer writing directly to Windows Registry and GTK CSS
+- [x] **T-453** Quickshell system status bar component showing live LLM VRAM and active agent turns
+- [x] **T-454** Terminal multiplexer (tmux) theme generator deriving status bar styles from SSOT
+- [x] **T-455** Fastfetch configuration generator projecting host hardware and AI model specs
+- [x] **T-456** Hyprland and Sway window manager configuration generator from mios.toml display settings
+- [x] **T-457** Audio feedback daemon playing subtle audio cues on task completion and errors
+- [x] **T-458** System notification daemon routing AI agent alerts to desktop notification popups
+- [x] **T-459** GNOME Shell extension embedding the MiOS agent status icon in the top panel
+- [x] **T-460** VS Code and Cursor extension configuration generator with pre-configured OpenAI local endpoint
+- [x] **T-461** Btop theme renderer outputting exact RGB hex colors from [colors] SSOT
+- [x] **T-462** Dynamic font size scaler for high-DPI displays across terminal and desktop surfaces
+- [x] **T-463** Screen lock manager with biometric FIDO2 and fingerprint authentication integration
+- [x] **T-464** Ambient background audio generator for deep focus programming sessions
+- [x] **T-465** Cross-platform clipboard synchronizer between host and virtual machines with redaction
+- [x] **T-466** Systemd shutdown hook capturing pre-poweroff filesystem and git diffs
+- [x] **T-467** Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup
+- [x] **T-468** Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs
+- [x] **T-469** Autonomous image rolling service staging approved diffs for background OCI image synthesis
+- [x] **T-470** Greenboot post-bake health gate with automated fallback on diff-induced regressions
+- [ ] **T-474** Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS
+- [ ] **T-482** Automated On-Demand GGUF Quantization and Format Transcoding Service
+- [ ] **T-513** Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes
+- [ ] **T-522** Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator
+- [ ] **T-528** Global per-user encrypted CephFS subvolume manager with remote snapshot replication
+- [x] **T-545** MOK-signed kpatch livepatching manager and late CPU microcode reload daemon
+- [x] **T-546** Zero-downtime kernel livepatch verification and regression test suite
+- [x] **T-547** Semantic KV-cache context compaction engine and episodic summary generator in agent-pipe
+- [x] **T-548** Automated multi-turn context compaction and trajectory recall test suite
+- [x] **T-549** Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM enrollment
+- [x] **T-550** Cockpit Storage integration module for CephFS tiered CRUSH pools and local encrypted volume monitoring
+- [x] **T-551** Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts in agent-pipe
+- [x] **T-552** Transient systemd-run subagent cgroup quota enforcer and escape test suite
+- [x] **T-553** Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer
+- [x] **T-554** Automated audit chain cryptographic verification and tamper-detection validator
+- [x] **T-555** Tree-Sitter AST semantic merge resolver for multi-agent git conflicts
+- [x] **T-556** Automated AST merge syntax compilation and regression test gate
+- [x] **T-557** Headless QEMU Syzkaller / KASAN kernel and eBPF fuzzing test harness
+- [x] **T-558** Automated fuzz crash deduplication and PostgreSQL bug_tracker reproducer logger
+- [x] **T-559** Network-wide roaming multi-seat session orchestrator and GPU assignment manager
+- [x] **T-560** Dynamic cross-node Wayland session checkpoint and migration protocol
+- [x] **T-561** Multi-master divergent git DAG reconciliation engine and consensus commit signer
+- [x] **T-562** Automated offline divergence simulation and multi-forge synchronization test suite
+- [x] **T-563** In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder
+- [x] **T-564** PCIe link width degradation detector and hardware anomaly alert test suite
+- [x] **T-565** PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon
+- [x] **T-566** Clock offset jitter and monotonic timestamp ordering validation test suite
+- [x] **T-567** SPIFFE/SPIRE workload identity agent and ephemeral 24h mTLS certificate rotator
+- [x] **T-568** Automated mTLS authentication enforcement and certificate rotation verification test suite
+- [x] **T-569** Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge
+- [x] **T-570** MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite
+- [x] **T-571** Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes
+- [x] **T-572** Automated modern open-weight model curator and local benchmark profiler
+- [x] **T-573** Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler
+- [x] **T-574** Automated AC/DC power profile transition and battery runtime benchmark suite
+- [x] **T-575** Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue
+- [x] **T-576** Real-time wallpaper occlusion frame pacing and GPU load benchmark suite
+- [x] **T-577** Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe
+- [x] **T-578** Automated MCP tool discovery, execution handshake, and schema validation test suite
+- [x] **T-579** Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation
+- [x] **T-580** Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite
+- [x] **T-581** Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image
+- [x] **T-582** Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project
+- [x] **T-583** Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit
+- [x] **T-584** Automated pre-commit linter violation rejection and auto-format test suite
+- [x] **T-585** Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator
+- [x] **T-586** Multi-instance GPU compute isolation and fault boundary verification test suite
+- [x] **T-587** Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard peering daemon
+- [x] **T-588** Automated LAN peer discovery, cryptographic handshake, and mesh join test suite
+- [x] **T-589** LRU container image garbage collector and block deduplicator daemon in mios-container-gc
+- [x] **T-590** Automated container layer pruning threshold and deduplication verification test suite
+- [x] **T-591** Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll
+- [x] **T-592** Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox
+- [x] **T-593** Declarative nftables VPN kill-switch and fwmark split-tunnel manager
+- [x] **T-594** Automated VPN disconnect IP leak prevention and local mesh routing verification test suite
+- [x] **T-595** Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal
+- [x] **T-596** Automated symmetric NAT hole punching and DERP relay failover test suite
+- [x] **T-597** Declarative Bcachefs multi-device storage tiering configurator in automation
+- [x] **T-598** Automated Bcachefs tier promotion and hot/cold block migration benchmark suite
+- [x] **T-599** Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver
+- [x] **T-600** Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite
+- [x] **T-601** Declarative Traefik / Envoy service mesh proxy generator and Unix socket router
+- [x] **T-602** Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite
+- [x] **T-603** Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe
+- [x] **T-604** Automated subagent worktree creation, merge, and scratch cleanup test suite
+- [x] **T-605** Async HTTPX transport client pool and stream decoder in agent-pipe
+- [x] **T-606** Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite
+- [x] **T-607** Libei emulated input provider and Wayland portal input injector in mios-pc-control
+- [x] **T-608** Automated synthetic mouse/keyboard input injection and session boundary test suite
+- [x] **T-609** Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer
+- [x] **T-610** Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite
+- [x] **T-611** Tiered hardware watchdog driver configurator and systemd watchdog integration
+- [x] **T-612** Automated systemd daemon freeze watchdog timeout and recovery test suite
+- [x] **T-613** WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner
+- [x] **T-614** Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite
+- [x] **T-615** Continuous differential AST git merge fuzzing harness and mutation generator
+- [x] **T-616** Automated AST merge conflict stress test and compiler syntax verification suite
+- [x] **T-617** Strict IOMMU DMA remapper and PCIe ACS group validator in automation
+- [x] **T-618** Automated IOMMU group isolation and peer-to-peer DMA containment test suite
+- [x] **T-619** Declarative configuration drift auditor and 3-way OCI overlay reconciler
+- [x] **T-620** Automated configuration drift detection and state reconciliation test suite
+- [x] **T-621** Embedded Raft consensus coordinator and Patroni HA database failover engine
+- [x] **T-622** Automated Raft leader election, split-brain partition prevention, and failover test suite
+- [x] **T-623** Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand
+- [x] **T-624** Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite
+- [x] **T-625** PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge
+- [x] **T-626** Automated WebRTC zero-copy video encode latency and session authorization test suite
+- [x] **T-627** Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero)
+- [x] **T-628** Automated memory dump secret leakage and zeroization verification test suite
+- [x] **T-629** Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap
+- [x] **T-630** Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite
+- [x] **T-631** CUDA/ROCm compute stream priority scheduler and background preemption manager
+- [x] **T-632** Automated GPU compute preemption latency and training resumption verification test suite
+- [x] **T-633** Declarative RAPL / NVML hardware energy metering and chassis power cap manager
+- [x] **T-634** Automated power cap enforcement and carbon-aware batch scheduling benchmark suite
+- [x] **T-635** Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap
+- [x] **T-636** Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite
+- [x] **T-637** PagedAttention virtual block memory manager and asynchronous KV defragmenter
+- [x] **T-638** Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite
+- [x] **T-639** Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager
+- [x] **T-640** Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite
+- [x] **T-641** Headless kernel crash dump triage engine (drgn / crash) and symbol resolver
+- [x] **T-642** Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite
+- [x] **T-643** Declarative USBGuard policy generator and desktop authorization notifier in automation
+- [x] **T-644** Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox
+- [x] **T-645** Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot
+- [x] **T-646** Automated Flatpak application state corruption and instant rollback test suite
+- [x] **T-647** Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB
+- [x] **T-648** Automated headless QEMU iPXE netboot and live ISO installation test suite
+- [x] **T-649** GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher
+- [x] **T-650** Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite
+- [x] **T-651** Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe
+- [x] **T-652** Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite
+- [x] **T-653** Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe
+- [x] **T-654** Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite
+- [x] **T-655** Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap
+- [x] **T-656** Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite
+- [x] **T-657** Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator
+- [x] **T-658** Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite
+- [x] **T-659** Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink
+- [x] **T-660** Automated multi-node log streaming, partition buffering, and central query test suite
+- [x] **T-661** Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator
+- [x] **T-662** Automated Critical CVE rejection and supply-chain vulnerability gate test suite
+- [x] **T-663** Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon
+- [x] **T-664** Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite
+- [x] **T-665** Declarative systemd unit hardening generator and security audit gate
+- [x] **T-666** Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite
+- [x] **T-667** Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies
+- [x] **T-668** Automated memory pressure stall injection and protected service survival test suite
+- [x] **T-669** Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager
+- [x] **T-670** Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite
+- [x] **T-671** Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe
+- [x] **T-672** Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite
+- [x] **T-673** Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge
+- [x] **T-674** Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite
+- [x] **T-675** Hierarchical semantic context compactor and invariant pinning manager in agent-pipe
+- [x] **T-676** Automated long-horizon (100k+ token) conversation compaction and intent retention test suite
+- [x] **T-677** Udev USB over-current event handler and port power cycling daemon
+- [x] **T-678** Automated USB over-current fault simulation, port isolation, and power recovery test suite
+- [x] **T-679** Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation
+- [x] **T-680** Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite
+- [x] **T-681** Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch
+- [x] **T-682** Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite
+- [x] **T-683** PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd
+- [x] **T-684** Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite
+- [x] **T-685** Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap
+- [x] **T-686** Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite
+- [x] **T-687** Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder
+- [x] **T-688** Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite
+- [x] **T-689** Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer
+- [x] **T-690** Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite
+- [x] **T-691** Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe
+- [x] **T-692** Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite
+- [x] **T-693** Hierarchical accelerator router with NPU priority and CPU vector fallback
+- [x] **T-694** Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite
+- [x] **T-695** Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels
+- [x] **T-696** Automated Medusa Tree-Attention throughput (3x) and mathematical token parity benchmark suite
+- [x] **T-697** Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT
+- [x] **T-698** Automated split-DNS query routing, .mios local resolution, and DoT leak prevention test suite
+- [x] **T-699** Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager
+- [x] **T-700** Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite
+- [x] **T-701** Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer
+- [x] **T-702** Automated KASLR physical address space variance and entropy validation test suite
+- [x] **T-703** Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager
+- [x] **T-704** Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite
+- [x] **T-705** Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman
+- [x] **T-706** Automated rootless container I/O throughput (10x speedup) and UID mapping test suite
+- [x] **T-707** Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager
+- [x] **T-708** Automated journal tampering detection and journalctl --verify integrity test suite
+- [x] **T-709** Static CUDA Graph capture manager and multi-batch hardware replay buffer
+- [x] **T-710** Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite
+- [x] **T-711** Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher
+- [x] **T-712** Automated in-image SBOM completeness, package inventory hash parity, and signature test suite
+- [x] **T-713** Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune
+- [x] **T-714** Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite
+- [x] **T-715** Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager
+- [x] **T-716** Automated targeted Git LFS partial pull, SHA-256 integrity, and deduplicated caching test suite
+- [x] **T-717** Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling
+- [x] **T-718** Automated filesystem bit rot repair, I/O latency throttle, and scrub reporting test suite
+- [x] **T-719** Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace
+- [x] **T-720** Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite
+- [x] **T-721** Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald
+- [x] **T-722** Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite
+- [x] **T-723** Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe
+- [x] **T-724** Automated subagent token attenuation, caveat enforcement, and replay prevention test suite
+- [x] **T-725** Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector
+- [x] **T-726** Automated 1,000,000-vector quantized HNSW recall (<5ms) and RAM reduction benchmark suite
+- [x] **T-727** GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager
+- [x] **T-728** Automated terminal glyph rendering throughput and sub-5ms keystroke latency test suite
+- [x] **T-729** Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator
+- [x] **T-730** Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite
+- [x] **T-731** ROCm / HIP PagedAttention virtual block manager and async stream compaction engine
+- [x] **T-732** Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite
+- [x] **T-733** Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm
+- [x] **T-734** Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite
+- [x] **T-735** In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap
+- [x] **T-736** Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite
+- [x] **T-737** Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr
+- [x] **T-738** Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite
+- [x] **T-739** Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner
+- [x] **T-740** Automated multi-MDS metadata throughput (>50,000 ops/s) and standby failover test suite
+- [x] **T-741** Declarative Netavark network isolation and rootless nftables firewall manager
+- [x] **T-742** Automated container network isolation, lateral traversal block, and port audit test suite
+- [x] **T-743** Point-to-point Varlink IPC socket activator and typed interface compiler in mios-varlink
+- [x] **T-744** Automated Varlink schema validation, sub-1ms RPC round-trip, and socket activation test suite
+- [x] **T-745** Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager
+- [x] **T-746** Automated systemd-homed LUKS2 unlock, key zeroization, and portable migration test suite
+- [x] **T-747** Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher in agent-pipe
+- [x] **T-748** Automated 100-stream concurrent token chunk latency (<1ms) and backpressure benchmark suite
+- [x] **T-749** Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer
+- [x] **T-750** Automated Day-0 container start latency (<100ms) and zero-download verification test suite
+- [x] **T-751** Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash
+- [x] **T-752** Automated crash minidump extraction, secret exclusion, and raw core purge test suite
+- [x] **T-753** Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober in mios-mesh-roam
+- [x] **T-754** Automated network interface handoff, sub-50ms roaming, and PMTU clamping test suite
+- [x] **T-755** StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap
+- [x] **T-756** Automated 100,000-token infinite streaming perplexity stability and zero-OOM test suite
+- [x] **T-757** Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF) in mios-quant-dispatch
+- [x] **T-758** Automated multi-format quantization throughput (>3.5x speedup) and perplexity parity test suite
+- [x] **T-759** Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager
+- [x] **T-760** Automated BGP VIP announcement, sub-100ms ECMP failover, and zero-iptables routing test suite
+- [x] **T-761** Declarative Bcachefs multi-device tiering and transparent SSD caching manager
+- [x] **T-762** Automated Bcachefs tiering burst write throughput (>10 GB/s) and migration test suite
+- [x] **T-763** Dynamic FP8 (E4M3) KV-cache quantizer and per-head scale manager in llama-swap
+- [x] **T-764** Automated 128k-context FP8 KV capacity (2x) and perplexity parity (<0.05 delta) test suite
+- [x] **T-765** Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms
+- [x] **T-766** Automated out-of-tree module compilation, MOK signature verification, and cache test suite
+- [x] **T-767** Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring
+- [x] **T-768** Automated 4K 60FPS video frame transfer (<1us latency) and zero-copy benchmark suite
+- [x] **T-769** Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX
+- [x] **T-770** Automated Intel Arc PagedAttention concurrency (30 streams) and VRAM utilization test suite
+- [x] **T-771** Microscaling MXFP4 (E2M1) KV-cache quantizer and block-32 scale vector manager in llama-swap
+- [x] **T-772** Automated 4x context density, MXFP4 attention accuracy (>99.0%), and memory benchmark suite
+- [x] **T-773** Dynamic K-Quants mixed-precision layer slicer (Q4_K_M / Q5_K_M / Q6_K) in llama-swap
+- [x] **T-774** Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite
+- [ ] **T-778** Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon
+- [x] **T-966** Autonomous self-replication daemon and podman-MiOS-DEV build pipeline trigger (WS-HCI | P1 | M)
+- [x] **T-967** Automated self-build trigger, image digest verification, and hot-swap staging test suite (WS-HCI | P2 | S)
+- [x] **T-968** Zero-downtime MicroVM state serialization and live migration handover engine in mios-virt (WS-HCI | P1 | M)
+- [x] **T-969** Automated MicroVM state handover latency (<50ms) and zero data loss test suite (WS-HCI | P2 | S)
+- [x] **T-970** Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node (WS-NODE | P1 | M)
+- [x] **T-971** Automated Seat-to-Blade profile transition and zero GPU leak verification test suite (WS-NODE | P2 | S)
+- [x] **T-972** PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe (WS-AI | P1 | M)
+- [x] **T-973** Automated 1,500-task swarm concurrency memory bounding (<16GB) test suite (WS-AI | P2 | S)
+- [x] **T-974** Distributed pipeline tensor dispatcher with dynamic RPC worker layer partitioning (WS-AI | P1 | M)
+- [x] **T-975** Automated distributed 70B layer-split forward pass and network failover test suite (WS-AI | P2 | S)
+- [x] **T-996** GATE-01 -- check_no_inert_ssot_tables measures name-appearance, not consumption. LANDED: the gate now demands access-shaped evidence per table (SSOT-specific accessors, quoted dotted paths naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* var derived from the table's own keys reaching a hand-written consumer), takes its corpus from git via _tracked, excludes tests, docs and generated projections, and holds the residue in the shrink-only [ssot_tables].unconsumed register (9 entries, ceiling-equals-size). Done-When met: a common-word plant and a nonsense plant are flagged identically, a documentation-only mention no longer counts, and the clean tree passes.
+- [x] **AGY-1** Make every firstboot producer atomic, retried, verified and idempotent  (WS-DEPLOY | P1 | M)**[DONE]**
+- [x] **AGY-2** DAG-integrity drift-gate: a consumer that can start before its producer is a build error  (WS-DEPLOY | P1 | M)**[DONE]** ← AGY-1
+- [x] **AGY-3** DB projection foundation: `config_layer` / `config_kv` plus a DB→TOML materializer  (WS-VECTOR | P1 | M)**[DONE]**
+- [x] **AGY-4** The unified names/keys registry generator plus its drift-gate  (WS-NAME | P2 | M)**[DONE]**
+- [x] **AGY-5** Daemon runaway controls: host-pressure gate, in-flight dedup, cron cap  (WS-GUARD | P0 | M)**[DONE]**
+- [x] **AGY-6** Aggregate token/turn budget plus foreground preemption of background work  (WS-GUARD | P0 | M)**[DONE]** ← AGY-5
+- [x] **AGY-7** Vectorize the AI-plane gaps: `emb` on skill / verb / tool_call / directory_entry  (WS-VECTOR | P2 | M)**[DONE]** ← AGY-3
+- [x] **AGY-8** Secret/PII redaction on every persist and every federate  (WS-DURA | P1 | M)**[DONE]**
+- [x] **AGY-9** Config read-path resolver: kill the write-only `system_config` drift  (WS-VECTOR | P1 | L)**[DONE]** ← AGY-3
+- [x] **AGY-10** Embed-backfill worker that actually FILLS the AGY-7 `emb` columns  (WS-VECTOR | P1 | M)**[DONE]** ← AGY-7
+- [x] **AGY-11** Build-catalog tables plus a DB→`/ctx` materializer (the Xbox/OCI build as rows)  (WS-VECTOR | P2 | L)**[DONE]** ← AGY-9
+- [x] **AGY-12** Fold the `userenv.sh` translation table onto the generated registry (Phase 1)  (WS-NAME | P2 | L)**[DONE]** ← AGY-4
+- [x] **AGY-13** Schedule and wire the embed-backfill worker (timer + native verb search)  (WS-VECTOR | P1 | M)**[DONE]** ← AGY-10
+- [x] **AGY-14** Shadow-compare telemetry plus the projection drift-gate (check 31)  (WS-VECTOR | P1 | M)**[DONE]** ← AGY-13, AGY-9
+- [x] **AGY-15** Sibling-test and modular-boundary compliance for the new agent-pipe modules  (WS-A2 | P2 | S)**[DONE]**
+- [x] **AGY-16** DB verb-catalog read-path behind the `db_authoritative` sentinel  (WS-VECTOR | P1 | M)**[DONE]** ← AGY-14
+- [x] **AGY-17** Seed and round-trip the build-catalog (drift-check 32)  (WS-VECTOR | P2 | M)**[DONE]** ← AGY-11
+- [x] **AGY-18** Vectorize the last AI-plane tables (`event`, `session`) and extend the backfill  (WS-VECTOR | P2 | S)**[DONE]** ← AGY-13
+- [x] **AGY-19** Prove the DB read-path is flip-safe (deliver the button, do not press it)  (WS-VECTOR | P1 | M)**[DONE]** ← AGY-16, AGY-18
+- [x] **AGY-20** Materialize `/ctx` from the seeded build-catalog behind a gated build step  (WS-VECTOR | P2 | M)**[DONE]** ← AGY-17
+- [x] **AGY-21** Fold the next `userenv.sh` translation tranche onto the registry (Phase 2)  (WS-NAME | P2 | M)**[DONE]** ← AGY-12
+- [x] **AGY-22** DB-owned account identity: home/shell columns, UID allocation, per-user prefs  (WS-VECTOR | P2 | M)**[DONE]** ← AGY-17
+- [x] **AGY-23** Render per-user dotfiles from the DB (gated successor to static skel)  (WS-VECTOR | P2 | M)**[DONE]** ← AGY-22
+- [x] **AGY-24** Append-only `config_event` audit (event-sourcing prep)  (WS-VECTOR | P2 | S)**[DONE]** ← AGY-9, AGY-16
+- [x] **AGY-25** Resolve the 10 audit-confirmed defects in the WS-VECTOR code  (AUDIT-FIXES | P0/P1 | L)**[DONE]**
+- [x] **AGY-26** Fuse lexical BM25 with dense pgvector recall and add a gated cross-encoder rerank to the RAG path  (WS-VECTOR | P1 | M) **[DONE]** ← AGY-18
+- [x] **AGY-27** Bump emb_version to end the two-model 768-d space collision and add EmbeddingGemma task prefixes at the embed seam  (WS-VECTOR | P1 | M) **[DONE]** ← AGY-25
+- [x] **AGY-28** Close the four residual defects an adversarial re-verify found still open after AGY-25  (WS-GUARD | P1 | M) **[DONE]** ← AGY-25
+- [x] **AGY-29** Fix the materializer's home-escape path guard and its lossy hand-rolled TOML re-serialize  (WS-DB | P2 | S) **[DONE]** ← AGY-28
+- [x] **AGY-30** Canonicalize bool/enum values and verb aliases to ONE form across the SSOT verb tables and DB verb rows  (WS-NAME | P1 | M) **[DONE]**
+- [x] **AGY-31** Reconcile the duplicate `etc/containers/systemd/*.container` copies down to `.d/` drop-ins per USR-OVER-ETC  (WS-SBOM | P2 | S) **[DONE]**
+- [x] **AGY-32** Prove the config_event secret redaction with a test, and audit the verb audit triggers for credential leakage  (WS-GUARD | P2 | S) **[DONE]** ← AGY-28
+- [x] **AGY-33** Make config_event redaction VALUE-aware so container env secrets stop landing in the audit log verbatim  (WS-GUARD | P2 | M) **[DONE]** ← AGY-32
+- [x] **AGY-34** Resolve the `mios-llm-heavy-alt` drop-in that targets a base Quadlet that does not exist  (WS-RUNTIME | P3 | S) **[DONE]** ← AGY-31
+- [x] **AGY-35** Make the two DB-integration tests skip cleanly offline so they stop aborting the OCI build  (WS-TESTDOC | P1 | S) **[DONE]**
+- [x] **AGY-36** Make the AI plane degrade-open QUIETLY: rate-limit the embed-failure log and give every AI unit a restart policy  (WS-RUNTIME-WIRE | P1 | M) **[DONE]**
+- [x] **AGY-37** Fix the three flatpak IDs that fail on every install and auto-disambiguate ambiguous refs  (WS-RUNTIME | P2 | S) **[DONE]**
+- [x] **AGY-38** Make `mios-ai-firstboot` honor its sentinel so it stops re-provisioning on every boot  (WS-RUNTIME-WIRE | P1 | M) **[DONE]**
+- [x] **AGY-39** Give Day-0 a working inference lane by baking or first-boot-pulling one default GGUF  (WS-BAKE | P2 | M) **[DONE]**
+- [x] **AGY-1688** Pin and harden the network-at-build bakers to kill the "clone default-branch, WARN forever" class  (WS-DEBT | P1 | M) **[DONE]**
+- [x] **AGY-41** Eliminate the `eval`-on-agent-args command-injection surface in the verb library and guard it with a check  (WS-DEBT | P0 | M) **[DONE]**
+- [x] **AGY-42** Add the missing `shellcheck` lint gate (runner + Justfile target + drift-check)  (WS-DEBT | P1 | M) **[DONE]**
+- [x] **AGY-43** Single-source the version literal and add `check_version_ssot` to the drift-gate  (WS-DEBT | P1 | M) **[DONE]**
+- [x] **AGY-44** Ship the per-file-type template set plus the `mios new` scaffolder, with an ADVISORY conformance check  (WS-TEMPLATE | P2 | L) **[DONE]**
+- [x] **AGY-1689** Bind the Python and bash resolver twins with a `check_resolver_twin_equivalence` gate  (WS-DEBT | P1 | M) **[DONE]**
+- [x] **AGY-46** Surface the build's silent NON_FATAL failures in an end-of-build summary and pin the syft installer  (WS-DEBT | P2 | M) **[DONE]**
+- [x] **AGY-47** Extract ONE cohesive unit out of the `server.py` / `mios_dispatch.py` god-module with a sibling test  (WS-DEBT-PIPE | P1 | M) **[DONE]**
+- [x] **AGY-48** Prove the scaffolder round-trips and ratchet `check_template_conformance` to NEW files only  (WS-TEMPLATE | P2 | M) **[DONE]** ← AGY-44
+- [x] **AGY-49** Project a non-identity `[gitconfig]` section to `etc/skel/.gitconfig` as ADR-0010's second dotfile surface  (WS-DOTFILES | P3 | M)  **[DONE]**
+- [x] **AGY-50** Add server-side GET/POST `/portal/config` so the Portal can read and persist the layered mios.toml  (WS-CONFIG | P1 | M)  **[DONE]** ← AGY-47
+- [x] **AGY-1690** Scaffold the `tools/native/` cargo workspace and port the version-SSOT comparator to Rust  (WS-LANG | P2 | M)  **[DONE]**
+- [x] **AGY-52** Extract a SECOND cohesive unit out of the AI-plane god-modules  (WS-DEBT | P1 | M)  **[DONE]** ← AGY-47
+- [x] **AGY-53** Audit every baker so no `[build.bake_refs]` default resolves to an empty git ref  (WS-DEBT | P2 | S)  **[DONE]** ← AGY-40..44
+- [x] **AGY-54** Build a negative-test harness proving the four new drift-gates can actually FAIL  (WS-DEBT | P2 | M)  **[DONE]** ← AGY-45..49
+- [x] **AGY-55** Test and de-duplicate the `/portal/config` endpoints: one `to_toml`, one writer, background reseed  (WS-CONFIG | P2 | M)  **[DONE]** ← AGY-50
+- [x] **AGY-56** Fix the `/portal/config` array-of-tables corruption plus the 2026-07-17 audit mediums  (WS-CONFIG | P1 item 0 / P2 rest | M)  **[DONE]**
+- [x] **AGY-1691** Add the `kind` axis plus `json-merge` mode for Windows Terminal / VS Code settings.json  (WS-DOTFILES | P2 | L)  **[DONE]**
+- [x] **AGY-58** Add `ini-merge` mode and a `gitconfig-live` surface to unblock safe live-HOME gitconfig apply  (WS-DOTFILES | P2 | L)  **[DONE]** ← AGY-57..58
+- [x] **AGY-1692** ADR-0010 finish charter (restated): registry kind + merge-surface test coverage, ON MAIN, no branches  (WS-DOTFILES | P2 | M)  **[DONE]** ← AGY-57..58, AGY-58
+- [x] **AGY-1693** Add the `registry` kind (Windows Registry apply) plus a windows-registry proof surface  (WS-DOTFILES | P2 | M)  **[DONE]** ← AGY-57..58
+- [x] **AGY-60** Add negative-tests and a real unit test for the json-merge and ini-merge kinds  (WS-DOTFILES | P2 | M)  **[DONE]** ← AGY-57..58
+- [x] **AGY-61** Port the version-SSOT checker into a real static Rust binary in `tools/native/`  (WS-LANG | P2 | M)  **[DONE]** ← AGY-51..54
+- [x] **AGY-62** Author the `[shell]`, `[editor]` and `[ssh]` dotfile surfaces on the finished kind engine  (WS-DOTFILES | P2 | M)  **[DONE]**
+- [x] **AGY-63** Extract the VRAM/GPU scheduler out of `server.py` into `mios_vram.py`  (WS-DEBT | P1 | M)  **[DONE]**
+- [x] **AGY-64** Extract the `_db_*` helpers out of `server.py` into `mios_serverdb.py`  (WS-DEBT | P1 | S)  **[DONE]** ← AGY-63
+- [x] **AGY-65** Port the drift-runner entry point to Rust as the second native tool  (WS-LANG | P2 | M)  **[DONE]** ← AGY-51..54, AGY-61
+- [x] **AGY-66** Close every drift-6 / drift-11 gap across the agent-pipe module set  (test-coverage | P2 | M)  **[DONE]**
+- [x] **AGY-67** Put `set -euo pipefail` on the ~23 unguarded runtime verbs and re-verify no agent-arg `eval` returned  (WS-DEBT | P1 security | S)  **[DONE]** ← AGY-41
+- [x] **AGY-68** Generate `userenv.sh` FROM `mios_toml.py` so the resolver twins cannot drift by construction  (WS-DEBT | P2 | L)  **[DONE]** ← AGY-45..49
+- [x] **AGY-69** Run and GREEN the full `just all` BIB artifact matrix on MiOS-DEV  (WS-BAKEGATE | P1 | M)  **[DONE]**
+- [x] **AGY-70** Project ISO kickstart credentials from SSOT instead of shipping `REPLACEME` placeholders  (WS-BOOTC | P1 | S)  **[DONE]**
+- [x] **AGY-71** Add an OFFLINE `bootc install to-disk` deploy mode from a staged oci-archive  (WS-BOOTC | P1 | M)  **[DONE]**
+- [x] **AGY-72** Repair MiOS-Xbox in-guest provisioning and prove a green end-to-end run  (WS-DEPLOY | P2 | M)  **[DONE]**
+- [x] **AGY-73** Collapse the sidecar fleet onto a shared MiOS-Sys base to shrink the bake  (WS-MIOSSYS | P1 | L)  **[DONE]**
+- [x] **AGY-74** `[blade]` archetypes + `Condition*` activation so one image adapts per host  (WS-BLADE | P1 | L)  **[DONE]**
+- [x] **AGY-75** Digest-free SSOT: resolve every digest at build and record it in the SBOM  (WS-SBOM | P1 | M)  **[DONE]**
+- [x] **AGY-76** `tools/compile-templates.py` plus a conformance ratchet on new files  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [x] **AGY-77** Bring the full drift-gate green at HEAD with negative tests per fix  (WS-DRIFT | P1 | M)  **[DONE]**
+- [x] **AGY-78** Collapse the three divergent mios.toml copies to ONE authoritative SSOT  (WS-DEBT | P2 | M)  **[DONE]**
+- [x] **AGY-79** Write the confirmed DEPLOY MODEL concept doc  (WS-DOCS | P2 | S)  **[DONE]**
+- [x] **AGY-80** Reduce the AI-plane dependency surface (Hermes to agent-pipe collapse)  (WS-DEPRED | P2 | M)  **[DONE]**
+- [x] **AGY-81** Verify the GitHub-equals-Forgejo release topology end to end  (WS-RELTOP | P1 | M)  **[DONE]**
+- [x] **AGY-82** The "run off M:" Hyper-V vhdx deploy recipe  (WS-MDRIVE | P2 | M)  **[DONE]**
+- [x] **AGY-83** Finish the V4 Accounts/users tasks and add sibling tests for the new sync modules  (WS-ACCT | P1 | M)  **[DONE]**
+- [x] **AGY-84** Close the "referenced but NOT emitted" key-library drift  (WS-NAME | P1 | L)  **[DONE]**
+- [x] **AGY-85** Resolve the `privilege_group` unknown-key advisory in the agent schema  (WS-NAME | P2 | S)  **[DONE]**
+- [x] **AGY-86** Full drift-gate GREEN at HEAD so the CI job passes  (WS-GATE | P1 | S)  **[DONE]** ← AGY-84, AGY-85
+- [x] **AGY-87** Deliver the DEPLOY MODEL doc including the MiOS-Sudo identity (AGY-79 follow-through)  (WS-DOCS | P2 | S)  **[DONE]** ← AGY-79
+- [x] **AGY-88** Verify the `just all` BIB artifact matrix produces all six outputs  (WS-BOOTC | P2 | M)  **[DONE]** ← AGY-69
+- [x] **AGY-89** Stop `globals.sh` clobbering the SSOT image name on no-creds hosts  (WS-RELTOP | P1 | S)  **[DONE]**
+- [x] **AGY-90** Apply the fact-checked pipeline log-message changelist  (WS-DOCS | P2 | M)  **[DONE]**
+- [x] **AGY-91** Author the MiOS concept docs from completed research, keeping check-46 green  (WS-DOCS | P1 | L)  **[DONE]**
+- [x] **AGY-92** Fix the four audit BLOCKERS that ship user-facing breakage behind GREEN gates  (WS-GATE | P0 | L)  **[DONE]**
+- [x] **AGY-93** Work the owner=agy finalization queue by phase, after the AGY-92 blockers  (WS-CONFIG | P1 | L)  **[DONE]** ← AGY-92
+- [x] **AGY-94** Land the 11-workstream adversarial-audit follow-up register: restore the lost drop-in fanout, un-inert `[accounts].db_backed`, pin the from-source clones  (WS-HARDEN | P1 | L)  **[DONE]** ← AGY-90, AGY-91, AGY-93
+- [x] **AGY-95** Turn the "PostgresOS" research into shipped accounts wiring: userdb projection, lldap decision, ADR, peer-OS cleanup  (WS-ACCT | P1 | L)  **[DONE]** ← AGY-94
+- [x] **AGY-1695** Drift-gate every build-time network fetch for a retry flag  (WS-HARDEN | P1 | M)  **[DONE]**
+- [x] **AGY-97** Fix scurl's binary-stream corruption and harden its argument parser  (WS-HARDEN | P1 | M)  **[DONE]**
+- [x] **AGY-98** One shared empty-`MIOS_*` strip helper plus an import-clean-under-empty-env test  (WS-HARDEN | P1 | M)  **[DONE]** ← AGY-84
+- [x] **AGY-99** Drift-gate the nested-podman capability flags and document why GHA needs them  (WS-CI-PARITY | P1 | M)  **[DONE]**
+- [x] **AGY-100** Assert the baked image still fits a standard GitHub runner's disk budget  (WS-PUBLISH | P1 | M)  **[DONE]** ← AGY-99
+- [x] **AGY-101** Prove `90-generate-sbom.sh` can never fail the build  (WS-DEBT | P2 | S)  **[DONE]** ← AGY-96..105
+- [x] **AGY-102** Pre-flight probe for build-download URL rot, run before cutting a release  (WS-DEBT | P2 | M)  **[DONE]**
+- [x] **AGY-103** Harden the `artifacts/ai-rag` producer to match the `/v1`-only consumer  (WS-BOOTSTRAP | P2 | M)  **[DONE]**
+- [x] **AGY-104** Author the build-time network-fetch policy reference  (WS-DOCS | P2 | S)  **[DONE]** ← AGY-96..105, AGY-97, AGY-101, AGY-102
+- [x] **AGY-105** One shared clean-env harness for the agent-pipe test gate  (WS-DEBT | P1 | M)  **[DONE]** ← AGY-35, AGY-98
+- [x] **AGY-1696** Fold `build-mios.sh` into `mios-install.sh` so Linux is one installer file plus one contract  (WS-INSTALL | P1 | M)  **[DONE]**
+- [x] **AGY-107** Delete the byte-identical `MiOS-Monitor.py` twin; ship ONE cross-platform TUI monitor  (WS-INSTALL | P2 | S)  **[DONE]**
+- [x] **AGY-108** Target-keyed prereq resolver and a real `--dry-run` for `mios-install.sh`  (WS-INSTALL | P1 | M)  **[DONE]** ← AGY-106..122
+- [x] **AGY-109** SSOT-resolve the configurator URL and kill the literal `:8640`  (WS-INSTALL | P1 | S)  **[DONE]** ← AGY-106..122
+- [x] **AGY-110** clevis-luks SSOT projection and gate (TPM-bound disk unlock)  (WS-RUNTIME | P2 | M)  **[DONE]**
+- [x] **AGY-111** Multi-vendor GPU CDI projection: ROCm and Intel alongside NVIDIA  (WS-RUNTIME | P2 | M)  **[DONE]** ← AGY-41
+- [x] **AGY-112** greenboot health-COVERAGE gate: every critical service has a check and a rollback path  (WS-RUNTIME | P1 | M)  **[DONE]**
+- [x] **AGY-113** Extract the NEXT cohesive unit out of `server.py`  (WS-DEBT/TD-5 | P1 | M)  **[DONE]** ← AGY-47, AGY-52
+- [x] **AGY-114** Extract the MCP/tool-call dispatch seam  (WS-DEBT/TD-5 | P2 | M)  **[DONE]** ← AGY-113
+- [x] **AGY-115** Port `generate-names-registry.py` (the check-30 generator) to Rust  (WS-LANG | P2 | M)  **[DONE]**
+- [x] **AGY-116** Single-source the SSOT walk into a Rust crate, killing the resolver-twin/userenv duplication  (WS-LANG | P2 | M)  **[DONE]** ← AGY-94, AGY-115
+- [x] **AGY-117** Declare the `[mini]` split-plane block in SSOT and project the all-dGPU vfio-pci bind from it  (WS-MINI | P2 | M)  **[DONE]**
+- [x] **AGY-118** Project the headscale mesh for the NIC-less split-plane guest from `[mini.mesh]`  (WS-MINI | P2 | M)  **[DONE]** ← AGY-117
+- [x] **AGY-119** Author the missing `tools/install.sh`: offline bare-metal `bootc install to-disk` from an OCI archive  (WS-DEPLOY | P1 | M)  **[DONE]**
+- [x] **AGY-120** Negative-tests that prove drift-checks 64/65/66 can actually FAIL  (WS-TEST | P2 | M)  **[DONE]** ← AGY-54
+- [x] **AGY-121** Run the build-URL liveness probe as a scheduled, non-blocking CI job  (WS-TEST | P2 | S)  **[DONE]** ← AGY-102
+- [x] **AGY-122** Verify the ssh-config dotfile kind emits valid OpenSSH, then add the `[shell]` and `[editor]` surfaces  (WS-DOTFILES / ADR-0010 | P2 | M)  **[DONE]** ← AGY-92, AGY-62
+- [x] **AGY-1713** Pure pre-execution validator for the runtime agent DAG  (WS-ORCH | P1 | M)  **[DONE]** ← AGY-106..122
+- [x] **AGY-124** Deterministic quality-gate producer for smartroute escalation  (WS-ORCH | P1 | M)  **[DONE]** ← AGY-123..259
+- [x] **AGY-125** Extend the check-11 coverage gate to mios_pipe submodules and cover identity/principal.py  (WS-TEST | P1 | M)**[DONE]**
+- [x] **AGY-126** Extract the A2A AgentCard JWS/JCS signing seam out of a2a.py (TD-5)  (WS-DEBT | P1 | M)**[DONE]**
+- [x] **AGY-127** [x] -- Router Stage-2 parity gate: prove router.route() matches server.py's intent cascade without a VM  (WS-ORCH | P2 | M)**[DONE]**
+- [x] **AGY-128** [x] -- Add [agent_pipe.council] to mios.toml and gate it with check_council_gate_ssot  (WS-ORCH | P2 | S)**[DONE]**
+- [x] **AGY-129** [x] -- Wire the dead cross-provider remote adapter behind an injected transport (code-only)  (WS-ORCH | P2 | M)**[DONE]**
+- [x] **AGY-130** [x] -- Port the agent-pipe SSOT validators into a Rust mios-aiplane-lint crate (Law 14)  (WS-LANG | P2 | L)**[DONE]**
+- [x] **AGY-131** [x] -- Add the recursion/width bounds to the budget gate + negative-test every new check in this batch  (WS-TEST | P2 | S)**[DONE]** ← AGY-127, AGY-128, AGY-130
+- [x] **AGY-132** [x] -- Author reference/orchestration.md covering every routing decision seam and its SSOT knob  (WS-DOCS | P2 | S)**[DONE]**
+- [x] **AGY-133** [x] -- De-hardcode the firstboot whale image refs in the bake-plan generator (Law 7)  (WS-BAKE | P1 | S)**[DONE]**
+- [x] **AGY-134** [x] -- Pin the searxng clone in sys/Containerfile and ban unpinned clones in any Containerfile  (WS-DEBT | P1 | M)**[DONE]**
+- [x] **AGY-135** [x] -- Round-trip firstboot.list in --check mode and gate the firstboot-tier bound/unbound invariant  (WS-BAKE | P1 | M)**[DONE]**
+- [x] **AGY-136** [x] -- Wire the dead [build].rechunk_max_layers key into rechunk.sh and gate it  (WS-DEBT | P2 | S)**[DONE]**
+- [x] **AGY-137** [x] -- Reconcile [build.bake].core against the Quadlet-discovered bound-image set (anti-rot gate)  (WS-BAKE | P1 | M)**[DONE]**
+- [x] **AGY-138** [x] -- Retry-wrap and post-build verify the mios-sys / mios-cuda nested podman builds  (WS-HARDEN | P1 | S)**[DONE]**
+- [x] **AGY-139** [x] -- Port generate-bake-plan.py to a static mios-bake-plan Rust binary (Law 14)  (WS-LANG | P2 | L)**[DONE]**
+- [x] **AGY-140** [x] -- Hermetic mios-bake-group unit test (group assignment, firstboot skip) + fix the stale retry-count message  (WS-TEST | P2 | M)**[DONE]**
+- [x] **AGY-141** [x] -- Give firstboot.list a real consumer: pre-stage the firstboot-tier whales in mios-ai-firstboot  (WS-DEPLOY | P2 | M)**[DONE]** ← AGY-38
+- [x] **AGY-142** [x] -- Fix the shadowed check_greenboot collision and add a check_gate_registry meta-check  (WS-GATE | P0 | M)**[DONE]**
+- [x] **AGY-143** [x] -- Author automation/lint-python.sh, the missing peer of lint-shell.sh  (WS-LINT | P1 | M)**[DONE]**
+- [x] **AGY-144** [x] -- check_test_hermeticity: static guard so no test can reach a live resource  (WS-TEST | P1 | M)**[DONE]**
+- [x] **AGY-145** [x] -- Negative tests for the architectural-LAW tier gates + run drift-gate-negatives.sh in CI  (WS-TEST | P1 | M)**[DONE]**
+- [x] **AGY-146** [x] -- check_negative_test_coverage: ratchet so every law/security gate carries a negative test  (WS-GATE | P2 | S)**[DONE]** ← AGY-126
+- [x] **AGY-147** [x] -- Drift-gate read-only / idempotency self-test (prove the gate never mutates the tree)  (WS-GATE | P2 | S)**[DONE]**
+- [x] **AGY-148** [x] -- MIOS_DRIFT_REQUIRE_TOOLS: fail closed on absent tooling to kill the vacuous-pass class  (WS-GATE | P2 | M)**[DONE]**
+- [x] **AGY-149** [x] -- Negative test for 38-ssot-lint.sh + check_soft_mode_not_committed  (WS-LINT | P2 | S)**[DONE]**
+- [x] **AGY-150** [x] -- Port 38-ssot-lint.sh to a native mios-ssot-lint crate behind a byte-identical equivalence gate  (WS-LANG | P2 | M) **[DONE]**
+- [x] **AGY-151** [x] -- Generate a drift-gate index and gate on it, killing the duplicate `(N)` check labels  (WS-TEST | P2 | M) **[DONE]**
+- [x] **AGY-152** [x] -- Ship the oci-archive PRODUCER recipe that tools/install.sh already consumes  (WS-DEPLOY | P1 | M) **[DONE]** ← AGY-119
+- [x] **AGY-153** [x] -- Substitute real credentials in the `iso` BIB recipe and gate on leftover REPLACEME tokens  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-154** [x] -- `bash -n` parse gate for the embedded kickstart `%post` shell  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-155** [x] -- Add the offline-invariant drift-check AGY-119 promised for tools/install.sh  (WS-DEPLOY | P1 | S) **[DONE]** ← AGY-119
+- [x] **AGY-156** [x] -- Disambiguate the install.sh family with a role-marker contract and collision gate  (WS-DEPLOY | P2 | M) **[DONE]**
+- [x] **AGY-157** [x] -- Project BIB filesystem sizing from a `[deploy.artifacts]` SSOT block  (WS-DEPLOY | P2 | M) **[DONE]**
+- [x] **AGY-158** [x] -- Resolve the MiOS-Repo mount from `[cat.repo_partition]` SSOT in both consumers  (WS-DEPLOY | P2 | S) **[DONE]** ← AGY-152
+- [x] **AGY-159** [x] -- Enforce the BIB single-`/config.toml` invariant plus TOML validity for artifact configs  (WS-DEPLOY | P2 | S) **[DONE]**
+- [x] **AGY-160** [x] -- Kill hardcoded credentials in the Ventoy SystemRescue firstboot and extend the nohc lint to catch them  (WS-DEPLOY | P2 | S) **[DONE]**
+- [x] **AGY-161** [x] -- XML well-formedness gate and SSOT projection for the Windows VM template  (WS-DEPLOY | P3 | S) **[DONE]**
+- [x] **AGY-162** [x] -- Project the FreeIPA enrollment env from SSOT and drift-gate it (wire the identity plane)  (WS-RUNTIME | P1 | M) **[DONE]**
+- [x] **AGY-163** [x] -- Gate the signed-UKI kernel-cmdline projection (23-uki-render is ungated)  (WS-RUNTIME | P1 | M) **[DONE]**
+- [x] **AGY-164** [x] -- composefs-verity prepare-root.conf projection gate plus negative test  (WS-RUNTIME | P2 | S) **[DONE]**
+- [x] **AGY-165** [x] -- Project cosign policy.json and Sigstore trust roots from SSOT, plus a cosign-v2 pin lint  (WS-RUNTIME | P2 | M) **[DONE]**
+- [x] **AGY-166** [x] -- Author the chrony PTP first-boot drop-in the render script itself defers  (WS-RUNTIME | P2 | M) **[DONE]**
+- [x] **AGY-167** [x] -- Negative tests proving the chrony (55) and nut (56) projection gates can actually fail  (WS-TEST | P2 | S) **[DONE]** ← AGY-120
+- [x] **AGY-168** Renderer-to-gate coverage meta-check: no `*-render.sh` may ship ungated  (WS-TEST | P1 | M) **[DONE]** ← AGY-162
+- [x] **AGY-169** GPU-passthrough vendor-unit enablement coverage gate  (WS-RUNTIME | P2 | S) **[DONE]** ← AGY-111
+- [x] **AGY-170** k3s-selinux policy staging coverage gate  (WS-RUNTIME | P2 | S) **[DONE]**
+- [x] **AGY-171** virt-v2v VM-import verb: wire the libguestfs stack already baked  (WS-RUNTIME | P3 | M) **[DONE]**
+- [x] **AGY-172** Make the generate-names-registry Rust port FUNCTIONAL and parity-gated (finish AGY-115)  (WS-LANG | P1 | L) **[DONE]** ← AGY-115, AGY-173
+- [x] **AGY-173** Complete mios-ssot-walk with the REAL walk logic and a golden parity test (finish AGY-116)  (WS-LANG | P1 | M) **[DONE]** ← AGY-116
+- [x] **AGY-174** Native-tier cargo test + fmt gate, offline and degrade-open (currently ZERO native tests)  (WS-LANG | P1 | M) **[DONE]** ← AGY-172, AGY-173
+- [x] **AGY-175** cfg-gate the Windows-only mios-wallpaperd crate so `cargo build --workspace` compiles on the Linux CI runner  (WS-LANG | P1 | M) **[DONE]** ← AGY-125, AGY-128
+- [x] **AGY-176** Make generate-cargo-manifests.py enumerate crate dirs and add a generator-clean gate over tools/native/Cargo.toml  (WS-LANG | P2 | S) **[DONE]**
+- [x] **AGY-177** Add a cached Rust builder stage to the Containerfile plus COPY lines for every portable bin, gated by a bins-installed check  (WS-LANG | P2 | M) **[DONE]** ← AGY-175
+- [x] **AGY-178** Harden mios-version-check's hand-rolled TOML scan against subsections, comments and prefix keys, with regression tests  (WS-LANG | P2 | S) **[DONE]** ← AGY-125
+- [x] **AGY-179** New mios-check-index crate: validate the drift file's check registry and emit drift-checks.index.json  (WS-LANG | P2 | M) **[DONE]** ← AGY-65
+- [x] **AGY-180** Port ascii-sweep.py's substitution core to a Rust mios-ascii-sweep with a byte-identical golden parity gate  (WS-LANG | P2 | M) **[DONE]**
+- [x] **AGY-181** mios-verb-manifest Rust generator plus a structural set-e / no-eval gate over the ~250 bash verb backends  (WS-LANG | P2 | M) **[DONE]** ← AGY-67
+- [x] **AGY-182** Normalize HNSW index params and emb_version widths across the emb schema, gated by check_vector_schema_hygiene  (WS-VECTOR | P1 | M) **[DONE]** ← AGY-123..259, AGY-3
+- [x] **AGY-183** Extend embed-backfill to config_kv and account_preference plus a schema-to-backfill binding gate  (WS-VECTOR | P1 | M) **[DONE]** ← AGY-124, AGY-188
+- [x] **AGY-184** Reconcile the duplicate account-preference tables and fix allocate_gid()'s shared-sequence UPG collision  (WS-VECTOR | P2 | M) **[DONE]** ← AGY-125, AGY-22
+- [x] **AGY-185** Close the verb `i18n` round-trip gap in the DB-to-TOML materializer and widen check 31's compared field set  (WS-VECTOR | P2 | S) **[DONE]** ← AGY-126
+- [x] **AGY-186** Add config-restore.py, the V5 point-in-time rollback writer over the config_event log  (WS-VECTOR | P2 | M) **[DONE]** ← AGY-127, AGY-24, AGY-132
+- [x] **AGY-187** Port the vector-schema linter to a native Rust `mios-schema-lint` with a shell fallback of identical verdict  (WS-LANG | P2 | M) **[DONE]** ← AGY-128, AGY-182, AGY-123..259, AGY-184, AGY-115
+- [x] **AGY-188** config_kv hybrid semantic-search read-path fusing pgvector and FTS through the AGY-26 RRF helper  (WS-VECTOR | P2 | M) **[DONE]** ← AGY-129, AGY-124, AGY-26
+- [x] **AGY-189** Negative-tests proving round-trip gates 31 (config) and 32 (build-catalog) can actually fail  (WS-TEST | P2 | S) **[DONE]** ← AGY-130, AGY-25, AGY-54
+- [x] **AGY-190** Capture `actor` on the verb / domain_verb audit triggers and surface it in config-history  (WS-VECTOR | P2 | S) **[DONE]** ← AGY-131, AGY-24
+- [x] **AGY-191** Single-source the six copy-pasted get_pg_config() helpers behind mios_pg_conn.py, with a duplicate-definition gate  (WS-VECTOR | P3 | S) **[DONE]** ← AGY-132, AGY-186
+- [x] **AGY-192** Harden redact.py: add the high-value credential patterns and recurse structured payloads  (WS-SEC | P1 | M) **[DONE]** ← AGY-8, AGY-32
+- [x] **AGY-193** Project systemd userdb `.user` records from SSOT accounts, with a regenerate-and-diff gate  (WS-USERDB | P1 | M) **[DONE]** ← AGY-95
+- [x] **AGY-194** caller-keys.json schema, example fixture, fail-closed validator and gate for the inbound /v1 auth boundary  (WS-SEC | P1 | M) **[DONE]**
+- [x] **AGY-195** Rust port of the egress-firewall generator, byte-identical under check 14, plus the generator doc-ref fix  (WS-LANG | P2 | M) **[DONE]**
+- [x] **AGY-196** Static SECRETS-NEVER-IN-ENV (Law 11) source-tree drift-gate with a planted-secret negative test  (WS-SEC | P1 | S) **[DONE]** ← AGY-192
+- [x] **AGY-197** Rule-of-Two `sensitive` classification coverage and type gate over the 110 verbs  (WS-SEC | P2 | S) **[DONE]**
+- [x] **AGY-198** Property-test the PDP invariant that a pruned verb can never dispatch (harden WS-A9)  (WS-SEC | P2 | S) **[DONE]**
+- [x] **AGY-199** Project the mTLS-enforcing reverse-proxy config from SSOT and gate it regenerate-and-diff  (WS-FED | P2 | M) **[DONE]**
+- [x] **AGY-200** Pin the A2A agent passport to a committed JSON-schema and prove sign->verify with an ephemeral key  (WS-FED | P2 | M) **[DONE]**
+- [x] **AGY-201** Author the security-gate threat-model reference and lint that every `[security]` mode flag is documented  (WS-DOCS | P3 | S) **[DONE]**
+- [x] **AGY-202** Stop 55-bake-quickshell from overwriting the real ShellRoot; gate the heredoc against the tracked Config.qml (check 51)  (WS-DESKTOP | P1 | S) **[DONE]**
+- [x] **AGY-203** Project desktop-shell endpoint URLs from `[ports]` and lint QML/hyprland for raw host:port literals  (WS-DESKTOP | P1 | M) **[DONE]** ← AGY-202
+- [x] **AGY-204** Add `[theme.compositor]` SSOT: tokenize hyprland effects/animations and live-refresh via mios-sync-theme  (WS-DESKTOP | P2 | M) **[DONE]**
+- [x] **AGY-205** Launch the living wallpaper from the Hyprland session via exec-once, gated on `branding.living_wallpaper`  (WS-DESKTOP | P2 | S) **[DONE]**
+- [x] **AGY-206** Bind a real freedesktop notification server (Quickshell.Services.Notifications) behind the existing toast surface  (WS-DESKTOP | P2 | M) **[DONE]**
+- [x] **AGY-207** Feed `[colors]` into the living-wallpaper WGSL uniforms, delete the echo-stub shader branch, gate the palette  (WS-DESKTOP | P2 | M) **[DONE]** ← AGY-205
+- [x] **AGY-208** Give mios-wallpaperd unit tests and add the first cargo fmt/clippy/test drift-gate for the native crate  (WS-LANG | P2 | M) **[DONE]**
+- [x] **AGY-209** Add a pure-Python QML lint: Law-7 color check plus imports/brace-balance across the shell surfaces  (WS-DESKTOP | P2 | M) **[DONE]** ← AGY-202
+- [x] **AGY-210** Gate ship-completeness of the QML component graph: every surface Config.qml pulls in must exist in the image  (WS-DESKTOP | P3 | S) **[DONE]** ← AGY-209
+- [x] **AGY-211** Define the canonical `[mini]` / `[mini.mesh]` SSOT tables so both mini generators stop falling through to defaults  (WS-MINI | P1 | S) **[DONE]**
+- [x] **AGY-212** Upgrade the substring-only check 68 into a value round-trip gate and register the ungated mesh generator  (WS-MINI | P1 | M) **[DONE]** ← AGY-211
+- [x] **AGY-213** Project the persistent vfio-pci bind (`/etc/driverctl.d`) from `[mini.gpu].assignments`  (WS-MINI | P2 | M) **[DONE]** ← AGY-211
+- [x] **AGY-214** Reject dangling empty-value kargs in validate-kargs.py and stop shipping `vfio_pci.ids=`  (WS-MINI | P2 | S) **[DONE]**
+- [x] **AGY-215** Generate the guest libvirt domain XML (hostdev + swtpm vTPM + single virtio-net) from `[mini]`  (WS-MINI | P1 | L) **[DONE]** ← AGY-211, AGY-213
+- [x] **AGY-216** Project a fail-closed headscale Grants policy (huJSON) from `[mini.mesh]`  (WS-MINI | P1 | M) **[DONE]** ← AGY-211
+- [x] **AGY-217** Project the master `inet mios-router` nftables table and gate against cross-table conflicts  (WS-MINI | P2 | M) **[DONE]** ← AGY-211
+- [x] **AGY-218** Add `[storage.guest_passthrough]` SSOT and gate that the boot controller is never passed to the guest  (WS-MINI | P2 | S) **[DONE]** ← AGY-215
+- [x] **AGY-219** Gate the router core/RAM budget: the guest allocation may not breach the host floor  (WS-MINI | P2 | S) **[DONE]** ← AGY-211, AGY-123..259
+- [x] **AGY-220** Project a second, non-vfio safe-mode recovery UKI cmdline so an all-GPU-bound router is not a brick  (WS-MINI | P2 | M) **[DONE]** ← AGY-214, AGY-211
+- [x] **AGY-221** Gate installer target-matrix parity across all four surfaces and fix the confirmed drift  (WS-INSTALL | P1 | M) **[DONE]**
+- [x] **AGY-222** SSOT-project the Linux target-prereq catalog, wire the Rust toolchain, and show the plan in `--dry-run`  (WS-INSTALL | P1 | M) **[DONE]** ← AGY-221
+- [x] **AGY-223** Harden `mios_ensure_repo` to the bootstrap.sh fetch pattern (retry + Forgejo fallback + body validation) and widen the retry gate  (WS-INSTALL | P1 | M) **[DONE]**
+- [x] **AGY-224** Unit-cover the awk SSOT resolver in mios-common.sh and wire a shell-test gate  (WS-TEST | P2 | S) **[DONE]**
+- [x] **AGY-225** Prove the bash and PowerShell SSOT resolvers return identical values for the same mios.toml key  (WS-CONFIG | P2 | M) **[DONE]**
+- [x] **AGY-226** Gate mios-common.{sh,ps1} contract completeness and add the missing bash monitor-launch twin  (WS-INSTALL | P2 | M) **[DONE]**
+- [x] **AGY-227** Couple the installers' /configure URL to the real Portal route so it cannot 404  (WS-CONFIG | P2 | S) **[DONE]**
+- [x] **AGY-228** Make mios-install.sh emit its target matrix (--list-targets/--targets-json) from one in-file table  (WS-INSTALL | P2 | M) **[DONE]** ← AGY-123..259
+- [x] **AGY-229** Make --dry-run print the COMPLETE plan and self-test all targets for zero side effects  (WS-INSTALL | P2 | M) **[DONE]** ← AGY-124
+- [x] **AGY-230** Negative tests proving the three new installer drift-checks can actually fail  (WS-TEST | P3 | M) **[DONE]** ← AGY-123..259, AGY-127, AGY-129
+- [x] **AGY-231** Build the generated MiOS Spec ADR-0007 promised: laws + conventions rendered from SSOT and drift-gated  (WS-DOCS-SPEC | P1 | L) **[DONE]**
+- [x] **AGY-232** ADR frontmatter, law/SSOT-ref and supersedes-symmetry gate via a new tools/adr-index.py  (WS-DOCS-ADR | P1 | M) **[DONE]**
+- [x] **AGY-233** Derive the law-id ceiling in roadmap-index.py from [laws] instead of the hardcoded 1..13  (WS-DOCS-ROADMAP | P1 | S) **[DONE]**
+- [x] **AGY-234** Law-prose parity gate across every doc surface, plus refresh the stale 6-law and "13 laws" copies  (WS-DOCS-LAWPARITY | P1 | M) **[DONE]**
+- [x] **AGY-235** Generate mios-knowledge-graph.json from SSOT with a regenerate-and-diff gate  (WS-DOCS-KG | P2 | M) **[DONE]**
+- [x] **AGY-236** Ratcheted dangling-reference detector for AI-related: header cross-refs  (WS-DOCS-XREF | P2 | M) **[DONE]**
+- [x] **AGY-237** Freshness gate for llms.txt / llms-full.txt (version, endpoint, repo-split paths)  (WS-DOCS-LLMS | P2 | S) **[DONE]**
+- [x] **AGY-238** Gate manual.md against its generator with a --check regenerate-and-diff  (WS-DOCS-MANUAL | P2 | S) **[DONE]**
+- [x] **AGY-239** Negative tests for every new docs / ADR / knowledge-graph gate  (WS-DOCS-NEG | P2 | M) **[DONE]** ← AGY-231, AGY-238
+- [x] **AGY-240** Dependency-free OTLP/JSON exporter for the in-memory tracer  (WS-OTEL | P1 | M) **[DONE]**
+- [x] **AGY-241** Pin the GenAI semconv key set in SSOT and gate span-attribute coverage  (WS-OTEL | P2 | M) **[DONE]**
+- [x] **AGY-242** W3C Trace Context: adopt inbound traceparent, propagate it outbound  (WS-OTEL | P1 | M) **[DONE]**
+- [x] **AGY-243** Sign A2A push-notification webhooks with a detached JWS  (WS-FED | P1 | M) **[DONE]**
+- [x] **AGY-244** Enforce AgentCard signature verification on peer probe  (WS-FED | P1 | S) **[DONE]**
+- [x] **AGY-245** mDNS avahi-template <-> SSOT parity drift-gate  (WS-FED | P2 | S) **[DONE]**
+- [x] **AGY-246** Decompose a2a.py: extract the JSON-RPC task-lifecycle seam into a2a_tasks.py  (WS-DEBT/TD-5 | P1 | L) **[DONE]**
+- [x] **AGY-247** MCP tools/list pagination: follow nextCursor instead of registering page 1 only  (WS-MCP | P1 | S) **[DONE]**
+- [x] **AGY-248** Single-source the MCP protocol_version across consume side, published server and SSOT  (WS-MCP | P2 | S) **[DONE]**
+- [x] **AGY-249** Record-and-replay cassette harness for A2A/MCP federation HTTP  (WS-TEST | P2 | M) **[DONE]**
+- [x] **AGY-250** Move the SSOT->env projection out of userenv.sh's heredocs into mios_toml.py so all three copies import one implementation  (WS-NAME | P1 | M)**[DONE]**
+- [x] **AGY-251** Give mios_toml a public emit()/`--shell` projection face and thin userenv.sh onto it  (WS-NAME | P1 | M)**[DONE]** ← AGY-123..259
+- [x] **AGY-252** Catalog the full alias set in names.generated.txt and gate emitted-subset-catalogued  (WS-NAME | P2 | M)**[DONE]** ← AGY-123..259
+- [x] **AGY-253** Derive the names-generator's section set from the resolver's EXCLUDED_SECTIONS instead of a hand allowlist  (WS-NAME | P2 | S)**[DONE]** ← AGY-252
+- [x] **AGY-254** Add a schema-validation drift-gate for every [dotfiles.registry.*] surface  (WS-DOTFILES | P2 | M)**[DONE]**
+- [x] **AGY-255** Finish the mios-theme-render deprecation: repoint live callers, silence the shim, add a grep-gate  (WS-DOTFILES | P2 | M)**[DONE]**
+- [x] **AGY-256** Second-apply idempotency test for every merge-kind surface, wired into the drift-gate  (WS-DOTFILES | P2 | S)**[DONE]** ← AGY-254
+- [x] **AGY-257** Generate naming-unification.md's alias table from the shared get_aliases (docs-from-code + gate)  (WS-DOCS | P2 | S)**[DONE]** ← AGY-252
+- [x] **AGY-258** DRY the triplicated DB-authoritative overlay branch in mios_toml.py  (WS-DEBT | P3 | S)**[DONE]**
+- [x] **AGY-259** Generalize the globals.{sh,ps1} fallback-drift gate beyond ports  (WS-DEBT | P2 | M)**[DONE]**
+- [x] **AGY-260** Extract ONE shared build-time latest-tag resolver (releases/latest redirect, no GitHub API)  (WS-FLOAT | P1 | M)**[DONE]**
+- [x] **AGY-261** Refactor sys/Containerfile's 8 inlined redirect-resolves onto the AGY-260 resolver  (WS-FLOAT | P1 | M)**[DONE]** ← AGY-260
+- [x] **AGY-262** Convert the rate-limited api.github.com callers to the redirect resolver and delete their hand-pinned fallback tags  (WS-FLOAT | P1 | M)**[DONE]** ← AGY-260
+- [x] **AGY-263** Create the [build.float] SSOT allowlist for legitimately-pinned build inputs  (WS-FLOAT | P2 | S)**[DONE]**
+- [x] **AGY-264** Float syft to latest and record the resolved syft version (drop the v1.19.0 pin)  (WS-FLOAT | P2 | S)**[DONE]** ← AGY-260
+- [x] **AGY-265** Float FIRECRAWL_REF in firecrawl.Containerfile and allowlist the pnpm@9 Node-20 cap  (WS-FLOAT | P2 | M)**[DONE]** ← AGY-260, AGY-263
+- [x] **AGY-266** Float the git-clone bake refs (quickshell, lookingglass) at build instead of hand-pinned tags  (WS-FLOAT | P2 | M)**[DONE]** ← AGY-260
+- [x] **AGY-267** Reconcile the hand-pinned [image.sidecars] registry tags: float where a channel exists, allowlist where capped  (WS-FLOAT | P2 | M)**[DONE]** ← AGY-263
+- [x] **AGY-268** Allowlist or float the machine_os_tag pin (podman-machine-os major)  (WS-FLOAT | P3 | S)**[DONE]** ← AGY-263
+- [x] **AGY-269** Record every build-time-resolved latest version into the SBOM manifest  (WS-FLOAT | P2 | M)**[DONE]** ← AGY-261
+- [x] **AGY-270** Drift-gate: no hand-pinned version literal outside the [build.float] allowlist  (WS-FLOAT | P1 | M)**[DONE]** ← AGY-262, AGY-263, AGY-264, AGY-265
+- [x] **AGY-271** Drift-gate: every [build.float] exception is documented and still live  (WS-FLOAT | P2 | S)**[DONE]** ← AGY-263, AGY-270
+- [x] **AGY-272** Grep-gate: ban the rate-limited api.github.com release-lookup mechanism  (WS-FLOAT | P2 | S)**[DONE]** ← AGY-262
+- [x] **AGY-273** Extend build-network-policy.md with the float-latest contract and allowlist governance  (WS-FLOAT | P3 | S)**[DONE]** ← AGY-260, AGY-272
+- [x] **AGY-274** Bake-time per-stack smoke RUN in sys/Containerfile (import+exec assert)  (WS-BAKE | P1 | M)**[DONE]**
+- [x] **AGY-275** Factor the bake-time stack smoke assertions into a COPY'd `smoke.sh` + a host-side Containerfile/smoke parity test  (WS-BAKE | P1 | M)**[DONE]** ← AGY-274
+- [x] **AGY-276** Resolve the newest supported interpreter at build time instead of hardcoding `python3.12`  (WS-BAKE | P1 | M)**[DONE]** ← AGY-274
+- [x] **AGY-277** Gate the sys/cuda Containerfiles against hardcoded `pythonX.Y` venv interpreters (resolver-only)  (WS-BAKE | P2 | S)**[DONE]** ← AGY-276
+- [x] **AGY-278** Declare the candidate interpreter set once as `[build.bake].interpreters` and de-hardcode the dnf python list  (WS-BAKE | P2 | S)**[DONE]** ← AGY-276
+- [x] **AGY-279** Retry-with-backoff and degrade-open the camoufox/playwright browser fetch  (WS-BAKE | P1 | S)**[DONE]**
+- [x] **AGY-280** Verify the Firecrawl `html-to-markdown.so` runtime load path at bake time  (WS-BAKE | P1 | S)**[DONE]**
+- [x] **AGY-281** Static gate: the firecrawl `.so` COPY dir, go-builder output dir and chromium ENV path must agree  (WS-BAKE | P2 | S)**[DONE]** ← AGY-280
+- [x] **AGY-282** Add EXIT-trap mount/scratch teardown to the nested-podman builders (mount-leak hardening)  (WS-BAKE | P2 | M)**[DONE]**
+- [x] **AGY-283** Make the SBOM `bound-images.tsv` append idempotent (retry-safe, last-wins)  (WS-BAKE | P2 | S)**[DONE]**
+- [x] **AGY-284** Grep-gate the load-bearing SearXNG build order in sys/Containerfile  (WS-BAKE | P2 | S)**[DONE]**
+- [x] **AGY-285** Retry-wrap the three `git clone`s in sys/Containerfile (clone-flake hardening)  (WS-BAKE | P2 | S)**[DONE]**
+- [x] **AGY-286** Retry the Firecrawl pnpm registry ops and degrade `--frozen-lockfile` to a warned unfrozen install  (WS-BAKE | P2 | S)**[DONE]** ← AGY-285
+- [x] **AGY-287** One consolidated static "bake network-op discipline" test + per-invariant negative fixtures  (WS-BAKE | P2 | M)**[DONE]** ← AGY-274
+- [x] **AGY-288** Kill the divergent BIB target matrix: gate the `Justfile` `all` recipe against `[deployment].target_*`  (WS-BOOTC | P1 | M)**[DONE]**
+- [x] **AGY-289** Migrate the installer ISO to BIB `--type anaconda-iso` and gate that it is bootc-native, not a package install  (WS-BOOTC | P1 | M)**[DONE]**
+- [x] **AGY-290** Author a bootc-native offline kickstart (`ostreecontainer` from oci-archive, zero `%packages`)  (WS-BOOTC | P1 | M)**[DONE]**
+- [x] **AGY-291** First-boot verifier asserting the installed system is bootc-managed MiOS, not plain Fedora  (WS-BOOTC | P1 | M)**[DONE]**
+- [x] **AGY-292** Project install-time kernel args from `[kargs]` into `bootc install to-disk`  (WS-BOOTC | P2 | S)**[DONE]**
+- [x] **AGY-293** Make to-disk signature verification an SSOT policy instead of an unconditional `--target-no-signature-verification`  (WS-BOOTC | P2 | S)**[DONE]**
+- [x] **AGY-294** Verify the staged oci-archive against a build-recorded digest BEFORE the destructive to-disk  (WS-BOOTC | P2 | S)**[DONE]** ← AGY-152
+- [x] **AGY-295** Gate the anaconda-ISO container prerequisites (`dracut-live` + `squashfs-tools` + `anaconda`) when the target is enabled  (WS-BOOTC | P2 | S)**[DONE]**
+- [x] **AGY-296** SSOT-project rootfs type and root `minsize` across every artifact toml (kill the 80-vs-150-GiB divergence)  (WS-BOOTC | P2 | M)**[DONE]**
+- [x] **AGY-297** Extend `verify-images` to prove the installer artifacts are bootc-managed, not merely non-empty  (WS-BOOTC | P2 | M)**[DONE]** ← AGY-289, AGY-290
+- [x] **AGY-298** Make the offline bare-metal installer discoverable: `just to-disk-install` plus a `--dry-run` plan target  (WS-BOOTC | P2 | S)**[DONE]**
+- [x] **AGY-299** Collapse the byte-identical `automation/install.sh` ≡ `automation/install-fhs.sh` FHS-overlay installers  (WS-BOOTC | P3 | S)**[DONE]** ← AGY-154
+- [x] **AGY-300** Author the bare-metal bootc install doc (to-disk offline, anaconda-iso, ostreecontainer kickstart, first-boot verify) and gate its cross-refs  (WS-BOOTC | P2 | M)**[DONE]** ← AGY-290, AGY-291
+- [x] **AGY-301** Negative-test all 13 new WS-BOOTC drift-gates (288-300) so none is a green no-op  (WS-BOOTC | P2 | L)**[DONE]** ← AGY-288, AGY-300
+- [x] **AGY-302** greenboot: un-shadow the dead `check_greenboot` and derive `critical_services` from `[greenboot]` SSOT  (WS-RUNTIME | P1 | M)**[DONE]**
+- [x] **AGY-303** clevis/LUKS: collapse the two conflicting disk-encryption SSOT tables into one canonical block  (WS-RUNTIME | P1 | M)**[DONE]**
+- [x] **AGY-304** clevis/LUKS: upgrade check 67 from a substring test to a real projection round-trip  (WS-RUNTIME | P2 | S)**[DONE]** ← AGY-303
+- [x] **AGY-305** ROCm/AMD: add `[gpu.rocm]` SSOT plus a static kfd+dri CDI fallback generator for when `amd-ctk` is missing  (WS-RUNTIME | P1 | M)**[DONE]**
+- [x] **AGY-306** ROCm/AMD: drift-check the CDI generator round-trip and prove `mios-gpu-amd.service` is actually reachable  (WS-RUNTIME | P2 | S)**[DONE]** ← AGY-305
+- [x] **AGY-307** FreeIPA: project the non-secret `ipa-enroll.env` fields from a new `[identity.freeipa]` SSOT block  (WS-RUNTIME | P1 | M)**[DONE]**
+- [x] **AGY-308** FreeIPA: drift-check the `[identity.freeipa]` projection (with a secret-leak guard) plus a wanted.d sssd health check  (WS-RUNTIME | P2 | S)**[DONE]** ← AGY-307
+- [x] **AGY-309** Guacamole: load the JDBC schema into the mios DB and SSOT-ify the hardcoded DB creds and guacd port  (WS-RUNTIME | P1 | L)**[DONE]**
+- [x] **AGY-310** Guacamole: fix the desktop launcher pointing at the wrong port and gate Quadlet<->SSOT consistency  (WS-RUNTIME | P2 | S)**[DONE]** ← AGY-309
+- [x] **AGY-311** NUT: actually RUN the rendered UPS config by enabling upsd/upsmon, gated on standalone MODE  (WS-RUNTIME | P1 | M)**[DONE]**
+- [x] **AGY-312** CephFS: gate every `${MIOS_CEPHFS_*}` template variable against the `[storage.cephfs]` SSOT keys  (WS-RUNTIME | P2 | S)**[DONE]**
+- [x] **AGY-313** mdevctl: add `[mdev]` SSOT persistent mediated-device definitions for SR-IOV VFs (explicitly NOT GPU fractioning)  (WS-RUNTIME | P2 | M)**[DONE]**
+- [x] **AGY-314** virt-v2v: add `[virt.v2v]` SSOT and a `mios-v2v-import` wrapper onto the local libvirt/KVM plane  (WS-RUNTIME | P2 | M)**[DONE]**
+- [x] **AGY-315** virt-v2v: drift-check `mios-v2v-import` SSOT parity and document the import on-ramp  (WS-RUNTIME | P2 | S)**[DONE]** ← AGY-314
+- [x] **AGY-316** Add the `[build.float]` SSOT allowlist naming every legitimately-pinned build input  (WS-DRIFT | P1 | S)**[DONE]**
+- [x] **AGY-317** Build the `mios-version-lint` NO-HARDCODE-VERSION scanner driven by the `[build.float]` allowlist  (WS-DRIFT | P1 | M)**[DONE]** ← AGY-316
+- [x] **AGY-318** Wire `check_no_hardcode_version` into 38-drift-checks.sh and `main()`  (WS-DRIFT | P1 | S)**[DONE]** ← AGY-317
+- [x] **AGY-319** Negative-test the NO-HARDCODE-VERSION gate  (WS-DRIFT | P2 | S)**[DONE]** ← AGY-318
+- [x] **AGY-320** Law-enforcer integrity meta-gate: every `[laws].enforced_by` reference must resolve  (WS-DRIFT | P1 | M)**[DONE]** ← AGY-321, AGY-322
+- [x] **AGY-321** Ship the missing Law 1 enforcer `check_usr_over_etc` (USR-OVER-ETC)  (WS-DRIFT | P1 | M)**[DONE]**
+- [x] **AGY-322** Ship the missing Law 8 enforcer `check_projection_registry` (SSOT-PROJECTION)  (WS-DRIFT | P1 | M)**[DONE]**
+- [x] **AGY-323** Negative-test the law-enforcer meta-gate and both new enforcers  (WS-DRIFT | P2 | S)**[DONE]** ← AGY-320, AGY-321, AGY-322
+- [x] **AGY-324** Bake-plan integrity gate: prove the firstboot-tier eviction is correct AND complete  (WS-DRIFT | P1 | M)**[DONE]**
+- [x] **AGY-325** Prove the bake-plan integrity gate can fail: negative test for firstboot-tier leakage  (WS-DRIFT | P2 | S) **[DONE]**
+- [x] **AGY-326** Value-parity, not just presence, for baker `MIOS_BUILD_BAKE_REFS_*` defaults  (WS-DRIFT | P2 | M) **[DONE]**
+- [x] **AGY-327** Prove the bake-ref value-parity gate can fail: negative test  (WS-DRIFT | P2 | S) **[DONE]** ← AGY-326
+- [x] **AGY-328** Gate-registry self-consistency: no duplicate, unwired or non-standard `check_*`  (WS-DRIFT | P2 | M) **[DONE]**
+- [x] **AGY-329** Prove the gate-registry check can fail, without mutating the live gate  (WS-DRIFT | P2 | S) **[DONE]** ← AGY-328
+- [x] **AGY-330** Flip `oscontrol.py`'s `[os_control]` read onto the DB config resolver behind the db_authoritative sentinel  (WS-DB | P1 | M) **[DONE]**
+- [x] **AGY-331** Flip `routing.py`'s two `[routing]` reads onto `mios_db_config`  (WS-DB | P1 | M) **[DONE]** ← AGY-330
+- [x] **AGY-332** Flip `quality_gate.py`'s `agent_pipe.quality` read onto `mios_db_config`  (WS-DB | P2 | S) **[DONE]** ← AGY-330, AGY-331
+- [x] **AGY-333** `config_kv` seed-coverage gate: no DB-flipped read-path may shadow-compare an unseeded scope  (WS-DB | P2 | M) **[DONE]** ← AGY-330, AGY-331, AGY-332
+- [x] **AGY-334** `mios-userdb-render`: project the `account` table into systemd userdb JSON drop-ins  (WS-DB | P2 | M) **[DONE]**
+- [x] **AGY-335** Wire `mios-userdb-render` into a NOTIFY-driven unit under the db_backed gate  (WS-DB | P2 | M) **[DONE]** ← AGY-334
+- [x] **AGY-336** Land `[accounts.lldap]` SSOT knobs + userenv alias derivation for the cross-platform LDAP face  (WS-DB | P3 | S) **[DONE]**
+- [x] **AGY-337** `mios-lldap-seed`: project `account` rows into an lldap bootstrap so Postgres stays SSOT  (WS-DB | P3 | M) **[DONE]** ← AGY-336
+- [x] **AGY-338** Make `mios-account-sync` event-driven: LISTEN on `account_sync`, keep the poll as fallback  (WS-DB | P2 | M) **[DONE]**
+- [x] **AGY-339** Generate the Windows `New-LocalUser` account manifest from the `account` table  (WS-DB | P2 | M) **[DONE]**
+- [x] **AGY-340** Allocate ids from the DB-owned `uid_alloc` sequence instead of the hardcoded 1000 gid fallback  (WS-DB | P3 | S) **[DONE]** ← AGY-334, AGY-339
+- [x] **AGY-341** Extend the DB->TOML round-trip gate to the newly authoritative scopes (os_control, routing, agent_pipe)  (WS-DB | P1 | M) **[DONE]** ← AGY-330, AGY-331, AGY-332
+- [x] **AGY-342** Verb-catalog lossless round-trip gate across all 15 columns (params/examples/aliases included)  (WS-DB | P2 | M) **[DONE]** ← AGY-341
+- [x] **AGY-343** Schema<->consumer column-parity gate for the three account projections  (WS-DB | P2 | M) **[DONE]** ← AGY-334, AGY-339
+- [x] **AGY-344** Extract the legacy DB writer/mirror seam out of `server.py` into `mios_pipe/memory/dbwrite.py`  (WS-PIPE | P1 | L) **[DONE]**
+- [x] **AGY-345** Extract the admission-control / SLO / lane-semaphore seam into `mios_pipe/scheduler/admission.py`  (WS-PIPE | P1 | L) **[DONE]** ← AGY-344
+- [x] **AGY-346** Extract the VRAM / model-residency manager into `mios_pipe/scheduler/vram.py`  (WS-PIPE | P2 | L) **[DONE]** ← AGY-344, AGY-345
+- [x] **AGY-347** Extract the inbound/outbound authentication seam into `mios_pipe/access/authn.py`  (WS-PIPE | P1 | M) **[DONE]**
+- [x] **AGY-348** Extract the scratchpad blackboard into `mios_pipe/context/scratchpad.py`  (WS-PIPE | P2 | S) **[DONE]** ← AGY-344
+- [x] **AGY-349** Extract the worker-tool surface + child-tool selection into `mios_pipe/routing/toolsurface.py`  (WS-PIPE | P2 | M) **[DONE]**
+- [x] **AGY-350** Gate the agent-pipe extraction seams: modules never import `server`, `server.py` re-imports every moved symbol (WS-PIPE | P1 | M) **[DONE]** ← AGY-344
+- [x] **AGY-351** Audit and per-site justify or rewrite the 10 verb backends still containing `eval` (WS-PIPE | P1 | M) **[DONE]** ← AGY-41, AGY-67
+- [x] **AGY-352** Harden the SSOT template renderer and dispatch builder against placeholder/arg-splice injection (WS-PIPE | P1 | M) **[DONE]** ← AGY-351
+- [x] **AGY-353** Make the short `MIOS_VLLM_*`/`MIOS_SGLANG_*` form canonical and gate the long form out (WS-NAME | P2 | M) **[DONE]** ← AGY-250
+- [x] **AGY-354** Precompile every verb `cmd` template at catalog load; drop the per-dispatch regex parse (WS-PIPE | P2 | M) **[DONE]** ← AGY-352
+- [x] **AGY-355** Build-time verb-template validation gate plus placeholder/arg-coverage negative test (WS-PIPE | P2 | M) **[DONE]** ← AGY-354
+- [x] **AGY-356** Emit a machine-readable `server.py` module-boundary manifest as the LANG-port contract (WS-PIPE | P3 | M) **[DONE]**
+- [x] **AGY-357** Extract the session-event emitter and tool-text sanitizer into `mios_pipe/observability/session_events.py` (WS-PIPE | P2 | M) **[DONE]** ← AGY-344
+- [x] **AGY-358** Run the drift-gate negative self-test harness in CI on every PR (WS-TESTDOC | P1 | S) **[DONE]**
+- [x] **AGY-359** Close the shellcheck error-level coverage hole: lint EVERY shell dir, not three (WS-TESTDOC | P1 | M) **[DONE]**
+- [x] **AGY-360** Negative tests for the bake-projection gates: check_bake_plan + check_bake_ref_defaults (WS-TESTDOC | P2 | S) **[DONE]**
+- [x] **AGY-361** Negative tests for the deploy-plane and SBOM-metadata gates (WS-TESTDOC | P2 | S) **[DONE]**
+- [x] **AGY-362** Negative tests for the security/mini SSOT-projection gates: check_clevis_luks + check_metal_vfio (WS-TESTDOC | P2 | M) **[DONE]**
+- [x] **AGY-363** Negative tests for check_hyprland_conf_heredoc + check_target_languages (WS-TESTDOC | P2 | S) **[DONE]**
+- [x] **AGY-364** Negative tests for the docs/templates/EOL gates: roadmap index, template compilation, EOL regressions (WS-TESTDOC | P2 | M) **[DONE]**
+- [x] **AGY-365** Ratchet gate: every dispatched drift-check must have a negative case (shrink-only allowlist) (WS-TESTDOC | P2 | M) **[DONE]**
+- [x] **AGY-366** Extract the CI smoke-RUN into a reusable bake smoke-test harness runnable locally and from CI (WS-TESTDOC | P2 | M) **[DONE]**
+- [x] **AGY-367** SSOT-drive the smoke-test component manifest from mios.toml plus a parity drift-gate (WS-TESTDOC | P3 | M) **[DONE]** ← AGY-366
+- [x] **AGY-368** ADR-0012: float-latest / no-hand-pinned-versions, generalizing ADR-0003 to every artifact class (WS-TESTDOC | P1 | M) **[DONE]**
+- [x] **AGY-369** ADR-0013: deploy-surface consolidation behind `installation/mios-install` (WS-TESTDOC | P1 | M) **[DONE]**
+- [x] **AGY-370** ADR-0014: the bare-metal leg, `bootc install to-disk --transport oci` (WS-TESTDOC | P1 | M) **[DONE]**
+- [x] **AGY-371** Record the testdoc/deploy work as ROADMAP workstreams and regenerate the index/rollup/ToC (WS-TESTDOC | P2 | S) **[DONE]** ← AGY-368
+- [x] **AGY-372** Vendor the REAL k3s binary at LATEST with sha verification and install.sh (WS-OFFL | P1 | M) **[DONE]**
+- [x] **AGY-373** Vendor k3s-selinux.tar.gz as the source tarball at the matching tag (WS-OFFL | P2 | S) **[DONE]** ← AGY-372
+- [x] **AGY-374** Vendor the Bibata cursor at LATEST (WS-OFFL | P2 | S) **[DONE]**
+- [x] **AGY-375** Vendor Geist + Nerd fonts at LATEST as real tar.xz, replacing the stubs  (WS-OFFL | P2 | S)  **[DONE]**
+- [x] **AGY-376** Vendor the hermes-agent wheel plus its full transitive wheel set  (WS-OFFL | P2 | M)  **[DONE]**
+- [x] **AGY-377** `mios-vendor-refresh`: one command that re-pulls every vendored asset at latest  (WS-OFFL | P1 | M)  **[DONE]**
+- [x] **AGY-378** Drift-gate: every consumed vendored asset is present and non-stub  (WS-OFFL | P2 | S)  **[DONE]**
+- [x] **AGY-379** Vendor the terra.repo GPG key so offline dnf can import it from disk  (WS-OFFL | P2 | S)  **[DONE]**
+- [x] **AGY-380** Vendored-directory size audit recipe plus the git-vs-LFS tradeoff note  (WS-OFFL | P3 | S)  **[DONE]**
+- [x] **AGY-381** CI gate: a PUBLISH build must fail fast on any stub vendored asset  (WS-OFFL | P3 | S)  **[DONE]** ← AGY-378
+- [x] **AGY-382** `mios.toml [offline.vendored]` registry as the SSOT for the asset list  (WS-OFFL | P3 | M)  **[DONE]** ← AGY-377, AGY-378
+- [x] **AGY-383** Record OFFL-01..03 complete in TASKS.md and regenerate the roadmap index  (WS-OFFL | P3 | S)  **[DONE]** ← AGY-372, AGY-382
+- [x] **AGY-384** `mios-resolve-latest`: resolve every floating bake ref to tag+digest at build  (WS-LATEST | P1 | M)  **[DONE]**
+- [x] **AGY-385** Float the AI-plane sidecar images to `:latest` intent  (WS-LATEST | P1 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-386** Float the data-plane images (pgvector, valkey, ceph)  (WS-LATEST | P1 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-387** Float the forge/CI images within their major line  (WS-LATEST | P1 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-388** Float the remote-desktop, PXE, search, DNS and trace images  (WS-LATEST | P2 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-389** Verify every base and builder image carries a floating channel plus a recorded digest  (WS-LATEST | P2 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-390** Drift-gate: no hand-pinned version literal outside the SBOM  (WS-LATEST | P1 | M)  **[DONE]** ← AGY-384, AGY-389
+- [x] **AGY-391** Wire Renovate to auto-bump the SBOM-recorded resolutions  (WS-LATEST | P2 | S)  **[DONE]** ← AGY-384
+- [x] **AGY-392** Float or justify every model tag (small/mid/big_ram, embed, vision)  (WS-LATEST | P3 | S)  **[DONE]** ← AGY-390
+- [x] **AGY-393** ADR: day-0 float, subsequent SBOM-pin policy  (WS-LATEST | P3 | S)  **[DONE]** ← AGY-384, AGY-390
+- [x] **AGY-394** Build `localhost/mios-base` first and wire it into the bake ordering  (WS-CONSOLIDATE | P1 | M)  **[DONE]**
+- [x] **AGY-395** `mios-web`: searxng + firecrawl + crawl4ai as one image FROM mios-base  (WS-CONSOLIDATE | P1 | M)  **[DONE]** ← AGY-394
+- [x] **AGY-396** `mios-data`: pgvector + valkey as one image FROM mios-base  (WS-CONSOLIDATE | P1 | M)  **[DONE]** ← AGY-394
+- [x] **AGY-397** Rewire the 7 double-baked sidecars to the mios-sys build  (WS-CONSOLIDATE | P2 | M)  **[DONE]** ← AGY-394
+- [x] **AGY-398** `mios-observ`: jaeger + otelcol as one image FROM mios-base  (WS-CONSOLIDATE | P2 | S)  **[DONE]** ← AGY-394
+- [x] **AGY-399** Tighten the bake-budget gate to block PUBLISH over the runner disk budget  (WS-CONSOLIDATE | P1 | S)  **[DONE]** ← AGY-394, AGY-398
+- [x] **AGY-400** Prove the shared-base dedup numerically with a composefs object-sharing report  (WS-CONSOLIDATE | P2 | S)**[DONE]**
+- [x] **AGY-401** Decide and record a disposition for every remaining 03-extra sidecar  (WS-CONSOLIDATE | P3 | M)**[DONE]**
+- [x] **AGY-402** Document the consolidation map and the before/after store size  (WS-CONSOLIDATE | P3 | S)**[DONE]** ← AGY-400, AGY-401
+- [x] **AGY-403** Split the monolithic build.sh RUN into resumable checkpointed layers  (WS-GHSELF | **P1** | L)**[DONE]**
+- [x] **AGY-404** Expand firstboot-tier eviction without breaking offline core install  (WS-GHSELF | P2 | M)**[DONE]** ← AGY-401
+- [x] **AGY-405** Flip the GitHub PUBLISH capacity gate once the store fits, with a preflight  (WS-GHSELF | P2 | M)**[DONE]** ← AGY-394, AGY-404
+- [x] **AGY-406** Verify Forgejo, GitHub and local publishers emit bit-identical images  (WS-GHSELF | P3 | S)**[DONE]** ← AGY-405
+- [x] **AGY-407** Land the Portal FBM status tile that watches first-boot model progress  (WS-FBM | P2 | S)**[DONE]** ← AGY-408
+- [x] **AGY-408** Wire mios-ai-firstboot into [ai].firstboot_models so a fresh install self-provisions  (WS-FBM | P2 | M)**[DONE]**
+- [x] **AGY-409** Implement the sha256 verification TODO in mios-models-firstboot  (WS-FBM | P2 | S)**[DONE]** ← AGY-408
+- [x] **AGY-410** Extend the `mios models` CLI with add/rm/status over SSOT  (WS-FBM | P3 | M)**[DONE]** ← AGY-408
+- [x] **AGY-411** Support air-gapped provisioning from a vendored GGUF via file:// sources  (WS-FBM | P3 | S)**[DONE]** ← AGY-408
+- [x] **AGY-412** Audit and harden the coderun sandbox now that code_mode ships enabled  (WS-CODEMODE | **P1** | L)**[DONE]**
+- [x] **AGY-413** Enforce allow_net as request AND policy, and refuse code_mode on light workers  (WS-CODEMODE | P1 | M)**[DONE]** ← AGY-412
+- [x] **AGY-414** Cover the in-sandbox mios_tools RPC surface with tests  (WS-CODEMODE | P2 | M)**[DONE]** ← AGY-412
+- [x] **AGY-415** Test-enforce the code_mode timeout and output cap  (WS-CODEMODE | P2 | S)**[DONE]** ← AGY-412
+- [x] **AGY-416** Emit an auditable log line for every code_mode execution  (WS-CODEMODE | P3 | S)**[DONE]** ← AGY-412
+- [x] **AGY-417** Install real bootc MiOS offline from a USB oci-archive  (WS-DEPLOY | **P1** | L)**[DONE]** ← AGY-422
+- [x] **AGY-418** Connect bootc-image-builder to produce the Anaconda installer ISO  (WS-DEPLOY | **P1** | L)**[DONE]**
+- [x] **AGY-419** Stage the ISO and oci-archive onto a Ventoy USB that actually installs MiOS  (WS-DEPLOY | P1 | L)**[DONE]** ← AGY-417, AGY-418
+- [x] **AGY-420** Keep Secure Boot intact through shim -> GRUB2 -> signed UKI  (WS-DEPLOY | P2 | M)**[DONE]** ← AGY-418
+- [x] **AGY-421** Emit vhdx/qcow2 VM artifacts and gate Win11 template parity  (WS-DEPLOY | P2 | M)**[DONE]** ← AGY-418
+- [x] **AGY-422** Unify the oci-archive producer and consumer on one SSOT path  (WS-DEPLOY | P2 | S)**[DONE]**
+- [x] **AGY-423** Scope the Windows/Xbox ISO leg with a working autounattend stub  (WS-DEPLOY | P3 | M)**[DONE]** ← AGY-419
+- [x] **AGY-424** Boot the produced ISO in QEMU as a deploy smoke test  (WS-DEPLOY | P3 | M)**[DONE]** ← AGY-418
+- [x] **AGY-425** Collapse the install entry points to one shim-less `.bat` and add a global `mios mon` service tracker  (WS-INSTALL | P2 | M)  **[DONE]**
+- [x] **AGY-426** Prove `build-mios.{ps1,sh}` and `mios-common.{ps1,sh}` byte-identical across both repos (Law 15)  (WS-INSTALL | P2 | M)  **[DONE]**
+- [x] **AGY-427** Hand `Get-MiOS -Action Install/Configure` into the unified installer to break the web-door loop  (WS-INSTALL | P3 | S)  **[DONE]** ← AGY-425
+- [x] **AGY-430** Extend the shared `mios_log` terse numbered format to libexec Python and PowerShell  (WS-LOG | P2 | M)  **[DONE]**
+- [x] **AGY-431** Grow the E5 fluff-token lint and extend its scan to libexec and PowerShell  (WS-LOG | P3 | S)  **[DONE]**
+- [x] **AGY-432** Split `server.py` into cohesive sub-800-line modules behind the golden public surface  (WS-LANG | P2 | L)  **[DONE]**
+- [x] **AGY-433** Convert the remaining eval-on-agent-args verbs to allowlisted dispatch  (WS-LANG | P2 | M)  **[DONE]**
+- [x] **AGY-434** Prototype the compiled-template system that generates twin implementations from one source  (WS-LANG | P3 | L)  **[DONE]**
+- [x] **AGY-435** Ratchet shellcheck to a repo-wide warning-level CI gate  (WS-LANG | P2 | M)  **[DONE]**
+- [x] **AGY-436** Rotate the exposed GitHub PAT and move publish auth to a secret store  (WS-SEC | **P0** | M)  **[DONE]**
+- [x] **AGY-437** Prove the cosign policy signs on publish and the install path verifies  (WS-SEC | P2 | M)  **[DONE]** ← AGY-436
+- [x] **AGY-438** Gate SBOM completeness so every baked artifact carries a resolved version  (WS-SEC | P2 | M)  **[DONE]**
+- [x] **AGY-439** Audit fapolicyd trust coverage for the new libexec tools and services  (WS-SEC | P3 | S)  **[DONE]**
+- [x] **AGY-440** Project the Hyprland + Quickshell liquid-glass shell from `mios.toml`  (WS-ROADMAP | P2 | L)  **[DONE]**
+- [x] **AGY-441** Turn the MiOS-Metal split-plane doc into wired vfio and mesh generators  (WS-ROADMAP | P3 | L)  **[DONE]**
+- [x] **AGY-442** Wire `[accounts].db_backed` to Linux userdb and a Windows baseline  (WS-ROADMAP | P3 | L)  **[DONE]**
+- [x] **AGY-443** Wire three of the shipped-but-unwired container-runtime features from SSOT  (WS-ROADMAP | P3 | M)  **[DONE]**
+- [x] **AGY-444** Generalize the dotfiles registry past btop with two more settings surfaces  (WS-ROADMAP | P3 | M)  **[DONE]**
+- [x] **AGY-445** Extend `mios-ssot-regen` to regenerate ALL SSOT projections in one command  (WS-DRIFT | P2 | M)  **[DONE]**
+- [x] **AGY-446** Add a pre-commit hook that regenerates projections when `mios.toml` changes  (WS-DRIFT | P2 | S)  **[DONE]** ← AGY-445
+- [x] **AGY-447** Add negative tests for every check introduced in this batch  (WS-DRIFT | P3 | S)  **[DONE]**
+- [x] **AGY-448** Bump VERSION past 0.3.0 and define the post-release bump policy  (WS-PUBLISH | **P1** | S)  **[DONE]**
+- [x] **AGY-449** Smoke-verify the published image boots with healthy services before announcing  (WS-PUBLISH | P2 | M)  **[DONE]** ← AGY-448
+- [x] **AGY-450** Publish a machine-readable publish-status file beside the publish log so state survives reboots  (WS-PUBLISH | P2 | S)**[DONE]**
+- [x] **AGY-451** Promote the resumable publisher from a hand-placed /root/pub.sh into a repo-tracked, drift-gated unit  (WS-PUBLISH | P3 | M)**[DONE]** ← AGY-450
+- [x] **AGY-452** Register the day-0-publish / always-latest / consolidation workstreams in the roadmap index  (WS-TESTDOC | P2 | S)**[DONE]**
+- [x] **AGY-453** ADR: record the publish-survival architecture (WSL idle/reboot resilience)  (WS-TESTDOC | P3 | S)**[DONE]** ← AGY-451
+- [x] **AGY-454** Postmortem doc: why stale SSOT projections kept turning the drift-gate red  (WS-TESTDOC | P3 | S)**[DONE]** ← AGY-446
+- [x] **AGY-455** Delete the redundant coderun-sandbox mios_tools.py draft under etc/  (WS-CLEAN | P3 | S)**[DONE]**
+- [x] **AGY-456** Land or discard the two dangling git stashes so the tree carries no hidden WIP  (WS-CLEAN | P3 | M)**[DONE]** ← AGY-407, AGY-426
+- [x] **AGY-457** Verify every status flip in the stashed TASKS.md edit against landed code  (WS-CLEAN | P3 | S)**[DONE]** ← AGY-456
+- [x] **AGY-458** Bring the committed-but-unbuilt mios-base Containerfile into gate conformance  (WS-CLEAN | P3 | S)**[DONE]** ← AGY-394
+- [x] **AGY-459** Audit every MIOS_K3S_VERSION consumer after the k3s float so one tag resolves everywhere  (WS-CLEAN | P3 | S)**[DONE]** ← AGY-372
+- [x] **AGY-460** Feed vendored VERSIONS.txt into MiOS-SBOM.csv so vendored assets appear in the SBOM  (WS-CLEAN | P3 | S)**[DONE]** ← AGY-377, AGY-438
+- [x] **AGY-461** Audit the canonical AI endpoint (:8640 orchestrator / :8642 Hermes) and purge retired :8080 paths  (WS-ROADMAP | P3 | M)**[DONE]**
+- [x] **AGY-462** Finish the legacy AI purge and add a gate that blocks a new ollama/localai/surrealdb lane  (WS-ROADMAP | P3 | M)**[DONE]**
+- [x] **AGY-463** Auto-derive the global key library and end the MIOS_AI_VLLM_* vs MIOS_VLLM_* mismatch  (WS-NAME | P3 | L)**[DONE]**
+- [x] **AGY-464** Reorder mios-sys Containerfile RUN steps static-first to stop cache-busting  (WS-CONSOLIDATE | P3 | M)**[DONE]**
+- [x] **AGY-465** Warm the bake cache for the split resumable layers so a cold runner resumes fast  (WS-GHSELF | P3 | M)**[DONE]** ← AGY-403
+- [x] **AGY-466** Project the bootc image ref from SSOT into the Anaconda kickstart's ostreecontainer line  (WS-DEPLOY | P3 | M)**[DONE]**
+- [x] **AGY-467** Generate the Ventoy/GRUB loopback multiboot menu from [deploy.artifacts] SSOT  (WS-DEPLOY | P3 | M)**[DONE]**
+- [x] **AGY-468** Script the MiOS-Cat USB partition layout (Ventoy + ESP + exFAT MiOS-Repo) idempotently  (WS-DEPLOY | P3 | M)**[DONE]**
+- [x] **AGY-469** Give every new deploy/vendor live-resource test a skip sentinel so the suite stays hermetic  (WS-TESTDOC | P3 | S)**[DONE]**
+- [x] **AGY-470** Float the llama-swap image ref (3 copies) to family-latest and record it in the SBOM  (WS-LATEST | P3 | S)**[DONE]**
+- [x] **AGY-471** Document that code_mode ships ON by default, plus the operator off-switch and sandbox guarantees  (WS-CODEMODE | P3 | S)**[DONE]** ← AGY-412
+- [x] **AGY-472** Populate [ai].firstboot_bound_images so the dormant firstboot puller actually pulls the heavy tier  (WS-FBM | P3 | M)**[DONE]**
+- [x] **AGY-473** Make `mios mon` a single live view of every mios-* unit, timer, firstboot job, agent and publish state  (WS-INSTALL | P3 | M)**[DONE]** ← AGY-450
+- [ ] **AGY-474** Tag every pipeline log line with its unified 0-99 number via the shared loggers  (WS-NUMBER | P3 | M)**DONE**
+- [x] **AGY-475** Force every `just` artifact recipe to emit into the SSOT output dir (`build/`)  (WS-CLEAN | P3 | S)  **[DONE]**
+- [x] **AGY-476** Prove no soft-mode or drift-gate bypass path exists in CI or the publish route  (WS-SEC | P3 | S)  **[DONE]**
+- [x] **AGY-477** Close out the FOSS adopt-now sweep: land or explicitly defer each upstream  (WS-ROADMAP | P3 | L)  **[DONE]** ← AGY-417, AGY-440
+- [x] **AGY-478** Hold the 372..478 batch drift-green on every commit as it lands  (WS-TESTDOC | P2 | M)  **[DONE]**
+- [x] **AGY-479** `mios-env-snapshot`: the ground-truth capture for every lossless refactor  (WS-UNIFY | **P0** | S)  **[DONE]**
+- [x] **AGY-480** `check_resolved_env_lossless`: gate the resolved env against a committed baseline  (WS-UNIFY | **P0** | M)  **[DONE]** ← AGY-479
+- [x] **AGY-481** Commit the verified AGY vendoring/tools work to give GUP a clean base  (WS-UNIFY | **P0** | M)  **[DONE]**
+- [x] **AGY-482** Commit the coordinated k3s v1.32.1 -> v1.36.2 bump across all projections  (WS-UNIFY | **P0** | S)  **[DONE]** ← AGY-481
+- [x] **AGY-483** Wire the lossless gate into CI and a pre-commit hook  (WS-UNIFY | P1 | M)  **[DONE]** ← AGY-480
+- [x] **AGY-484** Document the lossless-diff refactor method  (WS-UNIFY | P2 | S)  **[DONE]** ← AGY-480
+- [x] **AGY-485** Audit every dead-empty `MIOS_*_VERSION` key and produce the drop-list  (WS-UNIFY | P1 | M)  **[DONE]** ← AGY-479
+- [x] **AGY-486** Drop the dead `MIOS_EMB_VERSION` key  (WS-UNIFY | P1 | S)  **[DONE]** ← AGY-485
+- [x] **AGY-487** Drop the dead `MIOS_AGENT_PASSPORT_VERSION` and `MIOS_AGNTCY_OASF_VERSION` keys  (WS-UNIFY | P1 | S)  **[DONE]** ← AGY-485, AGY-486
+- [x] **AGY-488** Collapse the `MIOS_CONVERGE_*` / `MIOS_CONV_*` alias-dupe to one canonical name  (WS-UNIFY | P1 | S)  **[DONE]** ← AGY-480
+- [x] **AGY-489** Collapse the `MIOS_WEBTOOLS_*` / `MIOS_CRAWL4AI_*` alias-dupe  (WS-UNIFY | P1 | S)  **[DONE]** ← AGY-480
+- [x] **AGY-490** Script the full alias-dupe sweep across the whole `MIOS_*` namespace  (WS-UNIFY | P1 | M)  **[DONE]** ← AGY-479
+- [x] **AGY-491** Collapse every remaining alias-dupe found by the sweep  (WS-UNIFY | P1 | M)  **[DONE]** ← AGY-490
+- [x] **AGY-492** `check_no_duplicate_value_key`: keep the namespace collapsed permanently  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-491
+- [x] **AGY-493** Reconcile mismatched `[image.sidecars]` version/tag pairs BEFORE deriving  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-480
+- [x] **AGY-494** Resolver twin A: derive `MIOS_X_VERSION` from the image ref (`mios_toml.py`)  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-493
+- [x] **AGY-495** Resolver twin B: mirror the same derive in `userenv.sh`  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-494
+- [x] **AGY-496** Delete every `X_version` key from `[image.sidecars]`  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-494, AGY-495
+- [x] **AGY-497** Verify the 12 `MIOS_K3S_VERSION` consumers resolve unchanged  (WS-UNIFY | P2 | S)  **[DONE]** ← AGY-496
+- [x] **AGY-498** Apply the same single-source derive to `[containers.*]` image refs  (WS-UNIFY | P2 | M)  **[DONE]** ← AGY-496
+- [x] **AGY-499** Compose `[build.bake].core` from `[image.sidecars]` plus a `local_builds` list  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-496
+- [x] **AGY-500** Generate 03-extra.list from the composed [image.sidecars] set so no second ref literal exists  (WS-UNIFY | **P1** | S)  **[DONE]**
+- [x] **AGY-501** Regenerate the k3s and all sidecar Quadlets from SSOT under the canonical MIOS_* env  (WS-UNIFY | **P1** | S)  **[DONE]**
+- [x] **AGY-502** Audit mios.toml for any full image ref living outside [image.sidecars]  (WS-UNIFY | P2 | S)  **[DONE]**
+- [x] **AGY-511** Project mios-knowledge-graph.json from mios.toml instead of hardcoding versions  (WS-UNIFY | **P1** | S)  **[DONE]**
+- [x] **AGY-512** Project image versions into the configurator mios.html at generation time  (WS-UNIFY | **P1** | S)  **[DONE]**
+- [x] **AGY-513** Generate the bound-images.tsv SBOM row set from the composed bake set  (WS-UNIFY | P2 | S)  **[DONE]**
+- [x] **AGY-514** Derive image-versions.yml from [image.sidecars] rather than duplicating versions  (WS-UNIFY | P2 | S)  **[DONE]**
+- [x] **AGY-515** Resolve the hardcoded k3s version in k3s-cockpit.md and variables.md  (WS-UNIFY | P2 | S)  **[DONE]**
+- [x] **AGY-516** Add the check_no_hardcoded_ssot_literal drift-gate  (WS-UNIFY | **P1** | M)  **[DONE]** ← AGY-511
+- [x] **AGY-517** Extend mios-ssot-regen to regenerate ALL derived surfaces in one command  (WS-UNIFY | P2 | M)  **[DONE]** ← AGY-511
+- [x] **AGY-518** Remove the .tmp.drive* and *.bak stale copies polluting SSOT greps  (WS-UNIFY | P2 | S)  **[DONE]**
+- [x] **AGY-541** Inventory the 2523 MIOS_* keys by section and flag hand-tuple vs derivable  (WS-UNIFY | **P1** | M)  **[DONE]**
+- [x] **AGY-561** Reconcile emitted MIOS_AI_VLLM_* against consumed MIOS_VLLM_*  (WS-UNIFY | **P1** | S)  **[DONE]** ← AGY-541
+- [x] **AGY-562** Generate userenv.sh's tuple table so the bash twin stops being hand-listed  (WS-UNIFY | P2 | M)  **[DONE]**
+- [x] **AGY-563** Make names.generated.txt cover the FULL minimal key set  (WS-UNIFY | P2 | S)  **[DONE]** ← AGY-541, AGY-561
+- [x] **AGY-564** Final env-diff: assert the key COUNT dropped with zero value changes  (WS-UNIFY | P2 | S)  **[DONE]** ← AGY-541, AGY-563
+- [x] **AGY-565** ADR recording the unified-key-library architecture  (WS-UNIFY | P2 | S)  **[DONE]** ← AGY-564
+- [x] **AGY-961** Create the `mios-build` orchestrator crate and expose a `miosd build` seam that wraps (not replaces) build.sh  (WS-LANG-AUTO | P1 | L)  **[DONE]**
+- [x] **AGY-962** Unify the two Rust workspaces so the Containerfile builds and ships EVERY native crate  (WS-LANG-AUTO | P1 | M)  **[DONE]**
+- [x] **AGY-964** Replace build.sh's grep-blob phase policy with a typed `[build.phases]` registry projected from SSOT  (WS-LANG-AUTO | P1 | M)  **[DONE]**
+- [x] **AGY-965** Make the image build reproducible: derive SOURCE_DATE_EPOCH from the git commit and pass --rewrite-timestamp  (WS-LANG-AUTO | P1 | M)  **[DONE]**
+- [x] **AGY-967** Gate the bake on `cargo fmt --check` + `clippy -D warnings` across both Rust workspaces  (WS-LANG-AUTO | P1 | S)  **[DONE]**
+- [x] **AGY-968** Add a fast cached `native-test` CI job that the bake `needs:`  (WS-LANG-AUTO | P1 | S)  **[DONE]**
+- [x] **AGY-969** Add cargo-deny + cargo-audit gates and commit Cargo.lock in both workspaces as SBOM SSOT  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-970** Add a `check_bash_phase_ratchet` drift-check so the automation/*.sh count can only decrease  (WS-LANG-AUTO | P2 | S)  **[DONE]**
+- [x] **AGY-971** Build a typed figment-based `mios-config` resolver crate deserializing mios.toml into structs  (WS-LANG-AUTO | P1 | XL)  **[DONE]**
+- [x] **AGY-972** Demote both userenv.sh twins to shims over `miosd resolve --shell` and PROVE parity with proptest  (WS-LANG-AUTO | P1 | L)  **[DONE]**
+- [x] **AGY-973** Port 35-render-ports.sh (awk stack_id offset) to `miosd render-ports` behind a shim  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-974** Port 34-render-quadlets.sh to `miosd render-quadlets` and DERIVE the placeholder allowlist instead of hand-listing it twice  (WS-LANG-AUTO | P2 | L)  **[DONE]**
+- [x] **AGY-975** Port generate-pod-quadlets.py (504ln) + 33-generate-quadlets.sh to `miosd generate-quadlets --check`  (WS-LANG-AUTO | P2 | XL)  **[DONE]**
+- [x] **AGY-976** Port 75-kargs-render.sh's inline tomllib block to `miosd render-kargs`  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-977** Port generate-uki-cmdline.py + 76-uki-render.sh to `miosd render-uki-cmdline --check`  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-978** Port 42-chrony-render.sh's inline python to `miosd render-chrony`  (WS-LANG-AUTO | P3 | S)  **[DONE]**
+- [x] **AGY-979** Port 43-nut-render.sh's inline python (4 config files) to `miosd render-nut`  (WS-LANG-AUTO | P3 | S)  **[DONE]**
+- [x] **AGY-980** Port 44-firewall-ports.sh + 45-firewall.sh to `miosd firewall-ports` emitting offline firewalld config  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-981** Finish the mios-bake-plan native cutover and DELETE the python fallback in 85-bake-plan.sh  (WS-LANG-AUTO | P2 | S)  **[DONE]**
+- [x] **AGY-982** Port generate-cosign-policy.py + 49-cosign-policy.sh to `miosd cosign-policy` and pin the LEGACY sigstore attachment format  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-983** Port the hardening service-enable family (51-hardening.sh + siblings) to `miosd harden` over an SSOT unit roster  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [x] **AGY-984** Port 05-repos.sh's repo-file heredocs to a typed `[repos]` model behind `miosd render-repos`  (WS-LANG-AUTO | P3 | M)  **[DONE]**
+- [x] **AGY-986** Replace 88-finalize.sh's os-release `sed` loop with a typed `miosd finalize-osrelease` version projector  (WS-LANG-AUTO | P3 | S)  **[DONE]**
+- [x] **AGY-988** Port the firstboot-token bound-images binding from 01-system-files-overlay.sh into `miosd overlay-bind-images`  (WS-LANG-AUTO | P2 | M)  **[DONE]**
+- [ ] **AGY-1014** Stand up the golden-master parity harness (trycmd + insta) that every libexec port must pass  (WS-LANGX | P1 | M)
+- [ ] **AGY-1021** Port mios-env-snapshot to a byte-identical mios-toml-core snapshot emitter  (WS-LANGX | P2 | M)
+- [ ] **AGY-1027** Port mios-db to a Rust shared-state CLI with out-of-band SQL binding  (WS-LANGX | P2 | L)
+- [ ] **AGY-1031** Port libvirtd-firstboot to Rust on the firstboot-crate template  (WS-LANGX | P2 | M)
+- [x] **AGY-1057** Port the atomic bootc/OCI-delta swap family to a transactional `miosd bootc-apply` subcommand  (WS-LANGX | P1 | L)  **[DONE]**
+- [ ] **AGY-1058** Port the security-enrollment tools (mios-enroll-secure-boot, mios-clevis-luks-gen, mios-keyring-autounlock, selinux-init) to fail-closed Rust binaries  (WS-LANGX | P2 | L)
+- [x] **AGY-1061** Collapse the three build-if-missing firstboot bash scripts into one SSOT-driven `miosd build-if-missing` provisioner  (WS-LANGX | P3 | M)  **[DONE]**
+- [ ] **AGY-1062** Build a hermetic fake-root / recorded-invocation harness that proves side-effectful firstboot ports match bash  (WS-LANGX | P2 | L)
+- [ ] **AGY-1065** Co-port the build-observability companions (status, tail, log-copy, blade) with the mios-build-driver orchestrator  (WS-LANGX | P3 | M)
+- [ ] **AGY-1069** Eliminate the os.system() command-injection sites in mios-models and mios-v2v-import  (WS-DEBT | P1 | S)
+- [ ] **AGY-1075** Replace the SourceFileLoader dynamic-import hacks with clean `mios_tools.*` package imports  (WS-DEBT | P2 | M)
+- [ ] **AGY-1094** Eliminate the shell=True recipe-template command-injection in mios-os-recipe  (WS-DEBT | P1 | M)
+- [ ] **AGY-1098** Standardize CLI argument parsing across the 27 argparse-less tools with a --help/--version contract test  (WS-DEBT | P2 | L)
+- [ ] **AGY-1099** Build a golden characterization harness for the non-projector runtime tools before the refactors touch them  (WS-DEBT | P1 | L)
+- [ ] **AGY-1146** Type and property-test the scheduler cluster (admission/preempt/slo/vram/evict/batch/bench/stress)  (WS-DEBT | P2 | L)
+- [ ] **AGY-1147** Type and golden the identity cluster (crl/principal/reputation) signing, revocation and scoring  (WS-DEBT | P2 | M)
+- [ ] **AGY-1149** Split the four over-ceiling routing modules (swarm/refine/agent_call/web_research) behind transcript goldens  (WS-DEBT | P2 | XL)
+- [x] **AGY-1153** Design the mios-resolver crate: typed layered model, figment providers, thiserror/miette error surface  (WS-RESOLVER | P1 | M)**[DONE]**
+- [x] **AGY-1154** Port tier/layer discovery (layer_paths + _frags + _tier_dirs) into mios-resolver  (WS-RESOLVER | P1 | M)**[DONE]**
+- [x] **AGY-1155** Port deep_merge overlay semantics (empty-string-never-overrides) with golden unit tests  (WS-RESOLVER | P1 | S)**[DONE]**
+- [x] **AGY-1156** Port walk() + process_val() value transforms (stack_offset, port!=53, bool, CSV) with characterization tests  (WS-RESOLVER | P1 | M)**[DONE]**
+- [x] **AGY-1157** Port get_aliases() -- the ~50-branch alias map -- as a data-driven table with a differential test vs Python  (WS-RESOLVER | P1 | L)**[DONE]**
+- [x] **AGY-1158** Port the [ports] dual-alias emission (MIOS_PORT_x + MIOS_x_PORT + guacamole canon)  (WS-RESOLVER | P1 | S)**[DONE]**
+- [x] **AGY-1159** Port the WALK_MOSTLY_DEAD / WALK_EMIT_KEEP canonical-emit gating  (WS-RESOLVER | P1 | S)**[DONE]**
+- [x] **AGY-1160** Port the [env] verbatim table, referenced_names passthrough and shlex.quote export serialization  (WS-RESOLVER | P1 | M)**[DONE]**
+- [x] **AGY-1161** Port the semantic palette (PALETTE_DEFAULTS + colors()) into the mios-resolver crate  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1162** Decide and implement the mios_db_config authoritative-overlay boundary for the Rust resolver  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1163** Cut userenv.sh over to `mios-resolver --emit=shell` with the Python heredoc as fallback  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1164** Generate automation/lib/globals.ps1 from the resolver and delete its ~200 hand-maintained literals  (WS-RESOLVER | P2 | L) **[DONE]**
+- [x] **AGY-1165** Demote mios_toml.py's public API to a signature-preserving shim over `mios-resolver --emit=json`  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1166** Emit /etc/mios/install.env from the resolver and reduce mios-sync-env to a wrapper  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1167** Drive referenced_names.txt + names.generated.txt from the shared crate and delete generate-names-registry's forked alias_for  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1168** Add check_resolver_shell_equivalence plus trycmd/insta snapshots for the shell emitter  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1169** Add check_resolver_ps_equivalence and fold checks 28/52 into the generation gate  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1172** Register the resolver-equivalence checks as first-class entries in mios-drift-runner  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1173** Route mios-env-snapshot through mios-resolver while keeping the lossless baseline byte-identical  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1174** Characterize every PowerShell entry point against the generated globals module  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1175** Collapse the userenv.sh byte-mirror to one canonical shim and shrink or retire check 27  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1176** Delete the embedded Python heredoc from userenv.sh once the parity gates are green  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1177** Add an oxidizr-style [migration] SSOT table for per-surface Rust/bash resolver selection  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1178** Gate the new crate dependency surface with cargo-deny and cargo-audit  (WS-RESOLVER | P1 | S) **[DONE]**
+- [x] **AGY-1179** Wire miette source-span diagnostics so a bad [colors]/[ports] value points at the mios.toml line  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1180** Add a cargo xtask for cross-platform build+install+regen, replacing scattered raw-cargo invocations  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1181** Author the unified-resolver ADR and populate the WS-RESOLVER roadmap section  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1182** Generate automation/lib/globals.sh from the resolver and extend checks 28/52 to the shell twin  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1183** Route agent-pipe kernel/config.py's re-rolled TOML readers through the resolver shim  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1184** Reconcile the generated workspace member list and gate generated-vs-committed Cargo.toml  (WS-RESOLVER | P2 | S) **[DONE]**
+- [x] **AGY-1185** Add a bake phase that compiles the native workspace and installs mios-resolver into the image  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1186** Port the post-resolve derived transforms (loopback-bool bind address and composed *_URL defaults) into mios-resolver  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1187** Port float_allowlist() / [build.float] into mios-resolver and repoint mios-version-lint off mios_toml  (WS-RESOLVER | P1 | S) **[DONE]**
+- [x] **AGY-1188** Preserve or explicitly retire userenv.sh's legacy split-file reader and the _ssot_lint_ports_dummy whitelist before the heredoc is deleted  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1189** Rebind the R-subset-of-E var-closure gate (check 37) and the names.generated.txt emitter set to the resolver crate output  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1190** Repoint the referenced_names staleness gate at the Rust generator and delete tools/generate-names-registry.py  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1191** Implement MSYS/Windows drive-letter path normalization in mios-resolver matching userenv.sh normalize_path  (WS-RESOLVER | P2 | M) **[DONE]**
+- [x] **AGY-1192** Build the golden characterization corpus of layered mios.toml overlays capturing all three resolvers' current output  (WS-RESOLVER | P1 | L) **[DONE]**
+- [x] **AGY-1193** Mirror the resolver shim and binary into mios-bootstrap.git per Law 15  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1194** Reconcile the two divergent EXCLUDED_SECTIONS semantics into one typed model in mios-ssot-walk  (WS-RESOLVER | P1 | M) **[DONE]**
+- [x] **AGY-1195** Add a bootstrap-ordering degrade-open guard so resolver consumers survive before the binary is installed  (WS-RESOLVER | P0 | M) **[DONE]**
+- [x] **AGY-1196** Establish the mios-drift lib crate + Check-trait harness in miosd, absorbing mios-drift-runner  (WS-DRIFTRUST | P1 | L) **[DONE]**
+- [x] **AGY-1197** Build the bash-vs-Rust golden-master + differential parity harness for drift checks  (WS-DRIFTRUST | P1 | L) **[DONE]**
+- [x] **AGY-1198** Wire the 5 orphan native crates into the workspace and add clippy/fmt/deny/audit gates  (WS-DRIFTRUST | P1 | M) **[DONE]**
+- [x] **AGY-1199** Add the [migration] SSOT toggle with oxidizr-style per-family Rust/bash opt-out and rollback  (WS-DRIFTRUST | P1 | M) **[DONE]**
+- [x] **AGY-1200** Make the gate-index / gate-registry / negatives-ratchet meta-gates hybrid-aware  (WS-DRIFTRUST | P1 | M) **[DONE]**
+- [x] **AGY-1201** Port the SSOT regenerate-and-diff runner abstraction to Rust  (WS-DRIFTRUST | P1 | M) **[DONE]**
+- [x] **AGY-1202** Port the heavy regen-and-diff projections: pod-quadlets, egress-firewall, blade-dropins  (WS-DRIFTRUST | P2 | M) **[DONE]**
+- [x] **AGY-1203** Port the nine small render-and-diff SSOT projections to Rust  (WS-DRIFTRUST | P2 | L) **[DONE]**
+- [x] **AGY-1204** Port the projection-registry integrity + renderer/dotfiles coverage meta-checks  (WS-DRIFTRUST | P2 | M) **[DONE]**
+- [x] **AGY-1205** Port the Laws + filesystem-layout enforcement family to Rust  (WS-DRIFTRUST | P2 | L) **[DONE]**
+- [x] **AGY-1206** Port the digest/pin/SBOM (SBOM-not-hardcode) check family to Rust  (WS-DRIFTRUST | P2 | M) **[DONE]**
+- [x] **AGY-1207** Port check_names_registry onto the existing generate-names-registry Rust crate  (WS-DRIFTRUST | P2 | S) **[DONE]**
+- [x] **AGY-1208** Build a figment-based Rust resolver and differential-test it against the userenv.sh/mios_toml.py twins  (WS-DRIFTRUST | P1 | L) **[DONE]**
+- [x] **AGY-1209** Port the globals/userenv cross-language parity checks to Rust  (WS-DRIFTRUST | P2 | M) **[DONE]**
+- [x] **AGY-1210** Port the pipeline/gate numbering + DAG integrity family to Rust  (WS-DRIFTRUST | P2 | L) **[DONE]**
+- [x] **AGY-1211** Port the six BIB installer-family and partition-label deploy checks into a compiled `miosd` deploy module  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1212** Port the deploy-artifact, kickstart-syntax and VM-template checks into the Rust deploy module  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1213** Port template-conformance and verb-template checks into a Rust templates module with miette spans  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [x] **AGY-1214** Port the hardcode-lint family and fix the unanchored-allowlist bug that exempts real port literals  (WS-ZEROHC | P1 | M)  **[DONE]**
+- [x] **AGY-1215** Port the bare-port-literal / container-ports checks onto the typed ports model  (WS-PORTFLOAT | P2 | S)  **[DONE]**
+- [x] **AGY-1216** Activate the orphan `mios-version-check` crate and port the version-SSOT family onto it  (WS-DRIFTRUST | P2 | S)  **[DONE]**
+- [x] **AGY-1217** Port the seven cross-subsystem converge/consistency checks to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1218** Port the DB-seed coverage, account-column parity and RBAC/SQL-safety checks to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1219** Port the DB->TOML materialize round-trip check (the 320-line embedded-Python blob) to Rust  (WS-DRIFTRUST | P2 | L)  **[DONE]**
+- [x] **AGY-1220** Port the module-hygiene family (boundary, coverage, length, unwired, surface parity) to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1221** Activate the orphan `mios-aiplane-lint` crate and port the four AI-plane lint checks onto it  (WS-DRIFTRUST | P2 | S)  **[DONE]**
+- [x] **AGY-1222** Port the AI-hint coverage ratchet and the retired-lane/model checks to Rust  (WS-DRIFTRUST | P2 | S)  **[DONE]**
+- [x] **AGY-1223** Port the ai/v1 manifest and agent-schema reference-integrity checks to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1224** Port the exec/eval-safety and lint security checks to Rust  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1225** Port the governance-hygiene checks (lint-is-final, coordination, heredoc, target-languages) to Rust  (WS-DRIFTRUST | P2 | S)  **[DONE]**
+- [x] **AGY-1226** Port the boot-integrity / firstboot family (degrade-open, tier, greenboot, clevis) to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1227** Activate the orphan `mios-bake-plan` crate and port the bake-plan/budget checks onto it  (WS-BAKEGATE | P2 | S)  **[DONE]**
+- [x] **AGY-1228** Finish `mios-ssot-lint` to parity, demote `97-ssot-lint.sh` to a shim, and retire the equivalence check  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1229** Port the self-test family (negatives coverage, hermeticity, soft-mode, smoke manifest) and make the ratchet hybrid-aware  (WS-TESTDOC | P1 | M)  **[DONE]**
+- [x] **AGY-1230** Adopt miette+thiserror typed diagnostics across every ported drift check  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1231** Cut the default drift runner over to Rust and delete the retired bash families  (WS-DRIFTRUST | P1 | L)  **[DONE]**
+- [x] **AGY-1232** Port `99-postcheck.sh` into miosd and unify 98/99 under one binary with source-tree and in-image modes  (WS-DRIFTRUST | P1 | L)  **[DONE]**
+- [x] **AGY-1233** Replicate the gitignored-projection-absent skip and in-loop vs post-loop ordering semantics in the Rust runner  (WS-DRIFTRUST | P0 | M)  **[DONE]**
+- [x] **AGY-1234** Make regen-and-diff snapshot/restore crash-safe and port `tests/drift-gate-readonly.sh` onto the binary  (WS-DRIFTRUST | P0 | M)  **[DONE]**
+- [x] **AGY-1235** Make the Rust drift runner Windows-native and drop the bash + python3 shim so the gate runs git-bash-free on win32  (WS-DRIFTRUST | P2 | L)  **[DONE]**
+- [x] **AGY-1236** Bless the Rust drift plane in Law 14 and regenerate the gate's own AI-hint self-reference as check families migrate  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1237** Model shellcheck and python-lint as a typed ExternalLinter check that survives cutover -- never delete them  (WS-DRIFTRUST | P1 | S)  **[DONE]**
+- [x] **AGY-1238** Retarget the negative-test harness per-check to whichever implementation OWNS the check  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1239** Port check_drift_build_catalog -- the 370-line embedded MockCursor SQL-DB emulation -- to Rust  (WS-DRIFTRUST | P2 | L)  **[DONE]**
+- [x] **AGY-1240** Port the multi-copy mios.toml integrity family: check_root_toml_subset + check_toml_projection  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1241** Port the GUP value-unification trio to Rust, with root-path normalization baked into the env snapshot  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1242** Port the container-privilege family: check_quadlet_privilege + check_nested_podman_caps  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1243** Port the resolver-discipline lints: check_raw_toml_readers + check_verb_backends  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [x] **AGY-1244** Port the network-fetch degrade-open and retired-technology regression guards to Rust  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1245** Port the mios_pipe extraction-integrity checks: check_pipe_boundaries + check_pipe_extraction_parity  (WS-DRIFTRUST | P2 | M)  **[DONE]**
+- [x] **AGY-1246** Sweep the five orphan checks and delete the shared bash scaffolding so ZERO bash check_* bodies survive  (WS-DRIFTRUST | P2 | L)  **[DONE]**
+- [x] **AGY-1247** Mirror the Rust drift binary and [migration] toggle into mios-bootstrap.git behind a cross-repo parity gate (Law 15)  (WS-DRIFTRUST | P1 | M)  **[DONE]**
+- [ ] **AGY-1249** Retire the divergent duplicate generator mios-template-engine behind mios-new  (WS-TEMPLATE | P1 | S)
+- [x] **AGY-1254** Implement `miosd scaffold` (fold mios-new into Rust) and demote mios-new to a shim  (WS-TEMPLATE | P2 | L)  **[DONE]**
+- [x] **AGY-1255** Move the hardcoded dest-path routing table into the [templates.*] SSOT  (WS-TEMPLATE | P1 | M)  **[DONE]**
+- [x] **AGY-1256** Generate the `mios new` type list and usage text from [templates.*]  (WS-TEMPLATE | P2 | S)  **[DONE]**
+- [x] **AGY-1257** Extend conformance to validate ordered BODY STRUCTURE, not just substring markers  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [x] **AGY-1258** Self-consistency gate: every registered template must scaffold to a conforming file  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [x] **AGY-1259** Add the 5 orphan native crates to the tools/native workspace members  (WS-TEMPLATE | P1 | S)  **[DONE]**
+- [x] **AGY-1260** Add a `cargo fmt --check` + `clippy -D warnings` quality gate for the native workspace  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [x] **AGY-1261** Cover the two uncovered file types: add cargo-manifest and systemd-timer templates  (WS-TEMPLATE | P2 | S)  **[DONE]**
+- [x] **AGY-1262** Split the one-size quadlet template into per-kind scaffolds (.container/.pod/.network/.volume)  (WS-TEMPLATE | P2 | M)  **[DONE]**
+- [ ] **AGY-1279** Enforce shebang/LF-only/exec-bit for script templates and fix templates' self-referential AI-related  (WS-TEMPLATE | P2 | M)
+- [x] **AGY-1283** Add a PowerShell AST parse-gate to CI (the single highest-value PS gate)  (WS-PWSH | P1 | M)  **[DONE]**
+- [x] **AGY-1284** Add a PSScriptAnalyzer static-analysis gate with a curated ruleset  (WS-PWSH | P1 | M)  **[DONE]**
+- [x] **AGY-1287** Extract the duplicated mios.toml resolver into one shared PowerShell module  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1285** Collapse the two same-named Setup-MiOSLanPortProxy.ps1 into one SSOT-floated proxy and delete the retired ollama port literals  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1286** Stop clobbering the `$args` automatic variable and put every hardened .ps1 under Set-StrictMode  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1288** Strangler-decompose the 11k-line build-mios.ps1 into a MiOS.Build module behind a stable shim  (WS-PWSH | P2 | L)  **[DONE]**
+- [x] **AGY-1289** Strangler-decompose the 420KB Get-MiOS.ps1 web entrypoint into a MiOS.Install module  (WS-PWSH | P2 | L)  **[DONE]**
+- [x] **AGY-1290** Build the Pester v5 + golden-master parity harness that every PowerShell port depends on  (WS-TESTGOV | P1 | M)  **[DONE]**
+- [x] **AGY-1291** Port mios-oscontrol-server.ps1 to a compiled .NET executor behind an SSOT-toggled shim  (WS-PWSH | P2 | L)  **[DONE]**
+- [x] **AGY-1292** Converge the four hand-rolled Win32 P/Invoke PS scripts onto the compiled src/mios-launch.cs  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1293** Port the Windows AI-node HTTP servers (mios-igpu-server, mios-ai-node) to a compiled binary  (WS-PWSH | P2 | L)  **[DONE]**
+- [x] **AGY-1294** Consolidate the five copies of UAC self-elevation into one hardened Invoke-MiosSelfElevate  (WS-PWSH | P2 | S)  **[DONE]**
+- [x] **AGY-1295** Centralize scheduled-task registration (and the WindowsApps-alias avoidance) in one helper  (WS-PWSH | P2 | S)  **[DONE]**
+- [x] **AGY-1296** Project the PowerShell VT-console palette from mios.toml [colors] instead of four hardcoded RGB copies  (WS-DEDUP | P2 | M)  **[DONE]**
+- [x] **AGY-1297** Float the remaining port/CIDR literals in windows/*.ps1 and extend the port drift-check to cover them  (WS-ZEROHC | P2 | M)  **[DONE]**
+- [x] **AGY-1298** Add a Law-15 byte-parity drift-check for the PS files shared by mios.git and mios-bootstrap.git  (WS-DRIFT | P1 | M)  **[DONE]**
+- [ ] **AGY-1300** Harden mios-pipeline.ps1 as the FULL-FOLD orchestrator with StrictMode and phase characterization tests  (WS-PWSH | P2 | M)
+- [x] **AGY-1301** Fold the dozen Write-Step/Write-Ok/Write-Warn copies into one SSOT-palette-backed logging module  (WS-PWSH | P2 | S)  **[DONE]**
+- [x] **AGY-1303** Unify the two divergent bootstrap repo-fetch paths into one integrity-checked, SSOT-sourced function  (WS-INSTALL | P2 | S)  **[DONE]**
+- [x] **AGY-1304** Reduce the three legacy PS redirectors to forward-only shims and gate them with a line budget  (WS-DEPLOY | P2 | S)  **[DONE]**
+- [x] **AGY-1305** Retire audit_all.ps1 into the portable CI lint gates and drop its hardcoded drive letters  (WS-TESTDOC | P2 | S)  **[DONE]**
+- [x] **AGY-1306** Authenticode-sign the shipped Windows .ps1 from an SSOT-defined cert and verify it in a gate  (WS-SEC | P2 | M)  **[DONE]**
+- [x] **AGY-1307** Provision pwsh + .NET SDK in the build/CI so the PowerShell and C# gates can actually execute  (WS-TESTGOV | P1 | M)  **[DONE]**
+- [x] **AGY-1308** Replace the two committed Windows .exe binaries with a reproducible source build plus an SBOM gate  (WS-SBOM | P1 | M)  **[DONE]**
+- [x] **AGY-1309** Pin and integrity-verify the runtime-downloaded Windows model and binary artifacts  (WS-SBOM | P1 | M)  **[DONE]**
+- [x] **AGY-1310** Route every PowerShell secret prompt and secret file through one hardened Read-MiosSecret (kill the plaintext %TEMP% credential file)  (WS-PWSH | P1 | M)  **[DONE]**
+- [x] **AGY-1312** Unify WSL2 distro-name resolution behind Resolve-MiosDistro and gate the 'podman-MiOS-DEV' literal  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1313** Sweep the ad-hoc regex TOML parsers onto the shared resolver and reconcile their conflicting port/color fallbacks  (WS-PWSH | P1 | M)  **[DONE]**
+- [x] **AGY-1314** Establish an SSOT owned-artifact registry and gate install/uninstall symmetry  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1315** Consolidate the three Start-Menu shortcut + icon generators into one hardened module  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1316** Consolidate the Windows OCI export/convert plane into a MiOS.Export module with characterization tests  (WS-PWSH | P2 | M)  **[DONE]**
+- [x] **AGY-1317** Disambiguate the two bootstrap.ps1 entry points and normalize the GitHub repo slug casing  (WS-PWSH | P2 | S)  **[DONE]**
+- [x] **AGY-1318** Add an encoding/BOM + line-ending normalization gate for shipped .ps1 files  (WS-PWSH | P2 | S)  **[DONE]**
+- [x] **AGY-1319** Fix the stale mios-ai.target Wants=mios-letta-server.service and gate dangling unit references  (WS-SYSTEMD | P1 | S)  **[DONE]**
+- [x] **AGY-1320** Deduplicate ceph-bootstrap.service vs mios-ceph-bootstrap.service into one canonical unit  (WS-SYSTEMD | P2 | S)  **[DONE]**
+- [ ] **AGY-1456** Capture golden-master trycmd fixtures for mios-hardcode-lint as the parity oracle before the Rust port  (WS-ZEROHC | P2 | M)
+- [ ] **AGY-1464** Prove Python/Rust hardcode-lint equivalence with a proptest differential-parity harness before deleting the Python tool  (WS-ZEROHC | P3 | M)
+- [ ] **AGY-1523** Add a just gate-rust recipe and call it from drift-gate so local equals CI  (WS-TESTGOV | P3 | S)
+- [ ] **AGY-1540** Add cargo-mutants mutation testing on resolver-core and miosd with a shrink-only survivor budget  (WS-TESTGOV | P3 | L)
+- [x] **AGY-1561** Make native `mios-config` schema-GENERIC so a mios.toml section change never forces a Rust recompile  (WS-RESOLVER | P1 | M)  **[DONE]**
+- [x] **AGY-1562** Inventory EVERY hardcoded version literal in the tree into one classified TSV burn-down report  (WS-FLOAT | P1 | M)  **[DONE]**
+- [x] **AGY-1564** Widen `check_no_hardcoded_ssot_literal` from `fedora-NN` only to ALL version literals, with an ANCHORED allowlist  (WS-FLOAT | P1 | M)  **[DONE]**
+- [x] **AGY-1567** Move the Quadlet renderer's placeholder-preserve list into SSOT instead of per-var `if` branches  (WS-FLOAT | P3 | S)  **[DONE]**
+- [x] **AGY-1570** Fix `37-k3s-selinux.sh` exiting 1 on the flat-layout vendored policy tarball  (WS-PORTFLOAT | P2 | S)  **[DONE]**
+- [ ] **AGY-1576** Make `mios-template-engine` honour its documented contract or retire it into `mios-new`  (WS-PORTFLOAT | P3 | S)  **DONE**
+- [ ] **AGY-1581** Close mios-ai-tag's SKIP_DIR and EXT gaps (65k vendored files in, 98 orphaned tags out)  (WS-DOCGEN | P0 | S)  **DONE**
+- [x] **AGY-1607** Sweep for gates defined but never registered  (WS-EVIDENCE | P0 | M) **[DONE]**
+- [x] **AGY-1608** Make stale-ref measurement enforceable, then enforce it  (WS-EVIDENCE | P0 | L) **[DONE]**
+- [x] **AGY-1609** Strengthen check_negatives_are_effective past substring matching  (WS-EVIDENCE | P1 | M) **[DONE]** ← AGY-1607
+- [x] **AGY-1610** Lint for detections discarded by pipefail  (WS-EVIDENCE | P1 | S) **[DONE]**
+- [x] **AGY-1611** Audit every hash-keyed round trip for silent row loss  (WS-EVIDENCE | P0 | M) **[DONE]**
+- [x] **AGY-1612** Prove every generator is host-independent  (WS-PORTABILITY | P0 | L) **[DONE]**
+- [x] **AGY-1613** Make CI failures name the cause, not the file  (WS-EVIDENCE | P1 | M) **[DONE]**
+- [x] **AGY-1614** Delete or fold tools/check-comment-ratchet.py  (WS-MANUAL | P2 | S) **[DONE]** ← AGY-1608
+- [x] **AGY-1615** Drive the narrative ratchet down by harvesting, not by raising  (WS-MANUAL | P1 | L) **[DONE]**
+- [x] **AGY-1616** Give the manual a landing page a person actually reads  (WS-MANUAL | P1 | M) **[DONE]** ← AGY-1615
+- [x] **AGY-1617** Resolve the MiOS-Mon.py naming exclusion  (WS-MANUAL | P2 | S) **[DONE]** ← AGY-1612
+- [x] **AGY-1620** Make the drift gate runnable and green on Linux from a clean tree  (WS-EVIDENCE | P1 | M)**[DONE]**
+- [x] **AGY-1621** Sync the bootstrap repo at build time, not by hand  (WS-BOOTSTRAP | P0 | M)**[DONE]**
+- [x] **AGY-1622** Finish the bare-metal install leg  (WS-DEPLOY | P0 | L)**[DONE]**
+- [x] **AGY-1623** Prove the deploy plane on something that is not MiOS-DEV  (WS-DEPLOY | P0 | L)**[DONE]** ← AGY-1622
+- [x] **AGY-1625** Verify no SSOT table ships inert  (WS-EVIDENCE | P1 | M) **[DONE]**
+- [ ] **AGY-1626** Invert the PowerShell-to-Rust ratio for anything that is a program  (WS-LANG | P1 | L)
+- [ ] **AGY-1629** Purge stale references from docs and credits  (WS-MANUAL | P1 | M)
+- [x] **AGY-1630** Make the ADR set navigable and prove its index  (WS-MANUAL | P2 | S) **[DONE]**
+- [x] **AGY-1631** Close the zero-hardcodes campaign on the gate-red literals  (WS-SSOT | P1 | L) **[DONE]**
+- [x] **AGY-1632** Give the quadlet containers real AI-hints  (WS-MANUAL | P2 | S) **[DONE]**
+- [x] **AGY-1633** Establish an undocumented-components ceiling that means something  (WS-MANUAL | P2 | M) **[DONE]** ← AGY-1608
+- [x] **AGY-1636** Make the firstboot tier's contents provable  (WS-BUILD | P1 | M) **[DONE]**
+- [x] **AGY-1639** Register every SSOT-declared launcher and prove the desktop surface  (WS-SSOT | P1 | S) **[DONE]**
+- [x] **AGY-1640** Make `mios build` reproducible from a clean clone  (WS-BUILD | P0 | L)**[DONE]**
+- [x] **AGY-1641** Unify the three MiOS-Cat launchers  (WS-DEPLOY | P1 | M)**[DONE]** ← AGY-1621
+- [x] **AGY-1642** Decide the fate of the two build-mios.sh copies  (WS-DEPLOY | P1 | M)**[DONE]** ← AGY-1640
+- [x] **AGY-1643** Prove the theme projection end to end on both platforms  (WS-SSOT | P2 | M)**[DONE]**
+- [x] **AGY-1644** Make agent-operability demonstrable, not asserted  (WS-THESIS | P0 | L)**[DONE]**
+- [x] **AGY-1645** Ratchet the header-integrity guarantee  (WS-EVIDENCE | P1 | S)**[DONE]**
+- [x] **AGY-1646** Give every tools/*.py a test that can fail  (WS-EVIDENCE | P1 | M)**[DONE]**
+- [x] **AGY-1647** Reconcile TASKS.md with AGY-TASKS.md  (WS-PROCESS | P2 | M) **[DONE]**
+- [x] **AGY-1648** Record what the session's repairs imply for the AI-tagger  (WS-MANUAL | P2 | S) **[DONE]**
+- [x] **AGY-1649** Close the loop on MIOS_AI_ENDPOINT and retired ports  (WS-SSOT | P2 | S) **[DONE]** ← AGY-1631
+- [ ] **AGY-1650** Write the reader's entry point  (WS-THESIS | P0 | M)  **DONE** ← AGY-1616
+- [x] **AGY-1651** Prove the privileged-quadlet register is minimal  (WS-SECURITY | P0 | M) **[DONE]**
+- [x] **AGY-1653** Verify greenboot actually rolls back  (WS-RUNTIME | P0 | M)**[DONE]** ← AGY-1622
+- [x] **AGY-1654** Wire the shipped-but-unused runtime components  (WS-RUNTIME | P1 | L) **[DONE]** ← AGY-1625
+- [x] **AGY-1655** Give the AI plane a health contract  (WS-AI | P1 | M) **[DONE]**
+- [x] **AGY-1656** Prove the GPU lane degrades rather than fails  (WS-AI | P1 | M) **[DONE]**
+- [x] **AGY-1657** Make the agent-pipe's failure modes visible  (WS-AI | P1 | M) **[DONE]** ← AGY-1607
+- [x] **AGY-1658** Bound every model-controlled regex  (WS-SECURITY | P1 | M) **[DONE]**
+- [x] **AGY-1659** Make the Portal configurator the real config surface  (WS-SSOT | P1 | L) **[DONE]**
+- [x] **AGY-1660** Decide the accounts model and stop shipping it inert  (WS-ACCOUNTS | P1 | L) **[DONE]**
+- [x] **AGY-1661** Prove the Windows plane against a real Windows host  (WS-WINDOWS | P1 | M) **[DONE]** ← AGY-1643
+- [x] **AGY-1662** Establish an observability floor  (WS-RUNTIME | P1 | M) **[DONE]** ← AGY-1617
+- [x] **AGY-1663** Make the release path identical between GitHub and Forgejo  (WS-RELEASE | P1 | M) **[DONE]** ← AGY-1640
+- [x] **AGY-1664** Shrink the bake so the capacity gate can come off  (WS-BUILD | P1 | L) **[DONE]** ← AGY-1636
+- [x] **AGY-1665** Prove the storage plane survives a node loss  (WS-STORAGE | P1 | L) **[DONE]** ← AGY-1623
+- [x] **AGY-1666** Make the mesh join path observable  (WS-NETWORK | P1 | M) **[DONE]**
+- [x] **AGY-1667** Prove the vTPM and signed-UKI path  (WS-SECURITY | P1 | L) **[DONE]** ← AGY-1622
+- [x] **AGY-1668** Establish a backup and restore story  (WS-STORAGE | P2 | L) **[DONE]** ← AGY-1622
+- [x] **AGY-1669** Prove the offline install path  (WS-DEPLOY | P1 | M) **[DONE]** ← AGY-1622
+- [x] **AGY-1670** Give every gate a one-line statement of what it proves  (WS-EVIDENCE | P1 | M) **[DONE]**
+- [x] **AGY-1671** Make check_negative_coverage require discrimination, not existence  (WS-EVIDENCE | P1 | M) **[DONE]** ← AGY-1609
+- [x] **AGY-1672** Remove the self-triggering probe hazard for good  (WS-EVIDENCE | P1 | S) **[DONE]** ← AGY-1610
+- [x] **AGY-1673** Audit the CI job order for gates that mask each other  (WS-EVIDENCE | P1 | S) **[DONE]** ← AGY-1620
+- [x] **AGY-1674** Make the version SSOT provable across every surface  (WS-SSOT | P1 | M) **[DONE]** ← AGY-1631
+- [x] **AGY-1675** Finish the Global Unification Plan's key collapse  (WS-SSOT | P1 | L) **[DONE]** ← AGY-1674
+- [x] **AGY-1676** Give the resolver one implementation  (WS-SSOT | P1 | M) **[DONE]** ← AGY-1675
+- [x] **AGY-1677** Make `just` targets real or delete them  (WS-PROCESS | P1 | S) **[DONE]**
+- [ ] **AGY-1678** Prove the golden-master tests compare against something  (WS-EVIDENCE | P0 | S)  **DONE** ← AGY-1646
+- [x] **AGY-1679** Record the Quadlet digest-pinning convention and enforce it  (WS-BUILD | P1 | S) **[DONE]**
+- [x] **AGY-1680** Make the install/uninstall pair symmetric and proven  (WS-DEPLOY | P1 | M) **[DONE]** ← AGY-1622
+- [x] **AGY-1681** Test the configurator against adversarial input  (WS-SSOT | P2 | M) **[DONE]** ← AGY-1659
+- [x] **AGY-1682** Verify mios.toml integrity before every commit that touches it  (WS-PROCESS | P0 | S) **[DONE]**
+- [x] **AGY-1683** Make the drift gate's tool requirements explicit  (WS-EVIDENCE | P1 | S) **[DONE]** ← AGY-1620
+- [ ] **AGY-1686** Write down what MiOS is, in the repository  (WS-THESIS | P0 | S)  **DONE**
+- [x] **AGY-1687** Make AGY task ids unique and gate them  (WS-PROCESS | P1 | S) **[DONE]** ← AGY-1647
+- [x] **AGY-1718** Collapse the separator the think-stripper leaves behind  (WS-CI | P1 | S) **[DONE]**
+- [x] **AGY-1720** Give tests/drift-parity.sh and tests/drift-gate-readonly.sh a caller or delete them  (WS-CI | P2 | S) **[DONE]**
+- [x] **AGY-1721** Write mios.toml atomically so a concurrent reader cannot see a partial file  (WS-PROCESS | P1 | S) **[DONE]**
+- [x] **AGY-1722** Normalise every path a gate compares, and prove the gates agree on both hosts  (WS-PROCESS | P1 | M) **[DONE]** ← AGY-1612
+- [x] **AGY-1723** Fail the gate when any shrink-only ceiling increases  (WS-PROCESS | P1 | M) **[DONE]**
+- [x] **AGY-1725** Sync mios-bootstrap on every build and gate the shared surfaces  (WS-PROCESS | P1 | M) **[DONE]** ← AGY-1621
+- [x] **AGY-1750** Give mios.git an installer core that installs  (WS-DEPLOY | P0 | L)**[DONE]**
+- [x] **AGY-1753** Make verify-images fail when there is nothing to verify  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-1757** Join MiOS-Cat's stage verb to the archive chain that exists  (WS-DEPLOY | P0 | M)**[DONE]**
+- [x] **AGY-1758** Install MiOS from the medium onto bare metal with the network absent  (WS-DEPLOY | P0 | L)**[DONE]**
+- [x] **AGY-1760** Make the FHS installer find the tree it is supposed to install  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-1762** Make `mios update` reach bootc on every surface  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-1764** Watch a greenboot rollback happen once  (WS-DEPLOY | P1 | M) **[DONE]**
+- [x] **AGY-1765** Guard the ISO credential the way the sibling recipes do  (WS-DEPLOY | P1 | S) **[DONE]**
+- [x] **AGY-1770** Wire the package-registry switch to the gate that reads it  (WS-GATES | P2 | S) **[DONE]**
+- [x] **AGY-1772** Adjudicate the 66 inconclusive gates and the nine unrefuted claims  (WS-GATES | P0 | L)**[DONE]**
+- [x] **AGY-1773** Empty or justify the negative-coverage exemption list  (WS-GATES | P1 | M) **[DONE]** ← AGY-1772
+- [x] **AGY-1774** Reconcile the two [cat] tables and the two MiOS-Cat.bat copies  (WS-DEPLOY | P1 | M) **[DONE]**
+- [x] **AGY-1775** Rename the portable variant from Cat to Field  (WS-VARIANT | P2 | L) **[DONE]** ← AGY-1774
+- [x] **AGY-1781** Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005] **[DONE]**
+- [x] **AGY-1782** Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007] **[DONE]**
+- [ ] **AGY-1802** Make a Rust toolchain part of the documented development environment  (WS-LANG | P2 | S)
+- [ ] **AGY-1827** miosd targets that do not exist are reported as skipped, not missing  (WS-GATE | P1 | M)
+- [ ] **AGY-1832** Two copies of every unit exist and only one is compared  (WS-UNITS | P1 | M)
+- [ ] **AGY-1834** The renderer cannot express directives some units need  (WS-UNITS | P2 | M)
+- [ ] **AGY-1849** `--render` output is not covered by the LF discipline  (WS-UNITS | P2 | S)
+- [ ] **AGY-1850** 109 text-mode writes across 82 files translate newlines to the host separator  (WS-HOSTDEP | P1 | L)
+- [ ] **AGY-1852** Python text reads are equally host-dependent and unaudited  (WS-HOSTDEP | P2 | M) ← AGY-1850
+- [ ] **AGY-1857** Pipefail masking hides the status of the command that mattered  (WS-HOSTDEP | P2 | M)
+- [ ] **AGY-1858** `$` in the Justfile is a Make-ism that reaches sh as a PID  (WS-HOSTDEP | P3 | S)
+- [ ] **AGY-1860** A concurrent agent shares this tree and races the verification  (WS-HOSTDEP | P2 | M)
+- [x] **AGY-1865** Three live ports have no key in `[ports]`  (WS-SSOT | P1 | M) **[DONE]**
+- [x] **AGY-1866** `MIOS_AI_ENDPOINT` points at two different ports in two places  (WS-SSOT | P1 | S) **[DONE]** ← AGY-1865
+- [x] **AGY-1867** The hardcode lint's allowlist is unanchored and exempts more than intended  (WS-SSOT | P1 | M) **[DONE]**
+- [x] **AGY-1868** Seven components had no SSOT port key and the list was never closed out  (WS-SSOT | P2 | M) **[DONE]** ← AGY-1865
+- [x] **AGY-1869** Port keys are rendered into globals with different wiring per platform  (WS-SSOT | P2 | M) **[DONE]**
+- [x] **AGY-1880** The roadmap's "measured rather than asserted" table is asserted  (WS-DOCS | P1 | M) **[DONE]**
+- [x] **AGY-1881** Six documents reference a gate file that has been renamed  (WS-DOCS | P1 | S) **[DONE]**
+- [x] **AGY-1882** 1,724 narrative comments are unharvested  (WS-DOCS | P2 | L) **[DONE]**
+- [x] **AGY-1883** 150 stale references are counted but not enumerated  (WS-DOCS | P2 | M) **[DONE]** ← AGY-1881
+- [x] **AGY-1884** Man pages are generated but not verified to be readable by man  (WS-DOCS | P2 | M) **[DONE]**
+- [x] **AGY-1885** The docs ratchet gives different verdicts under different invocations  (WS-DOCS | P1 | S) **[DONE]**
+- [x] **AGY-1886** The generated documentation has no test that it is complete  (WS-DOCS | P2 | M) **[DONE]** ← AGY-1882
+- [x] **AGY-1887** ADR index is generated but ADR content is not checked for consistency  (WS-DOCS | P3 | M) **[DONE]**
+- [x] **AGY-1888** Documentation for the deploy plane overstates what works  (WS-DOCS | P1 | M) **[DONE]**
+- [x] **AGY-1889** Documents describe checks by ordinal in prose that the index renumbers  (WS-DOCS | P2 | S) **[DONE]**
+- [x] **AGY-1890** The finalization plan's P0 items have no completion evidence  (WS-DOCS | P1 | M) **[DONE]** ← AGY-1881
+- [x] **AGY-1891** 53 Python heredocs remain embedded in the shell gate  (WS-LANG | P2 | L)**[DONE]**
+- [x] **AGY-1892** Eleven Rust crates assert nothing while cargo reports ok  (WS-LANG | P1 | L)**[DONE]**
+- [x] **AGY-1893** The Rust coverage gate counts crates, not assertions  (WS-LANG | P2 | M)**[DONE]** ← AGY-1892
+- [x] **AGY-1894** Nine verbs evaluate agent-supplied arguments  (WS-LANG | P1 | L)**[DONE]**
+- [x] **AGY-1895** The bare-metal install leg does not install MiOS  (WS-DEPLOY | P1 | L)**[DONE]**
+- [x] **AGY-1896** `installation/mios-install.sh` swallows the install mode  (WS-DEPLOY | P1 | S)**[DONE]**
+- [x] **AGY-1897** The image cannot update itself  (WS-DEPLOY | P1 | M)**[DONE]** ← AGY-1895
+- [x] **AGY-1898** Offline dependencies are not staged or verified  (WS-DEPLOY | P1 | L)**[DONE]** ← AGY-1895
+- [ ] **AGY-1899** The two build entry points diverge in functionality  (WS-DEPLOY | P1 | M)
+- [ ] **AGY-1901** The three launchers are not proven byte-identical where they must be  (WS-DEPLOY | P2 | M) ← AGY-1899
+- [ ] **AGY-1903** Repair tooling exists but has no failure fixtures  (WS-DEPLOY | P2 | M) ← AGY-1897
+- [ ] **AGY-1904** Ventoy media layout is not verified after build  (WS-DEPLOY | P2 | M) ← AGY-1895
+- [ ] **AGY-1905** Installed systems are not checked against the image they claim to be  (WS-DEPLOY | P2 | M) ← AGY-1898
+- [ ] **AGY-1906** Kickstart runs attended and blocks unattended install  (WS-DEPLOY | P1 | M) ← AGY-1895
+- [ ] **AGY-1907** The Fedora ISO source is a 404 stub with no validity gate  (WS-DEPLOY | P1 | S)
+- [ ] **AGY-1879** Secrets handling has no test that a secret cannot reach a log  (WS-SEC | P1 | M)
+- [ ] **AGY-1915** The agent-pipe server has no boundary test for use-before-definition  (WS-AI | P1 | M)
+- [ ] **AGY-1919** MiOS is meant to be the podman machine and is not  (WS-HOST | P2 | L)
+- [ ] **AGY-1922** The template system has golden files but no coverage requirement  (WS-TEMPLATE | P2 | M)
+- [ ] **AGY-1927** `/var` persistence assumptions are undocumented and untested  (WS-RUNTIME | P2 | M) ← AGY-1897
+- [ ] **AGY-1930** Bare metal is untried  (WS-METAL | P1 | L) ← AGY-1895
+- [x] **AGY-1945** Tier-1 WebAssembly sandbox runtime with mios_sys_* host imports  (WS-NODE | P1 | M) **[DONE]**
+- [x] **AGY-1948** Authority inversion: PostgreSQL+pgvector as live SSOT with atomic TOML materialization  (WS-VECTOR | P1 | L) **[DONE]**
+- [x] **AGY-1950** Multi-tenant CephFS user directory mapping and CephX capability auto-provisioning  (WS-STRG | P2 | M) **[DONE]**
+- [x] **AGY-1951** End-to-end UKI and fs-verity boot chain verification on target hardware  (WS-SEC | P1 | M) **[DONE]** ← AGY-1950
+- [x] **AGY-1952** Whole-device discrete GPU passthrough and Looking Glass B6 framebuffer automation  (WS-VFIO | P1 | M) **[DONE]** ← AGY-1951
+- [x] **AGY-1953** Credential rotation service and 0600 secrets.env hardening  (WS-SEC | P1 | M) **[DONE]** ← AGY-1952
+- [x] **AGY-1954** MiOS-Cat tri-launcher single-owner consolidation and partition staging  (WS-CAT | P1 | M) **[DONE]** ← AGY-1953
+- [x] **AGY-1975** MCP server sandboxing using isolated bubblewrap and unshare namespaces  (WS-SEC | P1 | M) **[DONE]**
+- [x] **AGY-1976** Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls  (WS-SEC | P1 | S) **[DONE]** ← AGY-1975
+- [x] **AGY-1977** Distributed graph traversal over pgvector knowledge triples with recursive CTEs  (WS-RAG | P2 | M) **[DONE]** ← AGY-1976
+- [x] **AGY-1978** Contextual prompt compression using selective linguistic token pruning  (WS-AI | P2 | S) **[DONE]** ← AGY-1977
+- [x] **AGY-1979** Agent-to-Agent mutual capability exchange protocol and cryptographic attestation  (WS-FED | P1 | M) **[DONE]** ← AGY-1978
+- [x] **AGY-1980** Autonomous self-healing code remediation agent triggered on systemd unit failures  (WS-ORCH | P1 | L) **[DONE]** ← AGY-1979
+- [x] **AGY-1981** Synthetic training data pipeline generating Q&A pairs from local system documentation  (WS-AI | P2 | M) **[DONE]** ← AGY-1980
+- [x] **AGY-1982** Dynamic agent persona synthesis based on task domain classification  (WS-AI | P2 | S) **[DONE]** ← AGY-1981
+- [x] **AGY-1983** Bounded reflection loops with convergence criteria to prevent circular reasoning  (WS-AI | P2 | S) **[DONE]** ← AGY-1982
+- [x] **AGY-1984** Async TCP frame reader and writer actor in mios-node using Tokio  (WS-NODE | P1 | M) **[DONE]**
+- [x] **AGY-1985** Node heartbeat monitor and automatic dead-peer eviction from cluster routing table  (WS-NODE | P2 | S) **[DONE]** ← AGY-1984
+- [x] **AGY-1986** Ed25519 mutual handshake and session key derivation for inter-node wire encryption  (WS-NODE | P1 | M) **[DONE]** ← AGY-1985
+- [ ] **AGY-2007** Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency  (WS-STRG | P2 | S)
+- [x] **AGY-2011** Automated IOMMU group parsing and ACS override recommendation tool  (WS-VFIO | P1 | S) **[DONE]** ← AGY-1952
+- [x] **AGY-2012** Dynamic VFIO device unbind and rebind script without host reboot  (WS-VFIO | P1 | M) **[DONE]** ← AGY-2011
+- [x] **AGY-2013** Looking Glass B6 spice-direct host input client configuration and keybinding integration  (WS-VFIO | P1 | M) **[DONE]** ← AGY-2012
+- [x] **AGY-2014** Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay  (WS-VFIO | P2 | M) **[DONE]** ← AGY-2013
+- [x] **AGY-2015** Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests  (WS-VFIO | P1 | S) **[DONE]** ← AGY-2014
+- [x] **AGY-2016** Hugepages automatic allocation and compaction manager for KVM guests  (WS-VFIO | P2 | M) **[DONE]** ← AGY-2015
+- [x] **AGY-2017** VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access  (WS-VFIO | P2 | M) **[DONE]** ← AGY-2016
+- [x] **AGY-2018** Automatic CPU governor switching to performance mode during active guest execution  (WS-VFIO | P2 | S) **[DONE]** ← AGY-2017
+- [x] **AGY-2019** Guest battery and power state passthrough for laptop VM deployments  (WS-VFIO | P3 | S) **[DONE]** ← AGY-2018
+- [x] **AGY-2020** USB hotplug manager routing external controllers and headsets dynamically to guests  (WS-VFIO | P2 | S) **[DONE]** ← AGY-2019
+- [x] **AGY-2021** Multi-monitor Looking Glass display synchronizer across heterogeneous displays  (WS-VFIO | P2 | M) **[DONE]** ← AGY-2020
+- [x] **AGY-2022** GPU thermal and clock frequency watchdog preventing guest thermal throttling  (WS-VFIO | P2 | S) **[DONE]** ← AGY-2021
+- [x] **AGY-2023** UKI signing key generation and TPM2 NV index enrollment script  (WS-SEC | P1 | M) **[DONE]** ← AGY-1951
+- [x] **AGY-2024** Composefs manifest signature verification against hardware PCR measurements  (WS-SEC | P1 | M) **[DONE]** ← AGY-2023
+- [x] **AGY-2025** Cosign container image signature verification during bootc upgrade  (WS-SEC | P1 | M) **[DONE]** ← AGY-2024
+- [x] **AGY-2026** SLSA Level 3 provenance generator in GitHub Actions and Forgejo CI  (WS-SBOM | P2 | M) **[DONE]** ← AGY-2025
+- [x] **AGY-2027** Automated vulnerability scanner for layered RPM packages using Grype  (WS-SEC | P2 | M) **[DONE]** ← AGY-2026
+- [x] **AGY-2028** SELinux custom policy module for rootless Podman AI sidecar isolation  (WS-SEC | P1 | M) **[DONE]** ← AGY-2027
+- [x] **AGY-2029** Auditd rule generator monitoring /etc/mios/ and /usr/share/mios/ modifications  (WS-SEC | P2 | S) **[DONE]** ← AGY-2028
+- [x] **AGY-2030** Kernel lockdown enforcement probe in greenboot pre-flight test suite  (WS-SEC | P1 | S) **[DONE]** ← AGY-2029
+- [x] **AGY-2031** Zero-trust network segmentation policies for inter-container communication  (WS-SEC | P1 | M) **[DONE]** ← AGY-2030
+- [x] **AGY-2032** Cryptographic attestation generator verifying host image integrity to remote peers  (WS-SEC | P1 | M) **[DONE]** ← AGY-2031
+- [x] **AGY-2033** Automated emergency rollback trigger on repeated kernel panics  (WS-SEC | P1 | S) **[DONE]** ← AGY-2032
+- [x] **AGY-2034** Memory sanitization on container termination preventing VRAM residual data leaks  (WS-SEC | P2 | S) **[DONE]** ← AGY-2033
+- [x] **AGY-2035** MiOS-Cat USB partition formatter supporting hybrid GPT/MBR and multi-OS boot  (WS-CAT | P1 | M) **[DONE]** ← AGY-1954
+- [x] **AGY-2036** Offline OCI image archive extractor streaming layers directly to storage  (WS-DEPLOY | P1 | M) **[DONE]** ← AGY-2035
+- [x] **AGY-2037** DISM unattended Windows 11 answer file customization with debloat scripts  (WS-WISO | P1 | M) **[DONE]**
+- [x] **AGY-2038** Intel, AMD, and Realtek Wi-Fi 6E/7 and 2.5GbE driver slipstreaming into boot.wim  (WS-WISO | P1 | M) **[DONE]** ← AGY-2037
+- [x] **AGY-2039** Automated disk partitioning script supporting dual-boot alongside existing Windows installations  (WS-DEPLOY | P1 | L) **[DONE]** ← AGY-2038
+- [x] **AGY-2040** Fast bootc install-to-disk bare-metal pipeline with hardware discovery  (WS-DEPLOY | P1 | M) **[DONE]** ← AGY-2039
+- [x] **AGY-2041** First-boot setup wizard in Quickshell and Wayland for initial user credential setup  (WS-DEPLOY | P2 | M) **[DONE]** ← AGY-2040
+- [x] **AGY-2042** NetworkManager offline connection profiler pre-seeding known Wi-Fi networks  (WS-DEPLOY | P2 | S) **[DONE]** ← AGY-2041
+- [x] **AGY-2043** USB flash drive write verification with SHA-256 block hash validation  (WS-CAT | P2 | S) **[DONE]** ← AGY-2042
+- [x] **AGY-2044** Windows Terminal profile injector adding MiOS SSH and WSL sessions  (WS-WISO | P2 | S) **[DONE]** ← AGY-2043
+- [x] **AGY-2045** Automated PowerShell execution policy and developer mode configuration in Windows  (WS-WISO | P2 | S) **[DONE]** ← AGY-2044
+- [x] **AGY-2046** ISO generation script for headless server installation with serial console support  (WS-DEPLOY | P2 | M) **[DONE]** ← AGY-2045
+- [x] **AGY-2047** Portable drive LUKS2 FIDO2 token enrollment helper  (WS-CAT | P1 | M) **[DONE]** ← AGY-2046
+- [x] **AGY-2048** Automated validation of Windows unattend XML schema against official Microsoft XSD  (WS-WISO | P2 | S) **[DONE]** ← AGY-2047
+- [x] **AGY-2049** Real-time wallpaper shader renderer adapting to system CPU and GPU load  (WS-LANG | P2 | M) **[DONE]**
+- [x] **AGY-2050** Cross-platform palette synchronizer writing directly to Windows Registry and GTK CSS  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2049
+- [x] **AGY-2051** Quickshell system status bar component showing live LLM VRAM and active agent turns  (WS-DOTFILES | P2 | M) **[DONE]** ← AGY-2050
+- [x] **AGY-2052** Terminal multiplexer (tmux) theme generator deriving status bar styles from SSOT  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2051
+- [x] **AGY-2053** Fastfetch configuration generator projecting host hardware and AI model specs  (WS-DOTFILES | P3 | S) **[DONE]** ← AGY-2052
+- [x] **AGY-2054** Hyprland and Sway window manager configuration generator from mios.toml display settings  (WS-DOTFILES | P2 | M) **[DONE]** ← AGY-2053
+- [x] **AGY-2055** Audio feedback daemon playing subtle audio cues on task completion and errors  (WS-DOTFILES | P3 | S) **[DONE]** ← AGY-2054
+- [x] **AGY-2056** System notification daemon routing AI agent alerts to desktop notification popups  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2055
+- [x] **AGY-2057** GNOME Shell extension embedding the MiOS agent status icon in the top panel  (WS-DOTFILES | P2 | M) **[DONE]** ← AGY-2056
+- [x] **AGY-2058** VS Code and Cursor extension configuration generator with pre-configured OpenAI local endpoint  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2057
+- [x] **AGY-2059** Btop theme renderer outputting exact RGB hex colors from [colors] SSOT  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2058
+- [x] **AGY-2060** Dynamic font size scaler for high-DPI displays across terminal and desktop surfaces  (WS-DOTFILES | P2 | S) **[DONE]** ← AGY-2059
+- [x] **AGY-2061** Screen lock manager with biometric FIDO2 and fingerprint authentication integration  (WS-DOTFILES | P2 | M) **[DONE]** ← AGY-2060
+- [x] **AGY-2062** Ambient background audio generator for deep focus programming sessions  (WS-DOTFILES | P3 | S) **[DONE]** ← AGY-2061
+- [x] **AGY-2063** Cross-platform clipboard synchronizer between host and virtual machines with redaction  (WS-DOTFILES | P1 | M) **[DONE]** ← AGY-2062
+- [x] **AGY-2064** Systemd shutdown hook capturing pre-poweroff filesystem and git diffs  (WS-DIFFCYCLE | P1 | M) **[DONE]** ← AGY-2063
+- [x] **AGY-2065** Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup  (WS-DIFFCYCLE | P1 | M) **[DONE]** ← AGY-2064
+- [x] **AGY-2066** Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs  (WS-DIFFCYCLE | P2 | M) **[DONE]** ← AGY-2065
+- [x] **AGY-2067** Autonomous image rolling service staging approved diffs for background OCI image synthesis  (WS-DIFFCYCLE | P1 | L) **[DONE]** ← AGY-2066
+- [x] **AGY-2068** Greenboot post-bake health gate with automated fallback on diff-induced regressions  (WS-DIFFCYCLE | P1 | M) **[DONE]** ← AGY-2067
+- [ ] **AGY-2072** Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS  (WS-BUILD | P1 | M)
+- [ ] **AGY-2080** Automated On-Demand GGUF Quantization and Format Transcoding Service  (WS-AI | P2 | M)
+- [ ] **AGY-2111** Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes  (WS-CLI | P1 | M)
+- [ ] **AGY-2120** Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator  (WS-DURA | P1 | M)
+- [ ] **AGY-2126** Global per-user encrypted CephFS subvolume manager with remote snapshot replication  (WS-USER | P1 | M)
+- [ ] **AGY-2153** Tree-Sitter AST semantic merge resolver for multi-agent git conflicts  (WS-GIT | P1 | M)
+- [ ] **AGY-2159** Multi-master divergent git DAG reconciliation engine and consensus commit signer  (WS-GIT | P1 | M)
+- [ ] **AGY-2170** Automated modern open-weight model curator and local benchmark profiler  (WS-AI | P1 | M)
+- [x] **AGY-2171** Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler  (WS-NODE | P1 | M) **[DONE]** ← AGY-2170
+- [x] **AGY-2172** Automated AC/DC power profile transition and battery runtime benchmark suite  (WS-NODE | P2 | S) **[DONE]** ← AGY-2171
+- [x] **AGY-2173** Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue  (WS-LANG | P1 | M) **[DONE]** ← AGY-2172
+- [x] **AGY-2174** Real-time wallpaper occlusion frame pacing and GPU load benchmark suite  (WS-LANG | P2 | S) **[DONE]** ← AGY-2173
+- [x] **AGY-2175** Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe  (WS-ORCH | P1 | M) **[DONE]** ← AGY-2174
+- [x] **AGY-2176** Automated MCP tool discovery, execution handshake, and schema validation test suite  (WS-ORCH | P2 | S) **[DONE]** ← AGY-2175
+- [x] **AGY-2177** Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation  (WS-AI | P1 | M) **[DONE]** ← AGY-2176
+- [x] **AGY-2178** Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite  (WS-AI | P2 | S) **[DONE]** ← AGY-2177
+- [x] **AGY-2179** Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image  (WS-BUILD | P1 | M) **[DONE]** ← AGY-2178
+- [x] **AGY-2180** Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project  (WS-DOTFILES | P1 | M) **[DONE]** ← AGY-2179
+- [ ] **AGY-2181** Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit  (WS-GIT | P1 | M) ← AGY-2180
+- [ ] **AGY-2205** Libei emulated input provider and Wayland portal input injector in mios-pc-control  (WS-APP | P1 | M)
+- [ ] **AGY-2223** PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge  (WS-APP | P1 | M)
+- [ ] **AGY-2271** Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge  (WS-VFIO | P1 | M)
+- [ ] **AGY-2376** Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon  (WS-APP | P1 | M)
+- [ ] **T-1118** Retire MiOS-Cat and /cat/; fold all behavior into canonical MiOS-Field componentry
 
-_2/5 done · 2026-09-20_
+_1535/1642 done · 2026-09-29_
