@@ -53,25 +53,50 @@ pub struct TranslateResponse {
 }
 
 pub fn translate(request: TranslateRequest) -> Result<TranslateResponse, String> {
-    if !matches!(
-        request.source.as_str(),
-        "agy" | "claude" | "openai" | "openai_responses" | "codex"
-    ) {
-        return Err(format!("UNKNOWN SOURCE: {}", request.source));
-    }
-    let mut events = Vec::new();
+    // "auto" sniffs the wire dialect from the first informative frame; every
+    // explicit source name stays honoured so callers can pin the dialect.
+    let source = match request.source.as_str() {
+        "auto" => request
+            .frames
+            .iter()
+            .find_map(detect_source)
+            .ok_or_else(|| "AUTO DETECTION FAILED: no known frame shape".to_owned())?,
+        known @ ("agy"
+        | "claude"
+        | "openai"
+        | "openai_responses"
+        | "codex"
+        | "openai_chat"
+        | "chat_completions"
+        | "openai_compatible"
+        | "generic") => known,
+        other => return Err(format!("UNKNOWN SOURCE: {other}")),
+    };
     for frame in &request.frames {
         if let Some(key) = credential_key(frame) {
             return Err(format!("CREDENTIAL FIELD REFUSED: {key}"));
         }
-        let mut next = match request.source.as_str() {
-            "agy" => agy(frame)?,
-            "claude" => claude(frame)?,
-            "openai" | "openai_responses" | "codex" => openai(frame)?,
-            other => return Err(format!("UNKNOWN SOURCE: {other}")),
-        };
-        events.append(&mut next);
     }
+    // Chat Completions is translated in one stateful pass: streaming chunks
+    // split tool-call arguments across frames and must be accumulated.
+    let mut events = match source {
+        "openai_chat" | "chat_completions" | "openai_compatible" | "generic" => {
+            openai_chat(&request.frames)?
+        }
+        _ => {
+            let mut events = Vec::new();
+            for frame in &request.frames {
+                let mut next = match source {
+                    "agy" => agy(frame)?,
+                    "claude" => claude(frame)?,
+                    "openai" | "openai_responses" | "codex" => openai(frame)?,
+                    other => return Err(format!("UNKNOWN SOURCE: {other}")),
+                };
+                events.append(&mut next);
+            }
+            events
+        }
+    };
     if !events
         .iter()
         .any(|event| matches!(event, Event::Text { .. }))
@@ -468,6 +493,264 @@ fn openai(frame: &Value) -> Result<Vec<Event>, String> {
     }
 }
 
+/// Sniff the wire dialect of one frame. Priority: AGY envelopes, Responses
+/// objects/stream events, Chat Completions objects/messages, Claude envelopes.
+pub fn detect_source(frame: &Value) -> Option<&'static str> {
+    if frame.get("event").is_some() {
+        return Some("agy");
+    }
+    if frame.get("object").and_then(Value::as_str) == Some("response")
+        || frame
+            .get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|t| t.starts_with("response."))
+    {
+        return Some("openai");
+    }
+    let object = frame.get("object").and_then(Value::as_str);
+    if matches!(
+        object,
+        Some("chat.completion") | Some("chat.completion.chunk")
+    ) || frame.get("tool_call_id").is_some()
+        || frame.get("tool_calls").is_some()
+    {
+        return Some("openai_chat");
+    }
+    if let Some(kind) = frame.get("type").and_then(Value::as_str) {
+        if matches!(kind, "system" | "assistant" | "user") && frame.get("message").is_some() {
+            return Some("claude");
+        }
+        // A Claude terminal envelope carries type:"result" WITHOUT a message
+        // envelope -- its payload sits in frame.result / frame.is_error.
+        if kind == "result"
+            && (frame.get("result").is_some() || frame.get("is_error").is_some())
+        {
+            return Some("claude");
+        }
+        // Responses items are typed frames ("message"/"function_call"/...); a
+        // "message" whose content blocks are output_text/input_text is the
+        // Responses shape, plain text blocks belong to Chat Completions.
+        if matches!(
+            kind,
+            "message" | "function_call" | "function_call_output"
+        ) {
+            let responses_blocks = frame
+                .get("content")
+                .and_then(Value::as_array)
+                .is_some_and(|blocks| {
+                    blocks.iter().all(|block| {
+                        matches!(
+                            block.get("type").and_then(Value::as_str),
+                            Some("output_text") | Some("input_text")
+                        )
+                    })
+                });
+            return if responses_blocks || kind != "message" {
+                Some("openai")
+            } else {
+                Some("openai_chat")
+            };
+        }
+    }
+    if frame.get("role").and_then(Value::as_str).is_some() {
+        return Some("openai_chat");
+    }
+    None
+}
+
+/// One Chat Completions assistant/tool message, as carried inside a
+/// non-streaming choice or a transcript frame.
+fn chat_message(message: &Value) -> Result<Vec<Event>, String> {
+    let role = message
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or("assistant")
+        .to_owned();
+    // A tool result frame is an output, not a turn of conversation.
+    if role == "tool" {
+        let call_id = required_str(message, "tool_call_id", "CHAT TOOL RESULT ID MISSING")?;
+        return Ok(vec![Event::ToolOutput {
+            call_id: call_id.to_owned(),
+            output: message.get("content").cloned().unwrap_or(Value::Null),
+        }]);
+    }
+    let mut events = Vec::new();
+    match message.get("content") {
+        Some(Value::String(text)) if !text.is_empty() => events.push(Event::Text {
+            role: role.clone(),
+            text: text.clone(),
+        }),
+        Some(Value::Array(blocks)) => {
+            for block in blocks {
+                if block.get("type").and_then(Value::as_str) == Some("text") {
+                    if let Some(text) = block.get("text").and_then(Value::as_str) {
+                        if !text.is_empty() {
+                            events.push(Event::Text {
+                                role: role.clone(),
+                                text: text.to_owned(),
+                            });
+                        }
+                    }
+                } else if let Some(text) = block.as_str() {
+                    if !text.is_empty() {
+                        events.push(Event::Text {
+                            role: role.clone(),
+                            text: text.to_owned(),
+                        });
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    if let Some(calls) = message.get("tool_calls").and_then(Value::as_array) {
+        for call in calls {
+            let function = call
+                .get("function")
+                .ok_or("CHAT TOOL FUNCTION MISSING")?;
+            let call_id = call
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())
+                .ok_or("CHAT TOOL ID MISSING")?;
+            events.push(Event::ToolCall {
+                call_id: call_id.to_owned(),
+                name: required_str(function, "name", "CHAT TOOL NAME MISSING")?.to_owned(),
+                arguments: parse_arguments(
+                    function.get("arguments").ok_or("CHAT ARGUMENTS MISSING")?,
+                )?,
+            });
+        }
+    }
+    Ok(events)
+}
+
+fn chat_finish(reason: Option<&str>) -> Option<Event> {
+    match reason {
+        Some("stop") | Some("tool_calls") => Some(Event::Terminal {
+            status: "delivered".into(),
+            text: String::new(),
+            error: None,
+        }),
+        Some(other) => Some(Event::Terminal {
+            status: "errored".into(),
+            text: String::new(),
+            error: Some(format!("CHAT FINISH REASON: {other}")),
+        }),
+        None => None,
+    }
+}
+
+/// Chat Completions: the wire dialect every OpenAI-compatible harness speaks
+/// (vLLM, llama.cpp, LM Studio, Ollama, OpenRouter, OpenWebUI, custom agents).
+/// Accepts non-streaming response objects, streaming chunks (tool-call
+/// argument fragments are accumulated per index until the terminal chunk),
+/// and bare transcript messages including `role:"tool"` results.
+fn openai_chat(frames: &[Value]) -> Result<Vec<Event>, String> {
+    #[derive(Default)]
+    struct Pending {
+        id: String,
+        name: String,
+        arguments: String,
+    }
+    let mut events = Vec::new();
+    let mut pending: Vec<Option<Pending>> = Vec::new();
+    let flush = |pending: &mut Vec<Option<Pending>>, events: &mut Vec<Event>| -> Result<(), String> {
+        for slot in pending.iter_mut().flatten() {
+            let arguments = serde_json::from_str(&slot.arguments)
+                .map_err(|_| "MALFORMED TOOL ARGUMENTS".to_owned())?;
+            events.push(Event::ToolCall {
+                call_id: slot.id.clone(),
+                name: slot.name.clone(),
+                arguments,
+            });
+        }
+        pending.clear();
+        Ok(())
+    };
+    for frame in frames {
+        let object = frame.get("object").and_then(Value::as_str);
+        match object {
+            Some("chat.completion") => {
+                let choice = frame
+                    .get("choices")
+                    .and_then(Value::as_array)
+                    .and_then(|choices| choices.first())
+                    .ok_or("CHAT CHOICES MISSING")?;
+                let message = choice
+                    .get("message")
+                    .ok_or("CHAT MESSAGE MISSING")?;
+                events.extend(chat_message(message)?);
+                if let Some(terminal) =
+                    chat_finish(choice.get("finish_reason").and_then(Value::as_str))
+                {
+                    events.push(terminal);
+                }
+            }
+            Some("chat.completion.chunk") => {
+                let choice = frame
+                    .get("choices")
+                    .and_then(Value::as_array)
+                    .and_then(|choices| choices.first())
+                    .ok_or("CHAT CHUNK CHOICES MISSING")?;
+                let delta = choice.get("delta").ok_or("CHAT DELTA MISSING")?;
+                if let Some(text) = delta.get("content").and_then(Value::as_str) {
+                    if !text.is_empty() {
+                        events.push(Event::Text {
+                            role: delta
+                                .get("role")
+                                .and_then(Value::as_str)
+                                .unwrap_or("assistant")
+                                .to_owned(),
+                            text: text.to_owned(),
+                        });
+                    }
+                }
+                if let Some(calls) = delta.get("tool_calls").and_then(Value::as_array) {
+                    for call in calls {
+                        let index = call.get("index").and_then(Value::as_u64).unwrap_or(0)
+                            as usize;
+                        let function = call.get("function").cloned().unwrap_or(Value::Null);
+                        let id = call.get("id").and_then(Value::as_str).unwrap_or("");
+                        if pending.len() <= index {
+                            pending.resize_with(index + 1, || None);
+                        }
+                        let slot = pending[index].get_or_insert_with(Pending::default);
+                        if !id.is_empty() {
+                            slot.id = id.to_owned();
+                        }
+                        if let Some(name) = function.get("name").and_then(Value::as_str) {
+                            if !name.is_empty() {
+                                slot.name = name.to_owned();
+                            }
+                        }
+                        if let Some(fragment) =
+                            function.get("arguments").and_then(Value::as_str)
+                        {
+                            slot.arguments.push_str(fragment);
+                        }
+                    }
+                }
+                if let Some(terminal) =
+                    chat_finish(choice.get("finish_reason").and_then(Value::as_str))
+                {
+                    flush(&mut pending, &mut events)?;
+                    events.push(terminal);
+                }
+            }
+            _ => {
+                // Bare transcript message (assistant with tool_calls, tool
+                // result, user/system turn). A new message boundary closes any
+                // streamed tool call still being accumulated.
+                flush(&mut pending, &mut events)?;
+                events.extend(chat_message(frame)?);
+            }
+        }
+    }
+    flush(&mut pending, &mut events)?;
+    Ok(events)
+}
+
 pub fn responses_items(events: &[Event]) -> Vec<Value> {
     events.iter().filter_map(|event| match event {
         Event::Text { role, text } => Some(json!({"type":"message","role":role,
@@ -478,4 +761,150 @@ pub fn responses_items(events: &[Event]) -> Vec<Value> {
             "type":"function_call_output","call_id":call_id,"output":output})),
         Event::Terminal { .. } => None,
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn translate_json(source: &str, frames: Value) -> TranslateResponse {
+        translate(TranslateRequest {
+            source: source.to_owned(),
+            frames: serde_json::from_value(frames).expect("frames"),
+            evidence: None,
+        })
+        .expect("translation")
+    }
+
+    #[test]
+    fn chat_completion_message_with_tool_call() {
+        let out = translate_json(
+            "openai_chat",
+            json!([{"object":"chat.completion","choices":[{
+                "index":0,"finish_reason":"tool_calls",
+                "message":{"role":"assistant","content":"checking",
+                    "tool_calls":[{"id":"call_1","type":"function",
+                        "function":{"name":"run_tests","arguments":"{\"suite\":\"unit\"}"}}]}}]}]),
+        );
+        assert_eq!(
+            out.events,
+            vec![
+                Event::Text { role: "assistant".into(), text: "checking".into() },
+                Event::ToolCall {
+                    call_id: "call_1".into(),
+                    name: "run_tests".into(),
+                    arguments: json!({"suite":"unit"}),
+                },
+                Event::Terminal { status: "unverified".into(), text: String::new(), error: None },
+            ]
+        );
+        assert_eq!(out.responses_items.len(), 2);
+        assert_eq!(out.responses_items[1]["type"], "function_call");
+    }
+
+    #[test]
+    fn chat_stream_accumulates_split_tool_arguments() {
+        let chunk1 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_9","function":{"name":"edit_file","arguments":"{\"pa"}}]}}]});
+        let chunk2 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th\":\"a.txt\"}"}}]}}]});
+        let chunk3 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]});
+        let out = translate_json("generic", json!([chunk1, chunk2, chunk3]));
+        assert_eq!(
+            out.events,
+            vec![
+                Event::ToolCall {
+                    call_id: "call_9".into(),
+                    name: "edit_file".into(),
+                    arguments: json!({"path":"a.txt"}),
+                },
+                Event::Terminal { status: "unverified".into(), text: String::new(), error: None },
+            ]
+        );
+    }
+
+    #[test]
+    fn chat_tool_result_message_maps_to_output() {
+        let out = translate_json(
+            "openai_compatible",
+            json!([{"role":"tool","tool_call_id":"call_1","content":"12 passed"}]),
+        );
+        assert_eq!(
+            out.events[0],
+            Event::ToolOutput { call_id: "call_1".into(), output: Value::String("12 passed".into()) }
+        );
+        // No terminal envelope in a bare transcript frame: the honest fallback.
+        assert!(matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "errored"));
+    }
+
+    #[test]
+    fn auto_detects_each_dialect() {
+        let frames = json!([{"event":"result","result":{"status":"SUCCESS","response":"ok"}}]);
+        assert!(matches!(translate_json("auto", frames.clone()).events.last(),
+            Some(Event::Terminal { status, .. }) if status == "unverified"));
+        let chat = translate_json(
+            "auto",
+            json!([{"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}]),
+        );
+        assert_eq!(chat.events[0], Event::Text { role: "assistant".into(), text: "hi".into() });
+        let claude = translate_json(
+            "auto",
+            json!([{"type":"result","is_error":false,"result":"done"}]),
+        );
+        assert!(matches!(claude.events.last(), Some(Event::Terminal { status, .. }) if status == "unverified"));
+        let responses = translate_json(
+            "auto",
+            json!([{"object":"response","status":"completed","output":[
+                {"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}]),
+        );
+        assert_eq!(responses.events[0], Event::Text { role: "assistant".into(), text: "ok".into() });
+    }
+
+    #[test]
+    fn unknown_source_and_malformed_arguments_fail_with_named_errors() {
+        let err = translate(TranslateRequest {
+            source: "vax".into(),
+            frames: vec![json!({})],
+            evidence: None,
+        })
+        .unwrap_err();
+        assert_eq!(err, "UNKNOWN SOURCE: vax");
+        let err = translate(TranslateRequest {
+            source: "openai_chat".into(),
+            frames: vec![json!({"role":"assistant","tool_calls":[{"id":"c","function":{"name":"f","arguments":"{broken"}}]})],
+            evidence: None,
+        })
+        .map(|_| ())
+        .unwrap_err();
+        assert_eq!(err, "MALFORMED TOOL ARGUMENTS");
+    }
+
+    #[test]
+    fn credential_fields_are_refused_by_name() {
+        let err = translate(TranslateRequest {
+            source: "openai_chat".into(),
+            frames: vec![json!({"object":"chat.completion","choices":[{"message":{"role":"assistant","api_key":"sk-..."}}]})],
+            evidence: None,
+        })
+        .map(|_| ())
+        .unwrap_err();
+        assert_eq!(err, "CREDENTIAL FIELD REFUSED: api_key");
+    }
+
+    #[test]
+    fn chat_delivered_is_demoted_without_evidence() {
+        let request = TranslateRequest {
+            source: "openai_chat".into(),
+            frames: vec![json!({"object":"chat.completion","choices":[
+                {"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}]})],
+            evidence: Some(GateEvidence {
+                diff_bytes: 0,
+                positive: true,
+                negative: true,
+                tree_restored: true,
+                exit_code: 0,
+                timed_out: false,
+            }),
+        };
+        let out = translate(request).expect("translation");
+        assert!(matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "vacuous"));
+    }
 }

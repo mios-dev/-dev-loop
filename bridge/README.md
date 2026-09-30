@@ -21,15 +21,29 @@ a harness requires an adapter, not a new transport.
 ## Run
 
 `devloop-bridge serve` binds `127.0.0.1:8765`. `POST /translate` accepts
-`{"source":"agy|claude|openai|codex","frames":[...],"evidence":{...}}` and returns
+`{"source":"auto|agy|claude|openai|openai_responses|codex|openai_chat|chat_completions|openai_compatible|generic","frames":[...],"evidence":{...}}` and returns
 `{"schema":"loop.v1","events":[...],"responses_items":[...]}`. `POST /mcp`
-accepts MCP JSON-RPC `initialize`, `tools/list`, and `tools/call` for
-`translate_frames`. `devloop-bridge stdio` serves the same MCP tool over stdio.
+serves the MCP Streamable HTTP transport (one JSON-RPC message per POST;
+notifications answer `202`; batches are rejected with `-32600`; `GET`/`DELETE`
+answer `405` because this server is stateless and offers no server-initiated
+streams) for `initialize`, `tools/list`, and `tools/call` of `translate_frames`.
+`devloop-bridge stdio` serves the same MCP tool over stdio.
+Protocol negotiation follows the current spec: `initialize` echoes a supported
+client version (`2026-07-28`, `2025-11-25`, `2025-06-18`) and otherwise answers
+with the server's latest (`2026-07-28`); requests carrying an unsupported
+`MCP-Protocol-Version` header are rejected with `400` before dispatch.
 No client bearer token or harness credential is read or forwarded.
 Known credential fields in frames are refused before any translation result is returned;
 the rejection reports only the field name.
 
 `openai` and `codex` consume Responses output items and completed stream events.
+`openai_chat` (aliases `chat_completions`, `openai_compatible`, `generic`)
+consumes the OpenAI-compatible Chat Completions dialect spoken by vLLM,
+llama.cpp, LM Studio, Ollama, OpenRouter, OpenWebUI and custom agents:
+non-streaming response objects, streaming chunks (tool-call argument
+fragments are accumulated per index until the terminal chunk), and bare
+transcript messages including `role:"tool"` results. `auto` sniffs the wire
+dialect from the first informative frame.
 `claude` consumes print-mode stream JSON frames. `agy` consumes its stream JSON
 `step_update` and `result` frames. Tool output is associated with its call ID;
 AGY tools without a native call ID receive a stable ID from conversation and step index.
@@ -39,7 +53,9 @@ harness result alone is never promoted to `delivered`.
 ## Protocol references
 
 - [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses)
-- [MCP 2025-11-25 transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+- [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
+- [MCP Streamable HTTP transport (2026-07-28 line)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+- [MCP versioning and negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/cli-usage)
 - `docs/decisions/0001-loop-translation-layer-serve-both-harnesses-translate-the-lo.md`
 - `docs/research/monitor-relay-spike-2026-09.md`, rows D1-D3
