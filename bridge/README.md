@@ -2,8 +2,8 @@
 
 This crate implements a local loop translation service. It converts harness frames into
 ordered `loop.v1` events and OpenAI Responses items. It does not impersonate a model
-endpoint or translate permissions. The source adapter can be selected explicitly
-or detected from the first informative frame.
+endpoint or translate permissions. Select an adapter explicitly or detect it from the
+first informative frame. Adding a harness requires an adapter, not a new transport.
 
 ## Definition of done for this slice
 
@@ -22,19 +22,35 @@ or detected from the first informative frame.
 ## Run
 
 `devloop-bridge serve` binds `127.0.0.1:8765`. `POST /translate` accepts
-`{"source":"auto|agy|claude|openai|codex|openai_chat|generic","frames":[...],"evidence":{...}}` and returns
+`{"source":"auto|agy|claude|openai|openai_responses|codex|openai_chat|chat_completions|openai_compatible|generic","frames":[...],"evidence":{...}}` and returns
 `{"schema":"loop.v1","events":[...],"responses_items":[...]}`. `POST /mcp`
-accepts MCP JSON-RPC `initialize`, `tools/list`, and `tools/call` for
-`translate_frames`. `devloop-bridge stdio` serves the same MCP tool over stdio.
+serves MCP Streamable HTTP: one JSON-RPC message per POST, empty `202` responses
+for notifications, and `405` for GET/DELETE. Every MCP HTTP method rejects foreign
+origins and hosts. Invalid messages and batches fail with named protocol errors.
+`devloop-bridge stdio` serves the same translation tool.
+
+Modern MCP `2026-07-28` requests use per-request metadata and `server/discover`;
+there is no initialization handshake. HTTP requests must mirror the protocol
+version and method in headers; tool calls also mirror the tool name, including
+Base64 sentinel decoding. Missing capabilities and mismatched headers fail before
+translation. Unsupported versions return `-32022` with the supported versions;
+unknown modern HTTP methods return `404` with `-32601`.
+
+Legacy clients negotiate `2025-11-25` or `2025-06-18` through `initialize`.
+A legacy request for a modern or unknown revision receives the latest supported
+legacy revision, rather than a modern version with legacy behavior.
 No client bearer token or harness credential is read or forwarded.
 Known credential fields in frames are refused before any translation result is returned;
 the rejection reports only the field name.
 
 `openai` and `codex` consume Responses output items and completed stream events.
-`openai_chat`, `chat_completions`, `openai_compatible`, and `generic` consume
-Chat Completions responses, streamed deltas, and transcript messages. Streaming
-tool arguments are joined by tool index and rejected when incomplete or malformed.
-`auto` selects a dialect from the first recognizable frame.
+`openai_chat` (aliases `chat_completions`, `openai_compatible`, `generic`)
+consumes the OpenAI-compatible Chat Completions dialect spoken by vLLM,
+llama.cpp, LM Studio, Ollama, OpenRouter, OpenWebUI and custom agents:
+non-streaming response objects, streaming chunks (tool-call argument
+fragments are accumulated per index until the terminal chunk), and bare
+transcript messages including `role:"tool"` results. `auto` sniffs the wire
+dialect from the first informative frame.
 `claude` consumes print-mode stream JSON frames. `agy` consumes its stream JSON
 `step_update` and `result` frames. Tool output is associated with its call ID;
 AGY tools without a native call ID receive a stable ID from conversation and step index.
@@ -44,7 +60,9 @@ harness result alone is never promoted to `delivered`.
 ## Protocol references
 
 - [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses)
-- [MCP 2025-11-25 transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+- [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
+- [MCP Streamable HTTP transport (2026-07-28 line)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+- [MCP versioning and negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/cli-usage)
 - `docs/decisions/0001-loop-translation-layer-serve-both-harnesses-translate-the-lo.md`
 - `docs/research/monitor-relay-spike-2026-09.md`, rows D1-D3
