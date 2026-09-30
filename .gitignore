@@ -10,3 +10,9 @@ __pycache__/
 # install.sh --harness gemini-spark emits the Spark upload package here; a build output, never tracked.
 /dist/
 /bridge/target/
+
+# Preserved agent context is consolidated into the verified recovery ledger.
+!/.devloop/recovery/agent-handoffs-20260930.jsonl
+/.agents/teamwork/
+/.devloop/native/
+/.tmp.driveupload/
