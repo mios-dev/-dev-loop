@@ -61,6 +61,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base64"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
+
+[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -71,6 +77,7 @@ name = "devloop-bridge"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "serde",
  "serde_json",
  "tokio",
