@@ -510,7 +510,7 @@ pub fn detect_source(frame: &Value) -> Option<&'static str> {
         return Some("openai_chat");
     }
     if let Some(kind) = frame.get("type").and_then(Value::as_str) {
-        if kind == "result"
+        if (kind == "result" && (frame.get("result").is_some() || frame.get("is_error").is_some()))
             || (matches!(kind, "system" | "assistant" | "user") && frame.get("message").is_some())
         {
             return Some("claude");
@@ -948,5 +948,29 @@ mod tests {
         assert!(
             matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "vacuous")
         );
+    }
+    #[test]
+    fn streaming_tool_identity_and_index_bounds_survive_recovery() {
+        for (call, expected) in [
+            (
+                json!({"index":256,"id":"call_1","function":{"name":"read_file","arguments":"{}"}}),
+                "CHAT TOOL INDEX OUT OF RANGE",
+            ),
+            (
+                json!({"index":0,"function":{"name":"read_file","arguments":"{}"}}),
+                "CHAT STREAM TOOL ID OR NAME MISSING",
+            ),
+            (
+                json!({"index":0,"id":"call_1","function":{"arguments":"{}"}}),
+                "CHAT STREAM TOOL ID OR NAME MISSING",
+            ),
+        ] {
+            let error = translate(TranslateRequest {
+                source:"openai_chat".into(),
+                frames:vec![json!({"object":"chat.completion.chunk","choices":[{"delta":{"tool_calls":[call]},"finish_reason":"tool_calls"}]})],
+                evidence:None,
+            }).unwrap_err();
+            assert_eq!(error, expected);
+        }
     }
 }
