@@ -1,0 +1,3562 @@
+{
+  "payload": {
+    "preloaded_records": {},
+    "structured_data": {
+      "@context": "https://schema.org",
+      "@type": "DiscussionForumPosting",
+      "headline": "Feature request: add ACP (Agent Client Protocol) stdio JSON-RPC mode",
+      "articleBody": "## Summary\n\nPlease add an `--acp` (or equivalent) flag that runs `agy` as a JSON-RPC-over-stdio agent server, matching the [ACP](https://github.com/zed-industries/agent-client-protocol) shape that `gemini-cli --acp`, `claude --acp`, `cursor-agent acp`, `codex acp`, etc. already implement.\n\n## Background\n\n`agy` v1.0.0 currently exposes only:\n\n| Mode | Streaming output | Tool approval | Cancel | Conversation state |\n|---|---|---|---|---|\n| Default TUI | \u2705 | \u2705 | \u2705 | \u2705 |\n| `-i / --prompt-interactive` | \u2705 | \u2705 | \u2705 | \u2705 |\n| `-p / --print` | \u274c (single block) | \u274c (skip-permissions only) | \u274c | New each invocation |\n\nNone of these can be driven programmatically by an external orchestrator that needs to:\n\n- Receive incremental `agent_message_chunk` / `agent_thought_chunk` events as the model streams\n- Pause mid-turn for human approval on destructive tool calls\n- Send a `session/cancel` notification mid-stream\n- Resume an existing session across separate orchestrator invocations\n\n## Use cases impacted\n\nThere is a substantial ecosystem of orchestrators that spawn coding-agent CLIs as ACP-stdio subprocesses to bridge them into chat platforms (Discord, Slack, MS Teams), schedulers, and remote/headless workflows. Examples:\n\n- [openabdev/openab](https://github.com/openabdev/openab) \u2014 Discord/Slack \u2194 coding agent bridge (484 stars). Already supports Claude Code, Gemini CLI, Codex, Cursor, Copilot, Grok, Hermes, OpenCode \u2014 all via `--acp`.\n- [sst/opencode](https://github.com/anomalyco/opencode) \u2014 exposes `opencode acp` for IDE integration.\n- IDE integrations broadly (Zed, Cursor, etc.) increasingly standardize on ACP.\n\nWith `gemini-cli` being [transitioned to `agy`](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/), these orchestrators lose their Gemini path the moment `gemini-cli` is retired \u2014 unless `agy` picks up the same ACP capability.\n\n## Concrete request\n\nA new flag, conventionally `--acp`, that:\n\n1. Reads newline-delimited JSON-RPC 2.0 requests from stdin\n2. Writes newline-delimited JSON-RPC 2.0 responses + `session/update` notifications to stdout\n3. Implements at least the ACP method surface that `gemini-cli --acp` already supports:\n   - `initialize` (capabilities + auth method advertisement)\n   - `session/new` (with `cwd` + optional MCP servers)\n   - `session/load` (resume)\n   - `session/prompt` (with streaming `session/update` events: `agent_message_chunk`, `agent_thought_chunk`, tool requests)\n   - `session/set_config_option`\n   - `session/cancel` (notification)\n\nThis would let the existing ACP orchestrator ecosystem migrate from `gemini --acp` to `agy --acp` with **zero code change** on the orchestrator side.\n\n## Compatibility note\n\nThis is purely additive \u2014 no existing TUI / `-p` / `-i` behavior would change.\n\n## Workaround in the meantime\n\nI have an in-flight PR ([openabdev/openab#865](https://github.com/openabdev/openab/pull/865)) that bridges OpenAB to Antigravity's backend by re-targeting `gemini-cli --acp` against `daily-cloudcode-pa.googleapis.com` with an Antigravity OAuth client. It works, but it's a stopgap \u2014 once `agy` adds `--acp`, the bridge can be replaced with a thin `agy --acp` invocation.\n\nHappy to help test / iterate on a beta of this if useful.",
+      "author": {
+        "url": "https://github.com/Joseph19820124",
+        "@type": "Person",
+        "name": "Joseph19820124"
+      },
+      "datePublished": "2026-05-20T03:58:03.000Z",
+      "interactionStatistic": {
+        "@type": "InteractionCounter",
+        "interactionType": "https://schema.org/CommentAction",
+        "userInteractionCount": 192
+      },
+      "url": "https://github.com/31/antigravity-cli/issues/31"
+    },
+    "best_match_sort_enabled": false,
+    "issue_search_type": "ISSUE_HYBRID",
+    "preloadedQueries": [
+      {
+        "queryId": "e581cc2362791d4f5e4dec65495d7058",
+        "queryName": "IssueViewerViewQuery",
+        "variables": {
+          "count": 15,
+          "number": 31,
+          "owner": "google-antigravity",
+          "repo": "antigravity-cli"
+        },
+        "result": {
+          "data": {
+            "repository": {
+              "id": "R_kgDOScoSVw",
+              "isOwnerEnterpriseManaged": false,
+              "owner": {
+                "__typename": "Organization",
+                "userNameDisplayConfiguration": "HANDLE",
+                "id": "O_kgDODm19CA"
+              },
+              "issue": {
+                "id": "I_kwDOScoSV88AAAABCzUrtw",
+                "number": 31,
+                "viewerCanUpdateMetadata": false,
+                "repository": {
+                  "id": "R_kgDOScoSVw",
+                  "databaseId": 1237979735,
+                  "name": "antigravity-cli",
+                  "isArchived": false,
+                  "nameWithOwner": "google-antigravity/antigravity-cli",
+                  "viewerCanInteract": false,
+                  "viewerInteractionLimitReasonHTML": "",
+                  "slashCommandsEnabled": false,
+                  "visibility": "PUBLIC",
+                  "viewerCanPush": false,
+                  "owner": {
+                    "__typename": "Organization",
+                    "login": "google-antigravity",
+                    "id": "O_kgDODm19CA",
+                    "url": "https://github.com/google-antigravity",
+                    "databaseId": 242056456,
+                    "issueFieldsEnabled": true,
+                    "name": "Google Antigravity",
+                    "issueFields": {
+                      "totalCount": 0
+                    },
+                    "pinnedIssueFields": {
+                      "nodes": []
+                    }
+                  },
+                  "isPrivate": false,
+                  "isWritable": true,
+                  "isOwnerEnterpriseManaged": false,
+                  "viewerCanPinIssues": false,
+                  "isCopilotAgentEnabled": null,
+                  "issueTypes": {
+                    "edges": [
+                      {
+                        "node": {
+                          "id": "IT_kwDODm19CM4BxNYL"
+                        }
+                      },
+                      {
+                        "node": {
+                          "id": "IT_kwDODm19CM4BxNYM"
+                        }
+                      },
+                      {
+                        "node": {
+                          "id": "IT_kwDODm19CM4BxNYN"
+                        }
+                      }
+                    ]
+                  },
+                  "pinnedIssues": {
+                    "totalCount": 0
+                  },
+                  "viewerIssueCreationPermissions": {
+                    "triageable": false
+                  }
+                },
+                "updatedAt": "2026-08-21T22:20:41Z",
+                "titleHTML": "Feature request: add ACP (Agent Client Protocol) stdio JSON-RPC mode",
+                "url": "https://github.com/google-antigravity/antigravity-cli/issues/31",
+                "viewerCanUpdateNext": false,
+                "issueType": null,
+                "duplicateOf": null,
+                "linkedPullRequests": {
+                  "nodes": []
+                },
+                "agentAssignments": [],
+                "closedByPullRequestsReferences": {
+                  "nodes": []
+                },
+                "labels": {
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "endCursor": "Mg"
+                  },
+                  "edges": [
+                    {
+                      "node": {
+                        "id": "LA_kwDOScoSV88AAAACrGm9mA",
+                        "color": "9e1fb7",
+                        "name": "comp:customizations",
+                        "nameHTML": "comp:customizations",
+                        "description": "Plugins & Skills, MCP, Status Line, Window Title",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/labels/comp%3Acustomizations",
+                        "archivedAt": null
+                      }
+                    },
+                    {
+                      "node": {
+                        "id": "LA_kwDOScoSV88AAAACrGi3_Q",
+                        "color": "fd2498",
+                        "name": "feature request",
+                        "nameHTML": "feature request",
+                        "description": "Requesting for new features",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/labels/feature%20request",
+                        "archivedAt": null
+                      }
+                    }
+                  ]
+                },
+                "milestone": null,
+                "assignedActors": {
+                  "nodes": [
+                    {
+                      "__typename": "User",
+                      "__isActor": "User",
+                      "id": "U_kgDOEpKQfw",
+                      "login": "chandrashakherkamasani",
+                      "name": null,
+                      "profileResourcePath": "/chandrashakherkamasani",
+                      "avatarUrl": "https://avatars.githubusercontent.com/u/311595135?s=64&v=4",
+                      "__isNode": "User"
+                    }
+                  ]
+                },
+                "locked": false,
+                "viewerCanComment": false,
+                "databaseId": 4483001271,
+                "state": "OPEN",
+                "stateReason": null,
+                "title": "Feature request: add ACP (Agent Client Protocol) stdio JSON-RPC mode",
+                "createdAt": "2026-05-20T03:58:03Z",
+                "viewerDidAuthor": false,
+                "author": {
+                  "avatarUrl": "https://avatars.githubusercontent.com/u/164839249?u=fe40d8690048238366bd35647d7b201b37739e13&v=4",
+                  "login": "Joseph19820124",
+                  "id": "U_kgDOCdM_UQ",
+                  "profileUrl": "https://github.com/Joseph19820124",
+                  "name": null,
+                  "__typename": "User"
+                },
+                "body": "## Summary\n\nPlease add an `--acp` (or equivalent) flag that runs `agy` as a JSON-RPC-over-stdio agent server, matching the [ACP](https://github.com/zed-industries/agent-client-protocol) shape that `gemini-cli --acp`, `claude --acp`, `cursor-agent acp`, `codex acp`, etc. already implement.\n\n## Background\n\n`agy` v1.0.0 currently exposes only:\n\n| Mode | Streaming output | Tool approval | Cancel | Conversation state |\n|---|---|---|---|---|\n| Default TUI | \u2705 | \u2705 | \u2705 | \u2705 |\n| `-i / --prompt-interactive` | \u2705 | \u2705 | \u2705 | \u2705 |\n| `-p / --print` | \u274c (single block) | \u274c (skip-permissions only) | \u274c | New each invocation |\n\nNone of these can be driven programmatically by an external orchestrator that needs to:\n\n- Receive incremental `agent_message_chunk` / `agent_thought_chunk` events as the model streams\n- Pause mid-turn for human approval on destructive tool calls\n- Send a `session/cancel` notification mid-stream\n- Resume an existing session across separate orchestrator invocations\n\n## Use cases impacted\n\nThere is a substantial ecosystem of orchestrators that spawn coding-agent CLIs as ACP-stdio subprocesses to bridge them into chat platforms (Discord, Slack, MS Teams), schedulers, and remote/headless workflows. Examples:\n\n- [openabdev/openab](https://github.com/openabdev/openab) \u2014 Discord/Slack \u2194 coding agent bridge (484 stars). Already supports Claude Code, Gemini CLI, Codex, Cursor, Copilot, Grok, Hermes, OpenCode \u2014 all via `--acp`.\n- [sst/opencode](https://github.com/anomalyco/opencode) \u2014 exposes `opencode acp` for IDE integration.\n- IDE integrations broadly (Zed, Cursor, etc.) increasingly standardize on ACP.\n\nWith `gemini-cli` being [transitioned to `agy`](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/), these orchestrators lose their Gemini path the moment `gemini-cli` is retired \u2014 unless `agy` picks up the same ACP capability.\n\n## Concrete request\n\nA new flag, conventionally `--acp`, that:\n\n1. Reads newline-delimited JSON-RPC 2.0 requests from stdin\n2. Writes newline-delimited JSON-RPC 2.0 responses + `session/update` notifications to stdout\n3. Implements at least the ACP method surface that `gemini-cli --acp` already supports:\n   - `initialize` (capabilities + auth method advertisement)\n   - `session/new` (with `cwd` + optional MCP servers)\n   - `session/load` (resume)\n   - `session/prompt` (with streaming `session/update` events: `agent_message_chunk`, `agent_thought_chunk`, tool requests)\n   - `session/set_config_option`\n   - `session/cancel` (notification)\n\nThis would let the existing ACP orchestrator ecosystem migrate from `gemini --acp` to `agy --acp` with **zero code change** on the orchestrator side.\n\n## Compatibility note\n\nThis is purely additive \u2014 no existing TUI / `-p` / `-i` behavior would change.\n\n## Workaround in the meantime\n\nI have an in-flight PR ([openabdev/openab#865](https://github.com/openabdev/openab/pull/865)) that bridges OpenAB to Antigravity's backend by re-targeting `gemini-cli --acp` against `daily-cloudcode-pa.googleapis.com` with an Antigravity OAuth client. It works, but it's a stopgap \u2014 once `agy` adds `--acp`, the bridge can be replaced with a thin `agy --acp` invocation.\n\nHappy to help test / iterate on a beta of this if useful.",
+                "bodyHTML": "<h2 dir=\"auto\">Summary</h2>\n<p dir=\"auto\">Please add an <code class=\"notranslate\">--acp</code> (or equivalent) flag that runs <code class=\"notranslate\">agy</code> as a JSON-RPC-over-stdio agent server, matching the <a href=\"https://github.com/zed-industries/agent-client-protocol\">ACP</a> shape that <code class=\"notranslate\">gemini-cli --acp</code>, <code class=\"notranslate\">claude --acp</code>, <code class=\"notranslate\">cursor-agent acp</code>, <code class=\"notranslate\">codex acp</code>, etc. already implement.</p>\n<h2 dir=\"auto\">Background</h2>\n<p dir=\"auto\"><code class=\"notranslate\">agy</code> v1.0.0 currently exposes only:</p>\n<markdown-accessiblity-table><table role=\"table\">\n<thead>\n<tr>\n<th>Mode</th>\n<th>Streaming output</th>\n<th>Tool approval</th>\n<th>Cancel</th>\n<th>Conversation state</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Default TUI</td>\n<td>\u2705</td>\n<td>\u2705</td>\n<td>\u2705</td>\n<td>\u2705</td>\n</tr>\n<tr>\n<td><code class=\"notranslate\">-i / --prompt-interactive</code></td>\n<td>\u2705</td>\n<td>\u2705</td>\n<td>\u2705</td>\n<td>\u2705</td>\n</tr>\n<tr>\n<td><code class=\"notranslate\">-p / --print</code></td>\n<td>\u274c (single block)</td>\n<td>\u274c (skip-permissions only)</td>\n<td>\u274c</td>\n<td>New each invocation</td>\n</tr>\n</tbody>\n</table></markdown-accessiblity-table>\n<p dir=\"auto\">None of these can be driven programmatically by an external orchestrator that needs to:</p>\n<ul dir=\"auto\">\n<li>Receive incremental <code class=\"notranslate\">agent_message_chunk</code> / <code class=\"notranslate\">agent_thought_chunk</code> events as the model streams</li>\n<li>Pause mid-turn for human approval on destructive tool calls</li>\n<li>Send a <code class=\"notranslate\">session/cancel</code> notification mid-stream</li>\n<li>Resume an existing session across separate orchestrator invocations</li>\n</ul>\n<h2 dir=\"auto\">Use cases impacted</h2>\n<p dir=\"auto\">There is a substantial ecosystem of orchestrators that spawn coding-agent CLIs as ACP-stdio subprocesses to bridge them into chat platforms (Discord, Slack, MS Teams), schedulers, and remote/headless workflows. Examples:</p>\n<ul dir=\"auto\">\n<li><a href=\"https://github.com/openabdev/openab\">openabdev/openab</a> \u2014 Discord/Slack \u2194 coding agent bridge (484 stars). Already supports Claude Code, Gemini CLI, Codex, Cursor, Copilot, Grok, Hermes, OpenCode \u2014 all via <code class=\"notranslate\">--acp</code>.</li>\n<li><a href=\"https://github.com/anomalyco/opencode\">sst/opencode</a> \u2014 exposes <code class=\"notranslate\">opencode acp</code> for IDE integration.</li>\n<li>IDE integrations broadly (Zed, Cursor, etc.) increasingly standardize on ACP.</li>\n</ul>\n<p dir=\"auto\">With <code class=\"notranslate\">gemini-cli</code> being <a href=\"https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/\" rel=\"nofollow\">transitioned to <code class=\"notranslate\">agy</code></a>, these orchestrators lose their Gemini path the moment <code class=\"notranslate\">gemini-cli</code> is retired \u2014 unless <code class=\"notranslate\">agy</code> picks up the same ACP capability.</p>\n<h2 dir=\"auto\">Concrete request</h2>\n<p dir=\"auto\">A new flag, conventionally <code class=\"notranslate\">--acp</code>, that:</p>\n<ol dir=\"auto\">\n<li>Reads newline-delimited JSON-RPC 2.0 requests from stdin</li>\n<li>Writes newline-delimited JSON-RPC 2.0 responses + <code class=\"notranslate\">session/update</code> notifications to stdout</li>\n<li>Implements at least the ACP method surface that <code class=\"notranslate\">gemini-cli --acp</code> already supports:\n<ul dir=\"auto\">\n<li><code class=\"notranslate\">initialize</code> (capabilities + auth method advertisement)</li>\n<li><code class=\"notranslate\">session/new</code> (with <code class=\"notranslate\">cwd</code> + optional MCP servers)</li>\n<li><code class=\"notranslate\">session/load</code> (resume)</li>\n<li><code class=\"notranslate\">session/prompt</code> (with streaming <code class=\"notranslate\">session/update</code> events: <code class=\"notranslate\">agent_message_chunk</code>, <code class=\"notranslate\">agent_thought_chunk</code>, tool requests)</li>\n<li><code class=\"notranslate\">session/set_config_option</code></li>\n<li><code class=\"notranslate\">session/cancel</code> (notification)</li>\n</ul>\n</li>\n</ol>\n<p dir=\"auto\">This would let the existing ACP orchestrator ecosystem migrate from <code class=\"notranslate\">gemini --acp</code> to <code class=\"notranslate\">agy --acp</code> with <strong>zero code change</strong> on the orchestrator side.</p>\n<h2 dir=\"auto\">Compatibility note</h2>\n<p dir=\"auto\">This is purely additive \u2014 no existing TUI / <code class=\"notranslate\">-p</code> / <code class=\"notranslate\">-i</code> behavior would change.</p>\n<h2 dir=\"auto\">Workaround in the meantime</h2>\n<p dir=\"auto\">I have an in-flight PR (<a href=\"https://github.com/openabdev/openab/pull/865\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/openabdev/openab/pull/865/hovercard\">openabdev/openab#865</a>) that bridges OpenAB to Antigravity's backend by re-targeting <code class=\"notranslate\">gemini-cli --acp</code> against <code class=\"notranslate\">daily-cloudcode-pa.googleapis.com</code> with an Antigravity OAuth client. It works, but it's a stopgap \u2014 once <code class=\"notranslate\">agy</code> adds <code class=\"notranslate\">--acp</code>, the bridge can be replaced with a thin <code class=\"notranslate\">agy --acp</code> invocation.</p>\n<p dir=\"auto\">Happy to help test / iterate on a beta of this if useful.</p>",
+                "bodyVersion": "27b6c7e1bb9929f441a1da9a342da1a59632ae0c24b234de3151a2b7c3c1befc",
+                "reactionGroups": [
+                  {
+                    "content": "THUMBS_UP",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 395,
+                      "nodes": [
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "simonpham",
+                          "name": "Simon Pham",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/8846657?s=64&u=d902c31325cabb79507fbefd45c4a04df00f4113&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjg4NDY2NTc="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "Illustar0",
+                          "name": "Illustar0",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/53867435?s=64&u=1751030a10ac9f937394e8573912bdf2bb6d75ba&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjUzODY3NDM1"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "dario-spagnolo",
+                          "name": "Dario Spagnolo",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/8155871?s=64&u=bd225a1ffdf93bc52d567bc2a6de50110e588993&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjgxNTU4NzE="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "sean-roberts",
+                          "name": "Sean Roberts",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/950274?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjk1MDI3NA=="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "AltraMayor",
+                          "name": "Michel Machado",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/727014?s=64&u=4d8d840e775716cfa4acbd7a526e93d571b3fef0&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjcyNzAxNA=="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "dlightle",
+                          "name": "David",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/11488342?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjExNDg4MzQy"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "shrysr",
+                          "name": "Shreyas Ragavan",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/11930484?s=64&u=f3b224d11d4fca7b040f3a3a24cba7594c352a30&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjExOTMwNDg0"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "japboy",
+                          "name": "Yu Inao / \u7a32\u5c3e \u904a",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/84360?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjg0MzYw"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "davdittrich",
+                          "name": "Dennis Alexis Valin Dittrich",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/6792742?s=64&u=20b2307cda29c038dbd41160894c6b9f35bdc09a&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjY3OTI3NDI="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "animeshxd",
+                          "name": "Animesh Murmu",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/47624427?s=64&u=d1d8e8f7dcf9f59872a065e8966b66485a1033b2&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjQ3NjI0NDI3"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "content": "THUMBS_DOWN",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 0,
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "content": "LAUGH",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 0,
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "content": "HOORAY",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 8,
+                      "nodes": [
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "KeiosStarqua",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "U_kgDOEWM9Yw"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "rafael-arreola",
+                          "name": "Rafael Arreola",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/6570453?s=64&u=d638f8b2dcb9ecde38b62beb8668b7644e82b70f&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjY1NzA0NTM="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "guyguy2",
+                          "name": "Guy",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/2052736?s=64&u=433dbdb7be4d3e4f2621469ce467c68678f0c4f7&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjIwNTI3MzY="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "uvwt",
+                          "name": "UVWT",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/54053135?s=64&u=a082967511e4bcdf650999acb2bb9ea6e692fb26&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjU0MDUzMTM1"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "ragokan",
+                          "name": "Okan YILDIRIM",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/63511519?s=64&u=6cebd7c8fa04338f1fdf3203b8cf0a4c12ab3937&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjYzNTExNTE5"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "karkori",
+                          "name": "Mostapha Bourarach",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/24509541?s=64&u=7cb786c001d19e97b264107bdd29acc2114dadc1&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjI0NTA5NTQx"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "felipemjesus",
+                          "name": "Felipe Martins",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/4887117?s=64&u=6f9c6d21635e6f200e2f2dc4fbccfde9945d18b3&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjQ4ODcxMTc="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "thalesraymond",
+                          "name": "Thales Raymond",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/32554150?s=64&u=87e42d9caf4a32344d4c9972f4691595d678bd21&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjMyNTU0MTUw"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "content": "CONFUSED",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 0,
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "content": "HEART",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 9,
+                      "nodes": [
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "KeiosStarqua",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "U_kgDOEWM9Yw"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "mathiasbynens",
+                          "name": "Mathias Bynens",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/81942?s=64&u=284f01ab572101237f97e5e34d855fb580f614f5&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjgxOTQy"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "rafael-arreola",
+                          "name": "Rafael Arreola",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/6570453?s=64&u=d638f8b2dcb9ecde38b62beb8668b7644e82b70f&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjY1NzA0NTM="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "guyguy2",
+                          "name": "Guy",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/2052736?s=64&u=433dbdb7be4d3e4f2621469ce467c68678f0c4f7&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjIwNTI3MzY="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "uvwt",
+                          "name": "UVWT",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/54053135?s=64&u=a082967511e4bcdf650999acb2bb9ea6e692fb26&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjU0MDUzMTM1"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "karkori",
+                          "name": "Mostapha Bourarach",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/24509541?s=64&u=7cb786c001d19e97b264107bdd29acc2114dadc1&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjI0NTA5NTQx"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "lakshaysethi2",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/65022931?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjY1MDIyOTMx"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "felipemjesus",
+                          "name": "Felipe Martins",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/4887117?s=64&u=6f9c6d21635e6f200e2f2dc4fbccfde9945d18b3&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjQ4ODcxMTc="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "thalesraymond",
+                          "name": "Thales Raymond",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/32554150?s=64&u=87e42d9caf4a32344d4c9972f4691595d678bd21&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjMyNTU0MTUw"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "content": "ROCKET",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 25,
+                      "nodes": [
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "rmopl",
+                          "name": "Rafa\u0142 Ochma\u0144ski",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/290710?s=64&u=cc2705322c0db5e6dab2b1f08b748f5fed22ef3b&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjI5MDcxMA=="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "dthomasen",
+                          "name": "Dennis Thomasen",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/710193?s=64&u=6743106365641b8d9f28b9f85143748c094a2b99&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjcxMDE5Mw=="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "Ansh2099",
+                          "name": "Anshpreet",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/173984386?s=64&u=6539795850f2705ab0e35accf41446b0d6d1db6e&v=4",
+                          "__isNode": "User",
+                          "id": "U_kgDOCl7Kgg"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "ignatremizov",
+                          "name": "Ignat Remizov",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/8076691?s=64&u=ae08c563d801d7d9453cbf7a762a054475188f76&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjgwNzY2OTE="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "nom3ad",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/19239479?s=64&u=0a9d2f3893c80041d9a71dee01c1cd794241dfa0&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjE5MjM5NDc5"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "peterbecich",
+                          "name": "Peter Becich",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/6315338?s=64&u=76f9fee220ccf15432f0649f58e7b7a9feed4f79&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjYzMTUzMzg="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "sarthakshrestha",
+                          "name": "Sarthak Shrestha",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/65111111?s=64&u=7122d85636a0efaf6f3227e5b4fb5319245113b8&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjY1MTExMTEx"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "andreban",
+                          "name": "Andr\u00e9 Cipriani Bandarra",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/1733592?s=64&u=2f5f4387f14bfe76fd2ed453077e1d0a0c3bedb3&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjE3MzM1OTI="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "rafiti052",
+                          "name": "Rafael Amaral",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/10345837?s=64&u=702a72b42d1e5c178ff0d05be1f5af395c521cf0&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjEwMzQ1ODM3"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "marekzan",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/5881806?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjU4ODE4MDY="
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "content": "EYES",
+                    "viewerHasReacted": false,
+                    "reactors": {
+                      "totalCount": 53,
+                      "nodes": [
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "ecator",
+                          "name": "Martin",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/21003365?s=64&u=8b4be7e6c1c9e184d67c43c93b6d2dc8cebd08d9&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjIxMDAzMzY1"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "aaronlhe",
+                          "name": "Aaron Lee",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/19923777?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjE5OTIzNzc3"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "ZuidVolt",
+                          "name": "Cooper-Tafe-20146487",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/95562180?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "U_kgDOBbIpxA"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "Kairos-Ess",
+                          "name": "Kairos",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/28444771?s=64&u=a098570680dd91602741a177f4f47233aaf44024&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjI4NDQ0Nzcx"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "Smityz",
+                          "name": "Smilencer",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/22953824?s=64&u=046abab97ee621b6f63dfd04724c3ebfe30f1d9e&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjIyOTUzODI0"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "xenodium",
+                          "name": null,
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/8107219?s=64&u=81432cab1da01770ef02ae04372332338cee8b40&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjgxMDcyMTk="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "leodouglas",
+                          "name": "L\u00e9o Douglas Padilha",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/2234612?s=64&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjIyMzQ2MTI="
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "G36maid",
+                          "name": "G36maid",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/53391375?s=64&u=911ebb833a1788b7336ed8050c80d9001c26a0fd&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjUzMzkxMzc1"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "SunnyYYLin",
+                          "name": "Sunny Lin",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/112260046?s=64&u=da802a7cd7e65006ca6116d671d520b1b24491da&v=4",
+                          "__isNode": "User",
+                          "id": "U_kgDOBrDzzg"
+                        },
+                        {
+                          "__typename": "User",
+                          "__isActor": "User",
+                          "login": "tristangio",
+                          "name": "Tristan Giovangrandi",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/1678293?s=64&u=852542d032410ff7f7f3e3264b3b01c788796230&v=4",
+                          "__isNode": "User",
+                          "id": "MDQ6VXNlcjE2NzgyOTM="
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "pinnedIssueComment": null,
+                "viewerCanAssign": false,
+                "viewerCanLabel": false,
+                "projectItems": {
+                  "edges": [],
+                  "pageInfo": {
+                    "endCursor": null,
+                    "hasNextPage": false
+                  }
+                },
+                "viewerCanSetMilestone": false,
+                "isPinned": false,
+                "viewerCanDelete": false,
+                "viewerCanTransfer": false,
+                "viewerCanConvertToDiscussion": false,
+                "viewerCanLock": false,
+                "viewerCanType": false,
+                "viewerCanSetFields": false,
+                "issueFieldValues": {
+                  "nodes": []
+                },
+                "subIssuesSummary": {
+                  "total": 0,
+                  "completed": 0
+                },
+                "pendingSuggestions": [],
+                "frontTimelineItems": {
+                  "pageInfo": {
+                    "hasNextPage": true,
+                    "endCursor": "Y3Vyc29yOnYyOpPPAAABnnYhQ4AAqjQ1ODA3MDQ1MTA="
+                  },
+                  "totalCount": 201,
+                  "edges": [
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4494522166,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "sbinnee",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/58146755?u=be995d332b67b716d2f25eaf22b246f22e5c1c1f&v=4",
+                          "profileUrl": "https://github.com/sbinnee",
+                          "id": "MDQ6VXNlcjU4MTQ2NzU1",
+                          "name": "Seongbin Lim"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABC-T3Ng",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4494522166",
+                        "createdAt": "2026-05-20T04:29:36Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "I want ACP too because Gemini CLI supported it too. But this OP content is AI-generated... As far as I know, Claude Code `claude` and `codex` DO NOT support ACP in fact. Their ACP implementations are provided by JetBrains and Zed teams. ",
+                        "bodyHTML": "<p dir=\"auto\">I want ACP too because Gemini CLI supported it too. But this OP content is AI-generated... As far as I know, Claude Code <code class=\"notranslate\">claude</code> and <code class=\"notranslate\">codex</code> DO NOT support ACP in fact. Their ACP implementations are provided by JetBrains and Zed teams.</p>",
+                        "bodyVersion": "589bd429d503215ca5e6c4f7d5eae61075fbf4c94eb29b497d4ea0f1f8d5beb0",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 49,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "luckzylp",
+                                  "name": "Kevin",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/40359079?s=64&u=220cecb5c2f2a0b208d975a32d0b95dcf5fcd623&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjQwMzU5MDc5"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Joseph19820124",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/164839249?s=64&u=fe40d8690048238366bd35647d7b201b37739e13&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOCdM_UQ"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "sean-roberts",
+                                  "name": "Sean Roberts",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/950274?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjk1MDI3NA=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "japboy",
+                                  "name": "Yu Inao / \u7a32\u5c3e \u904a",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/84360?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjg0MzYw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "6112",
+                                  "name": "Nicolas Ouellet-Payeur",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/678711?s=64&u=90ca86f847f52ecd7c0c6a7b5b54f8c7c05740fb&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY3ODcxMQ=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "GarrickZ2",
+                                  "name": "Garrick",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/56821068?s=64&u=45f690ffc32f0e160efdbbd97a1d991e2e5084ce&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU2ODIxMDY4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "vmg-dev",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/121135566?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOBzhhzg"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "MusiCode1",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/54508123?s=64&u=66f790c5971d2610cf4ac5b0fa521f29a3c12125&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU0NTA4MTIz"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "joaopedrofrech",
+                                  "name": "jpfadmin",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/36735138?s=64&u=76d3fef302f2f2b335a4ff84ce1b04a7c957796b&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjM2NzM1MTM4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Forge36",
+                                  "name": "Forge",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/30872404?s=64&u=11817cafd666b68592340669c7491a2f2049ae6c&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjMwODcyNDA0"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 1,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 1,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnkOlb4AAqjQ0OTQ1MjIxNjY="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4502520064,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "myoung3",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/2517171?v=4",
+                          "profileUrl": "https://github.com/myoung3",
+                          "id": "MDQ6VXNlcjI1MTcxNzE=",
+                          "name": "Michael Young"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDF8BAA",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4502520064",
+                        "createdAt": "2026-05-20T20:49:13Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "Absence of ACP in antigravity-cli means [agent-shell ](https://github.com/xenodium/agent-shell) won't have a gemini option after gemini-cli is deprecated. \n\nAgent-shell is an agent-agnostic front-end to tools like gemini-cli and claude code designed to make terminal based code assist tools easier to use in emacs. There are a lot of issues with running antigravity-cli/claude code/gemini-cli directly in vterm in emacs.\n",
+                        "bodyHTML": "<p dir=\"auto\">Absence of ACP in antigravity-cli means <a href=\"https://github.com/xenodium/agent-shell\">agent-shell </a> won't have a gemini option after gemini-cli is deprecated.</p>\n<p dir=\"auto\">Agent-shell is an agent-agnostic front-end to tools like gemini-cli and claude code designed to make terminal based code assist tools easier to use in emacs. There are a lot of issues with running antigravity-cli/claude code/gemini-cli directly in vterm in emacs.</p>",
+                        "bodyVersion": "45f0834b12f5c3c9f17eac6436eedfa03e238ce85d4b1acd7ff83c632aab677e",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 45,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "shrysr",
+                                  "name": "Shreyas Ragavan",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/11930484?s=64&u=f3b224d11d4fca7b040f3a3a24cba7594c352a30&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjExOTMwNDg0"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "davdittrich",
+                                  "name": "Dennis Alexis Valin Dittrich",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/6792742?s=64&u=20b2307cda29c038dbd41160894c6b9f35bdc09a&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY3OTI3NDI="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "ntriisii",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/137733641?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOCDWmCQ"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "dvictori",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/5786553?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU3ODY1NTM="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "sebasong23",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/1536050?s=64&u=7a7c6b15dc0c790eafd61d5569143b60b5a6e367&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjE1MzYwNTA="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "erkiesken",
+                                  "name": "Erki Esken",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/1394282?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjEzOTQyODI="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "idreamshen",
+                                  "name": "ChenHsingYu",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/7069142?s=64&u=67bce0968295ea3b316951027e3cfaae1901a58b&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjcwNjkxNDI="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "6112",
+                                  "name": "Nicolas Ouellet-Payeur",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/678711?s=64&u=90ca86f847f52ecd7c0c6a7b5b54f8c7c05740fb&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY3ODcxMQ=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "GarrickZ2",
+                                  "name": "Garrick",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/56821068?s=64&u=45f690ffc32f0e160efdbbd97a1d991e2e5084ce&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU2ODIxMDY4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "dlightle",
+                                  "name": "David",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/11488342?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjExNDg4MzQy"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnkcmTSgAqjQ1MDI1MjAwNjQ="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4509537891,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "lmtr0",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/57605930?u=b9daab8066df08feeaca62da8487f3a2e2c926fe&v=4",
+                          "profileUrl": "https://github.com/lmtr0",
+                          "id": "MDQ6VXNlcjU3NjA1OTMw",
+                          "name": "Lorenzo"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDMoWYw",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4509537891",
+                        "createdAt": "2026-05-21T15:01:45Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for acp support.\n\nCurrently I use the acp clients to develop projects in the background, this is crucial for it to work",
+                        "bodyHTML": "<p dir=\"auto\">+1 for acp support.</p>\n<p dir=\"auto\">Currently I use the acp clients to develop projects in the background, this is crucial for it to work</p>",
+                        "bodyVersion": "d948958d0384ebab66e0647d69203023e8047ee32d15d1f161023db9d7e099db",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 9,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "arthurgleckler",
+                                  "name": "Arthur A. Gleckler",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/11546058?s=64&u=0b37d1ed541eb934962cf15d20567db1671e6952&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjExNTQ2MDU4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "ignatremizov",
+                                  "name": "Ignat Remizov",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/8076691?s=64&u=ae08c563d801d7d9453cbf7a762a054475188f76&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjgwNzY2OTE="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "ak-ing",
+                                  "name": "\u963f\u51efak",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/65901383?s=64&u=36cd5aabade95be50b2128d86c3730043cdaacb8&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY1OTAxMzgz"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "YaminMahdi",
+                                  "name": "Yamin Mahdi",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/48239104?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjQ4MjM5MTA0"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "alexander-shustanov",
+                                  "name": "Alexander Shustanov",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/12222413?s=64&u=d620b2b3f8fe298d02bc8fc41f736dd264509a19&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjEyMjIyNDEz"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "YackovLazar",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/112662789?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOBrcZBQ"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "andisolo",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/32254353?s=64&u=0c5e620f254d4c03237ec0e31a1bd8e84b9ace7a&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjMyMjU0MzUz"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "asaprajx",
+                                  "name": "asap",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/217347869?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDODPR3HQ"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnksOi6gAqjQ1MDk1Mzc4OTE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4511063664,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "jimmyliao",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/151156?u=93f0cfc7de5f95f7a3d64ba16aff80cc496e0a27&v=4",
+                          "profileUrl": "https://github.com/jimmyliao",
+                          "id": "MDQ6VXNlcjE1MTE1Ng==",
+                          "name": "JimmyLiao"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDOFecA",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4511063664",
+                        "createdAt": "2026-05-21T17:56:03Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 from a GDE perspective.\n\nConcrete signal beyond the general ecosystem argument:\n- I run a dual-engine workflow (Claude + Gemini) across ~10 machines\n  via Tailscale, using ACP brokers (OpenAB-style) to bridge them into\n  Discord/Telegram for mobile/remote use. `gemini --acp` is currently\n  the Gemini side of this; `agy --acp` would let it survive the 6/18\n  gemini-cli sunset without code changes on the orchestrator side.\n- Re: sbinnee's correction \u2014 agreed, `claude --acp` is via\n  @zed-industries/claude-code-acp not native, and `codex acp` is via\n  Zed similarly. But the user experience is the same: a single\n  `--acp` invocation point. Whether agy ships it natively or Google\n  publishes an `@google/agy-acp` adapter, either resolves the\n  orchestrator integration gap.\nHappy to test a beta if/when there's something to try.",
+                        "bodyHTML": "<p dir=\"auto\">+1 from a GDE perspective.</p>\n<p dir=\"auto\">Concrete signal beyond the general ecosystem argument:</p>\n<ul dir=\"auto\">\n<li>I run a dual-engine workflow (Claude + Gemini) across ~10 machines<br>\nvia Tailscale, using ACP brokers (OpenAB-style) to bridge them into<br>\nDiscord/Telegram for mobile/remote use. <code class=\"notranslate\">gemini --acp</code> is currently<br>\nthe Gemini side of this; <code class=\"notranslate\">agy --acp</code> would let it survive the 6/18<br>\ngemini-cli sunset without code changes on the orchestrator side.</li>\n<li>Re: sbinnee's correction \u2014 agreed, <code class=\"notranslate\">claude --acp</code> is via<br>\n@zed-industries/claude-code-acp not native, and <code class=\"notranslate\">codex acp</code> is via<br>\nZed similarly. But the user experience is the same: a single<br>\n<code class=\"notranslate\">--acp</code> invocation point. Whether agy ships it natively or Google<br>\npublishes an <code class=\"notranslate\">@google/agy-acp</code> adapter, either resolves the<br>\norchestrator integration gap.<br>\nHappy to test a beta if/when there's something to try.</li>\n</ul>",
+                        "bodyVersion": "ced79e6a07a3f9a3dd2ffca37c4515853462b832995dbe35b511bd159cef1135",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 22,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "AltraMayor",
+                                  "name": "Michel Machado",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/727014?s=64&u=4d8d840e775716cfa4acbd7a526e93d571b3fef0&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjcyNzAxNA=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "GarrickZ2",
+                                  "name": "Garrick",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/56821068?s=64&u=45f690ffc32f0e160efdbbd97a1d991e2e5084ce&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU2ODIxMDY4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "dlightle",
+                                  "name": "David",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/11488342?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjExNDg4MzQy"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "vipmax",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/4265482?s=64&u=72e77e8a0ddaaaba9a8f93a9db1498d521b8591c&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjQyNjU0ODI="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "2001zhaozhao",
+                                  "name": "Jason Zhao",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/15002454?s=64&u=ae419437fbde56c0559ebf266ce9b5735bb82229&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjE1MDAyNDU0"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "issoso",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/23054966?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjIzMDU0OTY2"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Azkae",
+                                  "name": "Romain",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/5298523?s=64&u=6831bf62b6a5fe8e3c99f32b628efa5dac985d5c&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjUyOTg1MjM="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "vmg-dev",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/121135566?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOBzhhzg"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Kairos-Ess",
+                                  "name": "Kairos",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/28444771?s=64&u=a098570680dd91602741a177f4f47233aaf44024&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjI4NDQ0Nzcx"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "lesteral",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/73240819?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjczMjQwODE5"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnkuuHzgAqjQ1MTEwNjM2NjQ="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4523799731,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "fengyincheng",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/198585448?v=4",
+                          "profileUrl": "https://github.com/fengyincheng",
+                          "id": "U_kgDOC9YsaA",
+                          "name": null
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDaO0sw",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4523799731",
+                        "createdAt": "2026-05-23T01:52:55Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1  ACP is important",
+                        "bodyHTML": "<p dir=\"auto\">+1  ACP is important</p>",
+                        "bodyVersion": "2d6f7813479f1157eede35ac89e45ead8311b3ab8e352aabfb2c456aef8b3a52",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 7,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "arthurgleckler",
+                                  "name": "Arthur A. Gleckler",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/11546058?s=64&u=0b37d1ed541eb934962cf15d20567db1671e6952&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjExNTQ2MDU4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "ignatremizov",
+                                  "name": "Ignat Remizov",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/8076691?s=64&u=ae08c563d801d7d9453cbf7a762a054475188f76&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjgwNzY2OTE="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "peterbecich",
+                                  "name": "Peter Becich",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/6315338?s=64&u=76f9fee220ccf15432f0649f58e7b7a9feed4f79&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjYzMTUzMzg="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "ak-ing",
+                                  "name": "\u963f\u51efak",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/65901383?s=64&u=36cd5aabade95be50b2128d86c3730043cdaacb8&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY1OTAxMzgz"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "thalesraymond",
+                                  "name": "Thales Raymond",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/32554150?s=64&u=87e42d9caf4a32344d4c9972f4691595d678bd21&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjMyNTU0MTUw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "guyguy2",
+                                  "name": "Guy",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/2052736?s=64&u=433dbdb7be4d3e4f2621469ce467c68678f0c4f7&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjIwNTI3MzY="
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnlKJENgAqjQ1MjM3OTk3MzE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4526105996,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "marcelomendes",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/178343?v=4",
+                          "profileUrl": "https://github.com/marcelomendes",
+                          "id": "MDQ6VXNlcjE3ODM0Mw==",
+                          "name": "Marcelo Mendes"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDcbljA",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4526105996",
+                        "createdAt": "2026-05-23T17:42:51Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": "2026-05-23T17:43:24Z",
+                        "lastUserContentEdit": {
+                          "editor": {
+                            "__typename": "User",
+                            "url": "https://github.com/marcelomendes",
+                            "login": "marcelomendes",
+                            "id": "MDQ6VXNlcjE3ODM0Mw=="
+                          },
+                          "id": "UCE_lALOScoSV88AAAABDcbljM7AjVDe"
+                        },
+                        "pinnedBy": null,
+                        "body": "I used to run gemini --acp in docker with Zed, this is the feature blocking me from migrate to the new CLI, please implement ACP.",
+                        "bodyHTML": "<p dir=\"auto\">I used to run gemini --acp in docker with Zed, this is the feature blocking me from migrate to the new CLI, please implement ACP.</p>",
+                        "bodyVersion": "42a5ac7e077962ddbfa227b805d7dc763d084a5e84fbffd017dcf4c893a69ac6",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 24,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "2001zhaozhao",
+                                  "name": "Jason Zhao",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/15002454?s=64&u=ae419437fbde56c0559ebf266ce9b5735bb82229&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjE1MDAyNDU0"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Azkae",
+                                  "name": "Romain",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/5298523?s=64&u=6831bf62b6a5fe8e3c99f32b628efa5dac985d5c&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjUyOTg1MjM="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "AltraMayor",
+                                  "name": "Michel Machado",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/727014?s=64&u=4d8d840e775716cfa4acbd7a526e93d571b3fef0&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjcyNzAxNA=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "zhangjiuyi",
+                                  "name": "Jiuyi",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/18696552?s=64&u=5bd9d8886d98a9588e65de051f310d47242872e5&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjE4Njk2NTUy"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "JuanSaenz04",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/27705456?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjI3NzA1NDU2"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "joaopedrofrech",
+                                  "name": "jpfadmin",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/36735138?s=64&u=76d3fef302f2f2b335a4ff84ce1b04a7c957796b&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjM2NzM1MTM4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "nourez",
+                                  "name": "Nourez Rawji",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/5659648?s=64&u=4fe038c407613ced963b941ddebcc92c59e001e1&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU2NTk2NDg="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Malix-Labs",
+                                  "name": "Malix - Alix Brunet",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/76160668?s=64&u=4f73d8f4bdca70e6076c6e73b63230eb82fd2c4e&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjc2MTYwNjY4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "melewetwo",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/7630602?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjc2MzA2MDI="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "dmgorsky",
+                                  "name": "Dmytro Horskyi",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/409820?s=64&u=b9f6d27284f8e419164bd1fabb81a066fba5b8ca&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjQwOTgyMA=="
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnlXuwXgAqjQ1MjYxMDU5OTY="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4535680221,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "liaowang11",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/255802?u=8e8c2f147313224adf7a06bdb0e46c488f12982b&v=4",
+                          "profileUrl": "https://github.com/liaowang11",
+                          "id": "MDQ6VXNlcjI1NTgwMg==",
+                          "name": "Wang Liao"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDlj83Q",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4535680221",
+                        "createdAt": "2026-05-25T16:22:28Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "fddc0be3bb103d45f529d8432a520c85c81cdda9d2103c6410a32a715f33b502",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnl_x4aAAqjQ1MzU2ODAyMjE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4545553088,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "dvictori",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/5786553?v=4",
+                          "profileUrl": "https://github.com/dvictori",
+                          "id": "MDQ6VXNlcjU3ODY1NTM=",
+                          "name": null
+                        },
+                        "id": "IC_kwDOScoSV88AAAABDu-iwA",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4545553088",
+                        "createdAt": "2026-05-26T15:19:21Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "From Antigravity FAQ, it doesn\u00b4t look like we are going to get ACP for connecting to other software\n\nhttps://antigravity.google/docs/faq#why-cant-i-use-third-party-software-eg-claude-code-openclaw-opencode-with-my-antigravity-login\n\n> Why can\u2019t I use third party software (e.g. Claude Code, OpenClaw, OpenCode) with my Antigravity login?\n\n> Using third party software, tools, or services to access Antigravity is a violation of our [Terms of Service](https://antigravity.google/terms), and severely degrades the experience for legitimate product users. Such actions may be grounds for suspension or termination of your account. If you would like to use a third party coding agent with Gemini, we recommend using a Vertex or AI Studio API key.",
+                        "bodyHTML": "<p dir=\"auto\">From Antigravity FAQ, it doesn\u00b4t look like we are going to get ACP for connecting to other software</p>\n<p dir=\"auto\"><a href=\"https://antigravity.google/docs/faq#why-cant-i-use-third-party-software-eg-claude-code-openclaw-opencode-with-my-antigravity-login\" rel=\"nofollow\">https://antigravity.google/docs/faq#why-cant-i-use-third-party-software-eg-claude-code-openclaw-opencode-with-my-antigravity-login</a></p>\n<blockquote>\n<p dir=\"auto\">Why can\u2019t I use third party software (e.g. Claude Code, OpenClaw, OpenCode) with my Antigravity login?</p>\n</blockquote>\n<blockquote>\n<p dir=\"auto\">Using third party software, tools, or services to access Antigravity is a violation of our <a href=\"https://antigravity.google/terms\" rel=\"nofollow\">Terms of Service</a>, and severely degrades the experience for legitimate product users. Such actions may be grounds for suspension or termination of your account. If you would like to use a third party coding agent with Gemini, we recommend using a Vertex or AI Studio API key.</p>\n</blockquote>",
+                        "bodyVersion": "ae885e84580202c9363970cccdfb60daffcb025f026d7bf725ca5e2531043a17",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 2,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "caesar",
+                                  "name": "Caesar Schinas",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/1566516?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjE1NjY1MTY="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "limfoo",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/34062417?s=64&u=748ec7061929b0a015464469cf7827056ead5779&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjM0MDYyNDE3"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 4,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "japboy",
+                                  "name": "Yu Inao / \u7a32\u5c3e \u904a",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/84360?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjg0MzYw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "kaytwo",
+                                  "name": "Chris Kanich",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/587187?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjU4NzE4Nw=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "Malix-Labs",
+                                  "name": "Malix - Alix Brunet",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/76160668?s=64&u=4f73d8f4bdca70e6076c6e73b63230eb82fd2c4e&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjc2MTYwNjY4"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "tejasraman",
+                                  "name": "Tejas Raman",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/96961804?s=64&u=916ce0e0ac3dad92fed5b6e3bed3890bab497fbb&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOBceFDA"
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnmTedKgAqjQ1NDU1NTMwODg="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4566922581,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "clerick44",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/78552984?u=d9a6ca728fcdda6198f68dbfff6167f23446c7b0&v=4",
+                          "profileUrl": "https://github.com/clerick44",
+                          "id": "MDQ6VXNlcjc4NTUyOTg0",
+                          "name": "Jesse "
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEDW1VQ",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4566922581",
+                        "createdAt": "2026-05-28T18:08:57Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "fddc0be3bb103d45f529d8432a520c85c81cdda9d2103c6410a32a715f33b502",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnm_GcqgAqjQ1NjY5MjI1ODE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4569197026,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "mehmetozguldev",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/91568457?u=b3ecb1ddd7e0edac77539e00da60803f168380fd&v=4",
+                          "profileUrl": "https://github.com/mehmetozguldev",
+                          "id": "U_kgDOBXU5SQ",
+                          "name": "Mehmet \u00d6zg\u00fcl"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEFhp4g",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4569197026",
+                        "createdAt": "2026-05-28T23:38:03Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "Hope they will do this!",
+                        "bodyHTML": "<p dir=\"auto\">Hope they will do this!</p>",
+                        "bodyVersion": "db146168b86fb174235f239c1ac1f2b6b5fc96e2d5ee7b824c3e989e6f6fd36a",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 5,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "AltraMayor",
+                                  "name": "Michel Machado",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/727014?s=64&u=4d8d840e775716cfa4acbd7a526e93d571b3fef0&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjcyNzAxNA=="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "hppsc1215",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/34004905?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjM0MDA0OTA1"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "theodorosploumis",
+                                  "name": "Theodoros Ploumis",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/1315321?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjEzMTUzMjE="
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "jbyf123000",
+                                  "name": "LoD4",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/61726358?s=64&u=b49e4760a7d9105fc924b9ba4f3a90a19b221e2d&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjYxNzI2MzU4"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnDzv3gAqjQ1NjkxOTcwMjY="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4569238161,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "GarrickZ2",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/56821068?u=45f690ffc32f0e160efdbbd97a1d991e2e5084ce&v=4",
+                          "profileUrl": "https://github.com/GarrickZ2",
+                          "id": "MDQ6VXNlcjU2ODIxMDY4",
+                          "name": "Garrick"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEFkKkQ",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4569238161",
+                        "createdAt": "2026-05-28T23:47:47Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP\n",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "449576ebb3296b8280b494f1dd5eb67f1d108f859cc97f82d74ef3955c729068",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 2,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "jbyf123000",
+                                  "name": "LoD4",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/61726358?s=64&u=b49e4760a7d9105fc924b9ba4f3a90a19b221e2d&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjYxNzI2MzU4"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnD8qLgAqjQ1NjkyMzgxNjE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4573196920,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "zhangjiuyi",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/18696552?u=5bd9d8886d98a9588e65de051f310d47242872e5&v=4",
+                          "profileUrl": "https://github.com/zhangjiuyi",
+                          "id": "MDQ6VXNlcjE4Njk2NTUy",
+                          "name": "Jiuyi"
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEJVyeA",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4573196920",
+                        "createdAt": "2026-05-29T09:28:00Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP\n\n",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "705a53a2210b597941ea04c84c3ad991119ee7c5a25c5f8b224d3b23658cbb18",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 3,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "UnlastingR",
+                                  "name": "\u98ce\u81ea\u7136",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/64647285?s=64&u=109ea85fd192a1fe07332ae68f0c234453c37871&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjY0NjQ3Mjg1"
+                                },
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "jbyf123000",
+                                  "name": "LoD4",
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/61726358?s=64&u=b49e4760a7d9105fc924b9ba4f3a90a19b221e2d&v=4",
+                                  "__isNode": "User",
+                                  "id": "MDQ6VXNlcjYxNzI2MzU4"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 1,
+                              "nodes": [
+                                {
+                                  "__typename": "User",
+                                  "__isActor": "User",
+                                  "login": "KeiosStarqua",
+                                  "name": null,
+                                  "avatarUrl": "https://avatars.githubusercontent.com/u/291716451?s=64&v=4",
+                                  "__isNode": "User",
+                                  "id": "U_kgDOEWM9Yw"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnMP3QAAqjQ1NzMxOTY5MjA="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4577947481,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "nichu42",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/56028026?v=4",
+                          "profileUrl": "https://github.com/nichu42",
+                          "id": "MDQ6VXNlcjU2MDI4MDI2",
+                          "name": null
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEN3vWQ",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4577947481",
+                        "createdAt": "2026-05-29T17:24:51Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "fddc0be3bb103d45f529d8432a520c85c81cdda9d2103c6410a32a715f33b502",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnTEbrgAqjQ1Nzc5NDc0ODE="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4580286739,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "MusiCode1",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/54508123?u=66f790c5971d2610cf4ac5b0fa521f29a3c12125&v=4",
+                          "profileUrl": "https://github.com/MusiCode1",
+                          "id": "MDQ6VXNlcjU0NTA4MTIz",
+                          "name": null
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEQGhEw",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4580286739",
+                        "createdAt": "2026-05-29T22:17:24Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "fddc0be3bb103d45f529d8432a520c85c81cdda9d2103c6410a32a715f33b502",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnXQRSAAqjQ1ODAyODY3Mzk="
+                    },
+                    {
+                      "node": {
+                        "__typename": "IssueComment",
+                        "databaseId": 4580704510,
+                        "viewerDidAuthor": false,
+                        "issue": {
+                          "author": {
+                            "__typename": "User",
+                            "login": "Joseph19820124",
+                            "id": "U_kgDOCdM_UQ"
+                          },
+                          "id": "I_kwDOScoSV88AAAABCzUrtw",
+                          "number": 31,
+                          "locked": false,
+                          "databaseId": 4483001271
+                        },
+                        "author": {
+                          "__typename": "User",
+                          "login": "JuanSaenz04",
+                          "avatarUrl": "https://avatars.githubusercontent.com/u/27705456?v=4",
+                          "profileUrl": "https://github.com/JuanSaenz04",
+                          "id": "MDQ6VXNlcjI3NzA1NDU2",
+                          "name": null
+                        },
+                        "id": "IC_kwDOScoSV88AAAABEQgA_g",
+                        "url": "https://github.com/google-antigravity/antigravity-cli/issues/31#issuecomment-4580704510",
+                        "createdAt": "2026-05-29T23:45:52Z",
+                        "authorAssociation": "NONE",
+                        "viewerCanDelete": false,
+                        "viewerCanMinimize": false,
+                        "viewerCanUnminimize": false,
+                        "viewerCanReport": false,
+                        "viewerCanReportToMaintainer": false,
+                        "viewerCanBlockFromOrg": false,
+                        "viewerCanUnblockFromOrg": false,
+                        "viewerCanBlockPersonally": false,
+                        "viewerCanUnblockPersonally": false,
+                        "viewerCanPin": false,
+                        "viewerCanUnpin": false,
+                        "viaApp": null,
+                        "minimizedReason": null,
+                        "showSpammyBadge": false,
+                        "createdViaEmail": false,
+                        "authorToRepoOwnerSponsorship": null,
+                        "viewerCanReadUserContentEdits": true,
+                        "lastEditedAt": null,
+                        "lastUserContentEdit": null,
+                        "pinnedBy": null,
+                        "body": "+1 for ACP",
+                        "bodyHTML": "<p dir=\"auto\">+1 for ACP</p>",
+                        "bodyVersion": "fddc0be3bb103d45f529d8432a520c85c81cdda9d2103c6410a32a715f33b502",
+                        "isHidden": false,
+                        "viewerCanUpdate": false,
+                        "repository": {
+                          "id": "R_kgDOScoSVw",
+                          "name": "antigravity-cli",
+                          "owner": {
+                            "__typename": "Organization",
+                            "id": "O_kgDODm19CA",
+                            "login": "google-antigravity",
+                            "url": "https://github.com/google-antigravity"
+                          },
+                          "isPrivate": false,
+                          "viewerCanCreateIssues": false,
+                          "slashCommandsEnabled": false,
+                          "nameWithOwner": "google-antigravity/antigravity-cli",
+                          "databaseId": 1237979735
+                        },
+                        "reactionGroups": [
+                          {
+                            "content": "THUMBS_UP",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "THUMBS_DOWN",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "LAUGH",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HOORAY",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "CONFUSED",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "HEART",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "ROCKET",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          },
+                          {
+                            "content": "EYES",
+                            "viewerHasReacted": false,
+                            "reactors": {
+                              "totalCount": 0,
+                              "nodes": []
+                            }
+                          }
+                        ],
+                        "__isNode": "IssueComment"
+                      },
+                      "cursor": "Y3Vyc29yOnYyOpPPAAABnnYhQ4AAqjQ1ODA3MDQ1MTA="
+                    }
+                  ]
+                },
+                "backTimelineItems": {
+                  "pageInfo": {
+                    "hasPreviousPage": true,
+                    "startCursor": null
+                  },
+                  "totalCount": 201,
+                  "edges": []
+                }
+              }
+            },
+            "safeViewer": null
+          }
+        },
+        "timestamp": 1790545883
+      }
+    ]
+  },
+  "title": "Issue",
+  "appPayload": {
+    "initial_view_content": {
+      "can_edit_view": true
+    },
+    "current_user": null,
+    "current_user_settings": {
+      "preferred_emoji_skin_tone": null,
+      "copilot_show_functionality": false,
+      "use_single_key_shortcut": false
+    },
+    "paste_url_link_as_plain_text": false,
+    "base_avatar_url": "https://avatars.githubusercontent.com",
+    "help_url": "https://docs.github.com",
+    "sso_organizations": null,
+    "current_sso_orgs_match_dismissed_cookie": null,
+    "multi_tenant": false,
+    "tracing": false,
+    "tracing_flamegraph": false,
+    "catalog_service": "github/issues",
+    "scoped_repository": {
+      "id": "R_kgDOScoSVw",
+      "owner": "google-antigravity",
+      "name": "antigravity-cli",
+      "is_archived": false,
+      "has_projects_enabled": true
+    },
+    "saved_views": null,
+    "best_match_sort_enabled": false,
+    "sidebar_expanded": true,
+    "issue_search_type": "ISSUE_HYBRID",
+    "transactionalMessageBanner": null,
+    "copilotSurveyBanner": null,
+    "enabled_features": {
+      "use_pull_request_subscriptions_enabled": false,
+      "pull_request_single_subscription": true,
+      "disable_issues_react_ssr": false,
+      "copilot_natural_language_github_search": false,
+      "private_avatars": false,
+      "reserved_domain": true,
+      "notifyd_issue_watch_activity_notify": false,
+      "notifyd_enable_issue_thread_subscriptions": false,
+      "timeline_best_effort_count_optimization": false,
+      "copilot_auto_assign_metadata": false,
+      "copilot_workspace_cross_repo_selection": false,
+      "copilot_agent_mode": false,
+      "issues_react_force_turbo_nav": false,
+      "issues_react_client_side_caching": false,
+      "copilot_swe_agent": false,
+      "react_version_mismatch_detection": false,
+      "issues_react_graceful_not_found_handling": false,
+      "issue_create_relationships": false,
+      "issues_relates_to_issues_search": true,
+      "milestone_closed_issues_prioritization": true,
+      "tasklist_block": false,
+      "issues_create_semantic_similarity_analytics": false,
+      "semantic_similarity_duplicate_issue_detection": true,
+      "issue_cca_visualization": false,
+      "scribe_artifacts_api": false,
+      "issues_relates_to_relationship": true,
+      "issues_relates_to_semantic_suggestions": true,
+      "issue_pinned_views": true,
+      "issue_pinned_views_team_vs_personal": true,
+      "repo_issues_board_view": false,
+      "milestone_show_data_router": false
+    }
+  }
+}
