@@ -115,6 +115,8 @@ python3 scripts/secret_scan.py out1.jsonl out2.jsonl layout.tar reply-draft.txt 
 
 - It opens tar archives and nested tar layers, and scans every line.
 - A finding prints the location and the kind, never the matched text.
+- Private Windows paths, mounted-drive paths, user homes and private endpoint URLs
+  are findings too. Keep raw recovery captures locally, outside published artifacts.
 - `--allow VALUE` skips a match only when the whole match equals VALUE.
 - Scan the artifacts and a saved copy of the reply draft. Never scan the contract, which
   mentions secret patterns by design.

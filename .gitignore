@@ -11,8 +11,8 @@ __pycache__/
 /dist/
 /bridge/target/
 
-# Preserved agent context is consolidated into the verified recovery ledger.
-!/.devloop/recovery/agent-handoffs-20260930.jsonl
+# Recovery captures are private local evidence, never repository deliverables.
+/.devloop/recovery/
 /.agents/teamwork/
 /.devloop/native/
 /.tmp.driveupload/

@@ -40,6 +40,14 @@ PATTERNS = (
     ("password-hash", re.compile(r"\$(?:1|2[aby]|5|6|y|argon2(?:id|i|d))\$[^\s\"']{8,}")),
     ("credential-assignment", re.compile(r"(?i)\b(?:api[_\-]?key|secret|passwd|password|access[_\-]?token)\b[\"']?\s*[:=]\s*[\"'][^\"'\s]{8,}[\"']")),
     ("email-address", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}\b")),
+    ("local-windows-path", re.compile(r"(?i)\b[a-z]:[/\\]+[^\s\"'<>]+")),
+    ("local-mounted-drive", re.compile(r"/mnt/[a-z]/[^\s\"'<>]+")),
+    ("local-user-home", re.compile(r"/(?:home|Users)/[^\s\"'<>]+")),
+    ("private-endpoint", re.compile(
+        r"(?i)\b(?:https?|wss?|ssh)://(?:localhost|127(?:\.\d{1,3}){3}|"
+        r"10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
+        r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|\[::1\])"
+        r"(?=[:/\s\"']|$)(?::\d+)?(?:/[^\s\"'<>]*)?")),
 )
 
 
@@ -159,6 +167,26 @@ def self_test():
         kinds = {x.split(": ", 1)[-1] for x in found}
         if not {"aws-access-key-id", "private-key-block"} <= kinds or any("AKIA" in x for x in found):
             print("SELF-TEST FAIL secret_scan.py: expected two findings without their text, got %s" % found)
+            return 1
+        private = os.path.join(tmp, "private-capture.txt")
+        # Synthetic captures exercise plain paths, JSON-escaped paths and
+        # endpoints. Diagnostics must never echo their matched values.
+        windows = "Z:" + chr(92) + "Users" + chr(92) + "fixture-user" + chr(92) + "private.txt"
+        mounted = "/mnt/" + "z/private-worktree/log.txt"
+        home = "/home/" + "fixture-user/private.txt"
+        endpoint = "http://" + "192.168.30.4:9876/internal"
+        loopback = "http://" + "localhost:9876/internal"
+        with open(private, "w", encoding="utf-8") as f:
+            f.write("\n".join((windows, windows.replace(chr(92), chr(92) * 2), mounted, home, endpoint, loopback)) + "\n")
+        findings, _, _ = scan([private], set())
+        expected = {"local-windows-path", "local-mounted-drive", "local-user-home", "private-endpoint"}
+        kinds = {x.split(": ", 1)[-1] for x in findings}
+        if len(findings) != 6 or not expected <= kinds or any(value in finding for value in (windows, mounted, home, endpoint, loopback) for finding in findings):
+            print("SELF-TEST FAIL secret_scan.py: local capture detection or value redaction failed")
+            return 1
+        allowed, _, _ = scan([private], {windows, windows.replace(chr(92), chr(92) * 2), mounted, home, endpoint, loopback})
+        if allowed:
+            print("SELF-TEST FAIL secret_scan.py: exact local capture allowlist failed")
             return 1
         print("SELF-TEST PASS secret_scan.py (python %s): %s" % (sys.version.split()[0], line))
         return 0
