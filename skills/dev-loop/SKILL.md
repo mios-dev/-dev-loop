@@ -553,3 +553,40 @@ harness, ends its output with this block.**
 
 Never let "done" cover work that was skipped, blocked, or partially completed. `status` is the
 single field a host trusts; make it true.
+
+## 14. Inter-Agent Communication (A2A over MCP + the translation bridge)
+
+When lanes span harnesses, they still share ONE loop. Two loopback transports
+carry it — both credential-free, both enforcing this skill's honesty rules:
+
+- **MiOS-MCP** — the shared tool surface (task store, gates, repos) on the
+  MCP Streamable HTTP line (2026-07-28; one JSON-RPC message per POST,
+  batches rejected, notifications 202). Any MCP-speaking harness joins.
+- **The bridge** (`bridge/` in this repo; `devloop-bridge serve` :8765 or
+  `stdio`) — `POST /translate` `{"source":"auto","frames":[...],"evidence":{...}}`
+  normalizes AGY stream JSON, Claude print-mode JSON, OpenAI
+  Responses/Codex items, and ANY OpenAI-compatible Chat Completions dialect
+  (vLLM, llama.cpp, LM Studio, Ollama, OpenRouter, OpenWebUI, custom agents;
+  streaming tool-call fragments are reassembled per index) into ordered
+  `loop.v1` events + Responses items. The same surface is the `translate_frames`
+  MCP tool.
+
+Carried-over invariants: credential fields refused by name before translation;
+`delivered` requires two-sided gate evidence (else `unverified`/`vacuous`);
+missing terminal = `errored`; a success word is never evidence.
+
+Upstream-standards alignment (copy patterns, cite sources): **AGENTS.md**
+(open agent-contract format, 60k+ projects — this plugin's contract files are
+its pattern), **SKILL.md/agentskills.io** (portable skill packaging — enforced
+by `skills/dev-loop/scripts/validate-lf.sh`), **MCP** (tool contract), **A2A
+v1.0/AgentCard** (Linux Foundation discovery primitive — roster metadata
+shape, not a transport here), **ACP** (REFUTED for lanes; see
+`.devloop/findings/ACP-P6.md`), **OpenAI Responses/Chat Completions** (the
+interop wire dialects the bridge speaks). Seam claims must be measured, not
+inferred — see `.devloop/findings/DESIGN-AUDIT.md` for the failure pattern.
+
+The role protocol that runs on top (orchestrator/explorer/worker/reviewer/
+challenger/auditor-veto/sentinel, BRIEFING/DISPATCH/progress/handoff
+artifacts, retry ladder, succession) is distilled in the **team** skill
+(`/dev-loop:team`). Use §11 for isolation and merge gates; use team when the
+work spans multiple harnesses' agents at once.
