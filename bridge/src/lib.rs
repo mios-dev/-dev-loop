@@ -61,15 +61,8 @@ pub fn translate(request: TranslateRequest) -> Result<TranslateResponse, String>
             .iter()
             .find_map(detect_source)
             .ok_or_else(|| "AUTO DETECTION FAILED: no known frame shape".to_owned())?,
-        known @ ("agy"
-        | "claude"
-        | "openai"
-        | "openai_responses"
-        | "codex"
-        | "openai_chat"
-        | "chat_completions"
-        | "openai_compatible"
-        | "generic") => known,
+        known @ ("agy" | "claude" | "openai" | "openai_responses" | "codex" | "openai_chat"
+        | "chat_completions" | "openai_compatible" | "generic") => known,
         other => return Err(format!("UNKNOWN SOURCE: {other}")),
     };
     for frame in &request.frames {
@@ -517,34 +510,27 @@ pub fn detect_source(frame: &Value) -> Option<&'static str> {
         return Some("openai_chat");
     }
     if let Some(kind) = frame.get("type").and_then(Value::as_str) {
-        if matches!(kind, "system" | "assistant" | "user") && frame.get("message").is_some() {
-            return Some("claude");
-        }
-        // A Claude terminal envelope carries type:"result" WITHOUT a message
-        // envelope -- its payload sits in frame.result / frame.is_error.
-        if kind == "result"
-            && (frame.get("result").is_some() || frame.get("is_error").is_some())
+        if (kind == "result" && (frame.get("result").is_some() || frame.get("is_error").is_some()))
+            || (matches!(kind, "system" | "assistant" | "user") && frame.get("message").is_some())
         {
             return Some("claude");
         }
         // Responses items are typed frames ("message"/"function_call"/...); a
         // "message" whose content blocks are output_text/input_text is the
         // Responses shape, plain text blocks belong to Chat Completions.
-        if matches!(
-            kind,
-            "message" | "function_call" | "function_call_output"
-        ) {
-            let responses_blocks = frame
-                .get("content")
-                .and_then(Value::as_array)
-                .is_some_and(|blocks| {
-                    blocks.iter().all(|block| {
-                        matches!(
-                            block.get("type").and_then(Value::as_str),
-                            Some("output_text") | Some("input_text")
-                        )
-                    })
-                });
+        if matches!(kind, "message" | "function_call" | "function_call_output") {
+            let responses_blocks =
+                frame
+                    .get("content")
+                    .and_then(Value::as_array)
+                    .is_some_and(|blocks| {
+                        blocks.iter().all(|block| {
+                            matches!(
+                                block.get("type").and_then(Value::as_str),
+                                Some("output_text") | Some("input_text")
+                            )
+                        })
+                    });
             return if responses_blocks || kind != "message" {
                 Some("openai")
             } else {
@@ -605,9 +591,7 @@ fn chat_message(message: &Value) -> Result<Vec<Event>, String> {
     }
     if let Some(calls) = message.get("tool_calls").and_then(Value::as_array) {
         for call in calls {
-            let function = call
-                .get("function")
-                .ok_or("CHAT TOOL FUNCTION MISSING")?;
+            let function = call.get("function").ok_or("CHAT TOOL FUNCTION MISSING")?;
             let call_id = call
                 .get("id")
                 .and_then(Value::as_str)
@@ -655,19 +639,23 @@ fn openai_chat(frames: &[Value]) -> Result<Vec<Event>, String> {
     }
     let mut events = Vec::new();
     let mut pending: Vec<Option<Pending>> = Vec::new();
-    let flush = |pending: &mut Vec<Option<Pending>>, events: &mut Vec<Event>| -> Result<(), String> {
-        for slot in pending.iter_mut().flatten() {
-            let arguments = serde_json::from_str(&slot.arguments)
-                .map_err(|_| "MALFORMED TOOL ARGUMENTS".to_owned())?;
-            events.push(Event::ToolCall {
-                call_id: slot.id.clone(),
-                name: slot.name.clone(),
-                arguments,
-            });
-        }
-        pending.clear();
-        Ok(())
-    };
+    let flush =
+        |pending: &mut Vec<Option<Pending>>, events: &mut Vec<Event>| -> Result<(), String> {
+            for slot in pending.iter_mut().flatten() {
+                if slot.id.is_empty() || slot.name.is_empty() {
+                    return Err("CHAT STREAM TOOL ID OR NAME MISSING".to_owned());
+                }
+                let arguments = serde_json::from_str(&slot.arguments)
+                    .map_err(|_| "MALFORMED TOOL ARGUMENTS".to_owned())?;
+                events.push(Event::ToolCall {
+                    call_id: slot.id.clone(),
+                    name: slot.name.clone(),
+                    arguments,
+                });
+            }
+            pending.clear();
+            Ok(())
+        };
     for frame in frames {
         let object = frame.get("object").and_then(Value::as_str);
         match object {
@@ -677,9 +665,7 @@ fn openai_chat(frames: &[Value]) -> Result<Vec<Event>, String> {
                     .and_then(Value::as_array)
                     .and_then(|choices| choices.first())
                     .ok_or("CHAT CHOICES MISSING")?;
-                let message = choice
-                    .get("message")
-                    .ok_or("CHAT MESSAGE MISSING")?;
+                let message = choice.get("message").ok_or("CHAT MESSAGE MISSING")?;
                 events.extend(chat_message(message)?);
                 if let Some(terminal) =
                     chat_finish(choice.get("finish_reason").and_then(Value::as_str))
@@ -708,8 +694,11 @@ fn openai_chat(frames: &[Value]) -> Result<Vec<Event>, String> {
                 }
                 if let Some(calls) = delta.get("tool_calls").and_then(Value::as_array) {
                     for call in calls {
-                        let index = call.get("index").and_then(Value::as_u64).unwrap_or(0)
-                            as usize;
+                        let index = call.get("index").and_then(Value::as_u64).unwrap_or(0);
+                        if index > 255 {
+                            return Err("CHAT TOOL INDEX OUT OF RANGE".to_owned());
+                        }
+                        let index = index as usize;
                         let function = call.get("function").cloned().unwrap_or(Value::Null);
                         let id = call.get("id").and_then(Value::as_str).unwrap_or("");
                         if pending.len() <= index {
@@ -724,9 +713,7 @@ fn openai_chat(frames: &[Value]) -> Result<Vec<Event>, String> {
                                 slot.name = name.to_owned();
                             }
                         }
-                        if let Some(fragment) =
-                            function.get("arguments").and_then(Value::as_str)
-                        {
+                        if let Some(fragment) = function.get("arguments").and_then(Value::as_str) {
                             slot.arguments.push_str(fragment);
                         }
                     }
@@ -789,13 +776,20 @@ mod tests {
         assert_eq!(
             out.events,
             vec![
-                Event::Text { role: "assistant".into(), text: "checking".into() },
+                Event::Text {
+                    role: "assistant".into(),
+                    text: "checking".into()
+                },
                 Event::ToolCall {
                     call_id: "call_1".into(),
                     name: "run_tests".into(),
                     arguments: json!({"suite":"unit"}),
                 },
-                Event::Terminal { status: "unverified".into(), text: String::new(), error: None },
+                Event::Terminal {
+                    status: "unverified".into(),
+                    text: String::new(),
+                    error: None
+                },
             ]
         );
         assert_eq!(out.responses_items.len(), 2);
@@ -804,10 +798,31 @@ mod tests {
 
     #[test]
     fn chat_stream_accumulates_split_tool_arguments() {
-        let chunk1 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_9","function":{"name":"edit_file","arguments":"{\"pa"}}]}}]});
-        let chunk2 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th\":\"a.txt\"}"}}]}}]});
-        let chunk3 = json!({"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]});
-        let out = translate_json("generic", json!([chunk1, chunk2, chunk3]));
+        let out = translate_json(
+            "generic",
+            json!([
+                {
+                    "object": "chat.completion.chunk",
+                    "choices": [{"index": 0, "delta": {
+                        "role": "assistant",
+                        "tool_calls": [{"index": 0, "id": "call_9", "function": {
+                            "name": "edit_file", "arguments": "{\"pa"
+                        }}]
+                    }}]
+                },
+                {
+                    "object": "chat.completion.chunk",
+                    "choices": [{"index": 0, "delta": {
+                        "tool_calls": [{"index": 0, "function": {
+                            "arguments": "th\":\"a.txt\"}"
+                        }}]
+                    }}]
+                },
+                {"object": "chat.completion.chunk", "choices": [
+                    {"index": 0, "delta": {}, "finish_reason": "tool_calls"}
+                ]}
+            ]),
+        );
         assert_eq!(
             out.events,
             vec![
@@ -816,7 +831,11 @@ mod tests {
                     name: "edit_file".into(),
                     arguments: json!({"path":"a.txt"}),
                 },
-                Event::Terminal { status: "unverified".into(), text: String::new(), error: None },
+                Event::Terminal {
+                    status: "unverified".into(),
+                    text: String::new(),
+                    error: None
+                },
             ]
         );
     }
@@ -829,33 +848,54 @@ mod tests {
         );
         assert_eq!(
             out.events[0],
-            Event::ToolOutput { call_id: "call_1".into(), output: Value::String("12 passed".into()) }
+            Event::ToolOutput {
+                call_id: "call_1".into(),
+                output: Value::String("12 passed".into())
+            }
         );
         // No terminal envelope in a bare transcript frame: the honest fallback.
-        assert!(matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "errored"));
+        assert!(
+            matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "errored")
+        );
     }
 
     #[test]
     fn auto_detects_each_dialect() {
         let frames = json!([{"event":"result","result":{"status":"SUCCESS","response":"ok"}}]);
-        assert!(matches!(translate_json("auto", frames.clone()).events.last(),
-            Some(Event::Terminal { status, .. }) if status == "unverified"));
+        assert!(
+            matches!(translate_json("auto", frames.clone()).events.last(),
+            Some(Event::Terminal { status, .. }) if status == "unverified")
+        );
         let chat = translate_json(
             "auto",
             json!([{"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}]),
         );
-        assert_eq!(chat.events[0], Event::Text { role: "assistant".into(), text: "hi".into() });
+        assert_eq!(
+            chat.events[0],
+            Event::Text {
+                role: "assistant".into(),
+                text: "hi".into()
+            }
+        );
         let claude = translate_json(
             "auto",
             json!([{"type":"result","is_error":false,"result":"done"}]),
         );
-        assert!(matches!(claude.events.last(), Some(Event::Terminal { status, .. }) if status == "unverified"));
+        assert!(
+            matches!(claude.events.last(), Some(Event::Terminal { status, .. }) if status == "unverified")
+        );
         let responses = translate_json(
             "auto",
             json!([{"object":"response","status":"completed","output":[
                 {"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}]),
         );
-        assert_eq!(responses.events[0], Event::Text { role: "assistant".into(), text: "ok".into() });
+        assert_eq!(
+            responses.events[0],
+            Event::Text {
+                role: "assistant".into(),
+                text: "ok".into()
+            }
+        );
     }
 
     #[test]
@@ -905,6 +945,32 @@ mod tests {
             }),
         };
         let out = translate(request).expect("translation");
-        assert!(matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "vacuous"));
+        assert!(
+            matches!(out.events.last(), Some(Event::Terminal { status, .. }) if status == "vacuous")
+        );
+    }
+    #[test]
+    fn streaming_tool_identity_and_index_bounds_survive_recovery() {
+        for (call, expected) in [
+            (
+                json!({"index":256,"id":"call_1","function":{"name":"read_file","arguments":"{}"}}),
+                "CHAT TOOL INDEX OUT OF RANGE",
+            ),
+            (
+                json!({"index":0,"function":{"name":"read_file","arguments":"{}"}}),
+                "CHAT STREAM TOOL ID OR NAME MISSING",
+            ),
+            (
+                json!({"index":0,"id":"call_1","function":{"arguments":"{}"}}),
+                "CHAT STREAM TOOL ID OR NAME MISSING",
+            ),
+        ] {
+            let error = translate(TranslateRequest {
+                source:"openai_chat".into(),
+                frames:vec![json!({"object":"chat.completion.chunk","choices":[{"delta":{"tool_calls":[call]},"finish_reason":"tool_calls"}]})],
+                evidence:None,
+            }).unwrap_err();
+            assert_eq!(error, expected);
+        }
     }
 }

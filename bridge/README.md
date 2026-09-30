@@ -2,13 +2,14 @@
 
 This crate implements a local loop translation service. It converts harness frames into
 ordered `loop.v1` events and OpenAI Responses items. It does not impersonate a model
-endpoint or translate permissions. The source adapters are selected explicitly; adding
-a harness requires an adapter, not a new transport.
+endpoint or translate permissions. Select an adapter explicitly or detect it from the
+first informative frame. Adding a harness requires an adapter, not a new transport.
 
 ## Definition of done for this slice
 
-- Objective: AGY, Claude, and OpenAI Responses/Codex frames retain text, tool calls,
-  tool outputs, and terminal outcomes in one ordered representation.
+- Objective: AGY, Claude, OpenAI Responses/Codex, and OpenAI-compatible Chat
+  Completions frames retain text, tool calls, tool outputs, and terminal outcomes
+  in one ordered representation.
 - Positive controls: `cargo test` verifies each adapter, HTTP and stdio MCP dispatch,
   and Responses item projection. `cargo build --release` builds the binary.
 - Negative controls: unknown sources and malformed tool calls fail with named errors;
@@ -23,15 +24,21 @@ a harness requires an adapter, not a new transport.
 `devloop-bridge serve` binds `127.0.0.1:8765`. `POST /translate` accepts
 `{"source":"auto|agy|claude|openai|openai_responses|codex|openai_chat|chat_completions|openai_compatible|generic","frames":[...],"evidence":{...}}` and returns
 `{"schema":"loop.v1","events":[...],"responses_items":[...]}`. `POST /mcp`
-serves the MCP Streamable HTTP transport (one JSON-RPC message per POST;
-notifications answer `202`; batches are rejected with `-32600`; `GET`/`DELETE`
-answer `405` because this server is stateless and offers no server-initiated
-streams) for `initialize`, `tools/list`, and `tools/call` of `translate_frames`.
-`devloop-bridge stdio` serves the same MCP tool over stdio.
-Protocol negotiation follows the current spec: `initialize` echoes a supported
-client version (`2026-07-28`, `2025-11-25`, `2025-06-18`) and otherwise answers
-with the server's latest (`2026-07-28`); requests carrying an unsupported
-`MCP-Protocol-Version` header are rejected with `400` before dispatch.
+serves MCP Streamable HTTP: one JSON-RPC message per POST, empty `202` responses
+for notifications, and `405` for GET/DELETE. Every MCP HTTP method rejects foreign
+origins and hosts. Invalid messages and batches fail with named protocol errors.
+`devloop-bridge stdio` serves the same translation tool.
+
+Modern MCP `2026-07-28` requests use per-request metadata and `server/discover`;
+there is no initialization handshake. HTTP requests must mirror the protocol
+version and method in headers; tool calls also mirror the tool name, including
+Base64 sentinel decoding. Missing capabilities and mismatched headers fail before
+translation. Unsupported versions return `-32022` with the supported versions;
+unknown modern HTTP methods return `404` with `-32601`.
+
+Legacy clients negotiate `2025-11-25` or `2025-06-18` through `initialize`.
+A legacy request for a modern or unknown revision receives the latest supported
+legacy revision, rather than a modern version with legacy behavior.
 No client bearer token or harness credential is read or forwarded.
 Known credential fields in frames are refused before any translation result is returned;
 the rejection reports only the field name.
