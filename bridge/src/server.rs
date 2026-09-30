@@ -83,10 +83,10 @@ pub fn mcp_dispatch(request: &Value) -> Option<Value> {
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({"tools":[{
             "name":"translate_frames",
-            "description":"Normalize AGY, Claude, or OpenAI Responses/Codex frames to ordered loop.v1 events and Responses items. No model call or permission grant occurs.",
+            "description":"Normalize frames from AGY, Claude, OpenAI Responses/Codex, or any OpenAI-compatible harness (Chat Completions: vLLM, llama.cpp, LM Studio, Ollama, OpenRouter, custom agents) to ordered loop.v1 events and Responses items. Source 'auto' sniffs the dialect. No model call or permission grant occurs.",
             "inputSchema":{"type":"object","additionalProperties":false,
                 "required":["source","frames"],"properties":{
-                    "source":{"type":"string","enum":["agy","claude","openai","openai_responses","codex"]},
+                    "source":{"type":"string","enum":["auto","agy","claude","openai","openai_responses","codex","openai_chat","chat_completions","openai_compatible","generic"]},
                     "frames":{"type":"array","items":{"type":"object"}},
                     "evidence":{"type":"object","required":["diff_bytes","positive","negative","tree_restored","exit_code"],
                         "properties":{"diff_bytes":{"type":"integer"},"positive":{"type":"boolean"},

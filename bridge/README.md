@@ -2,13 +2,14 @@
 
 This crate implements a local loop translation service. It converts harness frames into
 ordered `loop.v1` events and OpenAI Responses items. It does not impersonate a model
-endpoint or translate permissions. The source adapters are selected explicitly; adding
-a harness requires an adapter, not a new transport.
+endpoint or translate permissions. The source adapter can be selected explicitly
+or detected from the first informative frame.
 
 ## Definition of done for this slice
 
-- Objective: AGY, Claude, and OpenAI Responses/Codex frames retain text, tool calls,
-  tool outputs, and terminal outcomes in one ordered representation.
+- Objective: AGY, Claude, OpenAI Responses/Codex, and OpenAI-compatible Chat
+  Completions frames retain text, tool calls, tool outputs, and terminal outcomes
+  in one ordered representation.
 - Positive controls: `cargo test` verifies each adapter, HTTP and stdio MCP dispatch,
   and Responses item projection. `cargo build --release` builds the binary.
 - Negative controls: unknown sources and malformed tool calls fail with named errors;
@@ -21,7 +22,7 @@ a harness requires an adapter, not a new transport.
 ## Run
 
 `devloop-bridge serve` binds `127.0.0.1:8765`. `POST /translate` accepts
-`{"source":"agy|claude|openai|codex","frames":[...],"evidence":{...}}` and returns
+`{"source":"auto|agy|claude|openai|codex|openai_chat|generic","frames":[...],"evidence":{...}}` and returns
 `{"schema":"loop.v1","events":[...],"responses_items":[...]}`. `POST /mcp`
 accepts MCP JSON-RPC `initialize`, `tools/list`, and `tools/call` for
 `translate_frames`. `devloop-bridge stdio` serves the same MCP tool over stdio.
@@ -30,6 +31,10 @@ Known credential fields in frames are refused before any translation result is r
 the rejection reports only the field name.
 
 `openai` and `codex` consume Responses output items and completed stream events.
+`openai_chat`, `chat_completions`, `openai_compatible`, and `generic` consume
+Chat Completions responses, streamed deltas, and transcript messages. Streaming
+tool arguments are joined by tool index and rejected when incomplete or malformed.
+`auto` selects a dialect from the first recognizable frame.
 `claude` consumes print-mode stream JSON frames. `agy` consumes its stream JSON
 `step_update` and `result` frames. Tool output is associated with its call ID;
 AGY tools without a native call ID receive a stable ID from conversation and step index.
