@@ -157,8 +157,9 @@ FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile   # the default
 
 It shallow-clones the repo to `/opt/dev-loop-fedora/src/<name>` and builds its
 Containerfile **unedited**, with the repo root as context. The Containerfile's
-hard-coded `FROM registry.fedoraproject.org/fedora:44` is made to resolve to a
-base built first — upstream Fedora plus the egress CA, the pinned repos (every
+hard-coded `FROM` (MiOS: `quay.io/podman/machine-os:<tag>`, the Fedora CoreOS
+podman machine OS; plain `fedora:<release>` works the same) is made to resolve to a
+base built first — that upstream plus the egress CA, the pinned repos (every
 other repo disabled, since a devcontainer's `dnf install` has no
 `--disablerepo`) and `ENV SSL_CERT_FILE`/`CURL_CA_BUNDLE`/`REQUESTS_CA_BUNDLE`/
 `NODE_EXTRA_CA_CERTS`/`PIP_CERT` — tagged locally under the upstream name.
@@ -166,7 +167,7 @@ Docker resolves `FROM` from the local store before any registry, so the build
 lands on the shadow (the build log shows the base's digest), and every later
 layer inherits the CA env: MiOS's `npm install -g`, its python3.11 venv `pip
 install` and its Antigravity `curl` all run through the proxy with
-verification on. The real upstream is kept as `dev-loop-fedora-upstream:<tag>`,
+verification on. The real upstream is kept as `dev-loop-fedora-upstream:<name>-<tag>`,
 so a rebuild never bases the shadow on itself.
 
 The wrapper is installed as `/usr/local/bin/<repo>-dev` (`mios-dev`) and as

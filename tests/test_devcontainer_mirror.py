@@ -39,7 +39,7 @@ LOCAL = ROOT / MIRROR
 REMOTE = "https://raw.githubusercontent.com/mios-dev/MiOS/main/.devcontainer/Containerfile"
 # What every genuine copy of the file contains; an HTML error page or a captive
 # portal answering the fetch does not, so it is refused as a reference.
-SIGNATURE = b"FROM registry.fedoraproject.org/fedora:"
+SIGNATURE = b"FROM quay.io/podman/machine-os:"
 
 
 def _candidates() -> list[tuple[str, Path]]:
@@ -99,7 +99,7 @@ class DevcontainerMirror(unittest.TestCase):
     def test_local_copy_exists_and_is_the_one_image(self):
         self.assertTrue(LOCAL.is_file(), f"missing: {MIRROR} (the MiOS dev image mirror)")
         data = LOCAL.read_bytes().replace(b"\r\n", b"\n")
-        self.assertIn(SIGNATURE, data, f"{MIRROR} is not a Fedora Containerfile")
+        self.assertIn(SIGNATURE, data, f"{MIRROR} is not the MiOS dev Containerfile")
         self.assertIn(b"the one MiOS dev image", data,
                       f"{MIRROR} lacks the mirror header; it is not MiOS's Containerfile")
 

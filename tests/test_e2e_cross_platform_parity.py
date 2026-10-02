@@ -117,7 +117,10 @@ def terminate_process_tree(proc: subprocess.Popen, timeout: float = 2.0) -> None
     """Portable process tree termination without os.killpg dependency."""
     if proc.poll() is not None:
         return
-    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+    # Signal the child's group only when it has its own: a child left in the
+    # caller's group would take the caller (and its test runner) down with it.
+    if (hasattr(os, "killpg") and hasattr(os, "getpgid")
+            and os.getpgid(proc.pid) != os.getpgid(0)):
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             proc.wait(timeout=timeout)

@@ -61,8 +61,8 @@
 #       FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS
 #       FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile   (the default)
 #   The repo is shallow-cloned and its Containerfile built UNEDITED with the repo
-#   root as context. Its hard-coded `FROM registry.fedoraproject.org/fedora:44`
-#   resolves to a base built here first — upstream Fedora plus the egress CA,
+#   root as context. Its hard-coded `FROM` (fedora:<release> or MiOS's podman
+#   machine-os:<tag>) resolves to a base built here first — that upstream plus the egress CA,
 #   the pinned repos and CA env (SSL_CERT_FILE, REQUESTS_CA_BUNDLE,
 #   NODE_EXTRA_CA_CERTS, PIP_CERT, all inherited by every later layer) — and
 #   tagged locally under the upstream name, so the build never pulls the real
@@ -532,7 +532,7 @@ fetch_devcontainer_src() {
 # Build the CA-trusting base and tag it under the name the Containerfile's FROM
 # uses, then build the Containerfile unedited: docker resolves FROM from the
 # local store before any registry, so it lands on the shadow. The real upstream
-# is kept as dev-loop-fedora-upstream:<tag> so a rebuild never bases the shadow
+# is kept as dev-loop-fedora-upstream:<name>-<tag> so a rebuild never bases the shadow
 # on itself.
 build_devcontainer() {
     fetch_devcontainer_src || return 1
@@ -540,8 +540,9 @@ build_devcontainer() {
     [ -f "$cf" ] || { log "$DC_FILE not found in $DC_REPO"; return 1; }
     from=$(awk 'toupper($1) == "FROM" { for (i = 2; i <= NF; i++) if ($i !~ /^--/) { print $i; exit } }' "$cf")
     case "$from" in
-        */fedora:*|fedora:*)
-            tag=${from##*:}
+        # Fedora, or the Fedora CoreOS podman machine OS: same repos and CA layout.
+        */fedora:*|fedora:*|*/podman/machine-os:*)
+            tag=$(printf '%s' "${from##*/}" | tr ':' '-')
             upstream="dev-loop-fedora-upstream:$tag"
             log "pulling $from"
             if "$RT" pull "$from" >/dev/null 2>&1 && "$RT" tag "$from" "$upstream"; then :
