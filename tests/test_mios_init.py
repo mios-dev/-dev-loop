@@ -685,6 +685,41 @@ class PlanMode(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    def _fedora_family_plan(self, os_release, script=SCRIPT):
+        """--plan with `os_release` and a dnf on PATH (a stub: --plan never runs it)."""
+        (self.tmp / "os-release").write_text(os_release)
+        bindir = self.tmp / "bin"
+        bindir.mkdir(exist_ok=True)
+        (bindir / "dnf").write_text("#!/bin/sh\nexit 0\n")
+        (bindir / "dnf").chmod(0o755)
+        env = dict(self.env, PATH=f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}")
+        p, j = run(["--plan"], env, script=script)
+        # The Fedora branch fails here (the workspace holds no MiOS checkout);
+        # which branch ran is the point, so the exit code is not.
+        self.assertTrue(j, p.stdout + p.stderr)
+        return step(j, "packages")["detail"]
+
+    def test_a_fedora_derivative_is_fedora(self):
+        """MiOS's own os-release (ID=mios, ID_LIKE="fedora coreos") is a Fedora host."""
+        d = self._fedora_family_plan('ID=mios\nID_LIKE="fedora coreos"\nVARIANT_ID=mios\n')
+        self.assertNotIn("non-Fedora host", d)
+        self.assertIn("no usable MiOS checkout", d, "the Fedora branch reads packages from the checkout")
+
+    def test_a_derivative_of_something_else_is_not(self):
+        d = self._fedora_family_plan('ID=linuxmint\nID_LIKE="ubuntu debian"\n')
+        self.assertIn("non-Fedora host", d)
+
+    def test_negative_id_only_check_misreads_mios(self):
+        old = 'case " ${ID:-} ${ID_LIKE:-} " in'
+        text = SCRIPT.read_text()
+        self.assertEqual(text.count(old), 1)
+        # Beside the real script: it finds its sibling scripts by its own dirname.
+        mutated = SCRIPT.with_name(f".mios-init-mutated-{os.getpid()}.sh")
+        self.addCleanup(mutated.unlink, missing_ok=True)
+        mutated.write_text(text.replace(old, 'case " ${ID:-} " in'))
+        d = self._fedora_family_plan('ID=mios\nID_LIKE="fedora coreos"\n', script=mutated)
+        self.assertIn("non-Fedora host", d, "negative control: ID alone must misread MiOS")
+
     def test_non_fedora_plan_names_projection_and_changes_nothing(self):
         p, j = run(["--plan"], self.env)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -780,7 +815,8 @@ def host_is_fedora() -> bool:
         osr = Path("/etc/os-release").read_text()
     except OSError:
         osr = ""
-    return bool(re.search(r"^ID=\"?fedora\"?$", osr, re.M) and shutil.which("dnf"))
+    ids = " ".join(m.group(2) for m in re.finditer(r'^(ID|ID_LIKE)="?([^"\n]*)"?$', osr, re.M)).split()
+    return bool("fedora" in ids and shutil.which("dnf"))
 
 
 def image_holder(image="mios-dev:latest") -> str | None:
@@ -940,13 +976,17 @@ class FedoraPackages(unittest.TestCase):
         self.assertEqual(j["failed_required"], ["packages"])
         self.assertEqual(step(j, "packages")["detail"], f"[packages.devcontainer] is missing from {f}")
 
-    def test_empty_section_fails_in_packages_sh(self):
-        f = self._toml_with_section("[packages.devcontainer]\nenable = true\npkgs = []\n\n")
+    def test_broken_section_fails_in_packages_sh(self):
+        # Not an empty pkgs list: on a MiOS image an empty layer falls through
+        # to the vendor /usr/share/mios/mios.toml, by design. A dependency that
+        # does not exist fails in every layer order.
+        f = self._toml_with_section('[packages.devcontainer]\nenable = true\npkgs = ["bash"]\n'
+                                    'requires_sections = ["mios-init-no-such-section"]\n\n')
         p, j = run(["--packages-only"], {**self.env, "MIOS_TOML": str(f)}, FEDORA)
         self.assertEqual(p.returncode, 1, p.stdout)
         d = step(j, "packages")["detail"]
         self.assertIn("automation/lib/packages.sh", d)
-        self.assertIn("[packages.devcontainer] is empty or undefined", d)
+        self.assertIn("mios-init-no-such-section", d)
 
     def test_dnf_failure_names_the_package_and_the_log(self):
         m = self._section()

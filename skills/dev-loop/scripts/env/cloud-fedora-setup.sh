@@ -410,6 +410,15 @@ install_wrapper() {
         printf 'RUNTIME=%q\n' "$RT"
         printf 'SETUP_SCRIPT=%q\n' "$SCRIPT_CACHE"
         printf 'LIFECYCLE_STATUS=%q\n' "$BUILD_CTX/${DC_NAME:-none}.lifecycle"
+        # Projection mode: the devcontainer's workspaceFolder, which its
+        # lifecycle may link the repo's files into the image through.
+        ws=""
+        if [ -n "$DC_REPO" ]; then
+            [ -f "$DC_SRC/$DC_JSON" ] && ws=$(dc_json_get workspaceFolder 2>/dev/null)
+            ws=${ws:-/workspaces/$(basename "${DC_REPO%/}" .git)}
+        fi
+        printf 'WORKSPACE=%q\n' "$ws"
+        printf 'WORKSPACE_SNAPSHOT=%q\n' "${DC_SRC:-}"
         printf 'BUILD_ENV=(FEDORA_VERSION=%q FEDORA_IMAGE="$IMAGE" FEDORA_CONTAINER="$CONTAINER"' "$FEDORA_VERSION"
         printf ' FEDORA_RUNTIME="$RUNTIME" FEDORA_BUILD_CTX=%q FEDORA_WRAPPER_DIR=%q' "$BUILD_CTX" "$WRAPPER_DIR"
         printf ' FEDORA_DEVCONTAINER_REPO=%q FEDORA_DEVCONTAINER_FILE=%q' "$DC_REPO" "$DC_FILE"
@@ -441,6 +450,13 @@ run_args() {
     for d in /home/* /root /workspace /srv /opt/dev-loop-fedora; do
         [ -d "$d" ] && printf '%s\n%s\n' -v "$d:$d"
     done
+    # The lifecycle's links into WORKSPACE resolve only if something is mounted
+    # there: the session's checkout of the repo, else the build snapshot.
+    if [ -n "$WORKSPACE" ]; then
+        for d in /home/*/"${WORKSPACE##*/}" "$WORKSPACE_SNAPSHOT"; do
+            [ -d "$d" ] && { printf '%s\n%s\n' -v "$d:$WORKSPACE"; break; }
+        done
+    fi
     for v in HTTPS_PROXY https_proxy NO_PROXY no_proxy HTTP_PROXY http_proxy; do
         [ -n "${!v:-}" ] && printf '%s\n%s\n' -e "$v=${!v}"
     done
@@ -583,6 +599,12 @@ build_devcontainer() {
         set -- "$cli" build --workspace-folder "$DC_SRC" --config "$DC_SRC/$DC_JSON" --image-name "$DC_BASE"
         # The CLI shells out to `docker` unless told otherwise.
         [ "$RT" = podman ] && set -- "$@" --docker-path podman
+        # Its build takes no --network, and the proxy is on the VM's 127.0.0.1;
+        # podman takes the build's network namespace from containers.conf.
+        if [ "$RT" = podman ]; then
+            printf '[containers]\nnetns = "host"\n' > "$BUILD_CTX/podman-host-net.conf" || return 1
+            set -- env CONTAINERS_CONF_OVERRIDE="$BUILD_CTX/podman-host-net.conf" "$@"
+        fi
         "$@" >>/var/log/dev-loop-fedora-build.log 2>&1 || return 1
     else
         log "building $DC_BASE from $DC_REPO:$DC_FILE (Containerfile only: no features applied)"

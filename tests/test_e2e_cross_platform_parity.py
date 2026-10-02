@@ -39,6 +39,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = ROOT / "skills" / "dev-loop" / "scripts"
 TESTS_DIR = ROOT / "tests"
+# The sibling checkouts (MiOS, mios-micro, mios-bootstrap) sit beside this repo.
+SIBLINGS = ROOT.parent
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -637,19 +639,19 @@ class TestTier1CategoryPartition(unittest.TestCase):
     # -----------------------------------------------------------------------
     def test_f11_p1_mios_repo_ci_suites(self) -> None:
         """Partition 1: c:\\MiOS exists and contains tools/ci-suites.py."""
-        mios_root = Path("c:/-dev-loop").parent / "MiOS"
+        mios_root = SIBLINGS / "MiOS"
         ci_suites = mios_root / "tools" / "ci-suites.py"
         self.assertTrue(ci_suites.is_file(), f"Missing ci-suites.py in MiOS: {ci_suites}")
 
     def test_f11_p2_mios_gate_definitions(self) -> None:
         """Partition 2: c:\\MiOS contains standing gate definitions."""
-        mios_root = Path("c:/-dev-loop").parent / "MiOS"
+        mios_root = SIBLINGS / "MiOS"
         toml_path = mios_root / "usr" / "share" / "mios" / "mios.toml"
         self.assertTrue(toml_path.is_file(), f"Missing mios.toml in MiOS: {toml_path}")
 
     def test_f11_p3_mios_micro_test_presence(self) -> None:
         """Partition 3: c:\\mios-micro exists and contains unit tests."""
-        micro_root = Path("c:/-dev-loop").parent / "mios-micro"
+        micro_root = SIBLINGS / "mios-micro"
         tests = [
             micro_root / "tests" / "test_micro_dataset.py",
             micro_root / "tests" / "test_micro_eval.py",
@@ -660,7 +662,7 @@ class TestTier1CategoryPartition(unittest.TestCase):
 
     def test_f11_p4_mios_bootstrap_integrity(self) -> None:
         """Partition 4: c:\\mios-bootstrap exists and contains mios.toml."""
-        boot_root = Path("c:/-dev-loop").parent / "mios-bootstrap"
+        boot_root = SIBLINGS / "mios-bootstrap"
         boot_toml = boot_root / "mios.toml"
         self.assertTrue(boot_toml.is_file(), f"Missing mios.toml in mios-bootstrap: {boot_toml}")
 
@@ -854,9 +856,10 @@ class TestTier2BoundaryValueAnalysis(unittest.TestCase):
 
     def test_bva_f4_2_path_with_empty_segments(self) -> None:
         """BVA: PATH containing redundant separators ';;' or leading/trailing separators."""
-        dirty_path = f"{os.pathsep}{os.pathsep}C:\\bin{os.pathsep}{os.pathsep}"
+        entry = os.path.join("opt", "bin")
+        dirty_path = f"{os.pathsep}{os.pathsep}{entry}{os.pathsep}{os.pathsep}"
         clean_parts = [p for p in dirty_path.split(os.pathsep) if p]
-        self.assertEqual(clean_parts, ["C:\\bin"])
+        self.assertEqual(clean_parts, [entry])
 
     def test_bva_f4_3_mock_exit_codes_boundaries(self) -> None:
         """BVA: Mock exit codes at boundaries: 0, 1, 127, 255."""
@@ -1065,17 +1068,17 @@ class TestTier2BoundaryValueAnalysis(unittest.TestCase):
     # Feature 11 BVA: Multi-Repo Standing Gates Parity
     def test_bva_f11_1_mios_path_resolution(self) -> None:
         """BVA: MiOS path resolution."""
-        p = Path("c:/-dev-loop").parent / "MiOS"
+        p = SIBLINGS / "MiOS"
         self.assertTrue(p.is_dir())
 
     def test_bva_f11_2_mios_micro_path_resolution(self) -> None:
         """BVA: mios-micro path resolution."""
-        p = Path("c:/-dev-loop").parent / "mios-micro"
+        p = SIBLINGS / "mios-micro"
         self.assertTrue(p.is_dir())
 
     def test_bva_f11_3_mios_bootstrap_path_resolution(self) -> None:
         """BVA: mios-bootstrap path resolution."""
-        p = Path("c:/-dev-loop").parent / "mios-bootstrap"
+        p = SIBLINGS / "mios-bootstrap"
         self.assertTrue(p.is_dir())
 
     def test_bva_f11_4_ci_suites_exact_count(self) -> None:
@@ -1085,7 +1088,7 @@ class TestTier2BoundaryValueAnalysis(unittest.TestCase):
 
     def test_bva_f11_5_micro_test_count(self) -> None:
         """BVA: Exactly 3 test files in mios-micro/tests."""
-        micro_tests = list((Path("c:/-dev-loop").parent / "mios-micro" / "tests").glob("test_*.py"))
+        micro_tests = list((SIBLINGS / "mios-micro" / "tests").glob("test_*.py"))
         self.assertEqual(len(micro_tests), 3)
 
     # Feature 12 BVA: Verified PR Branch
@@ -1193,7 +1196,7 @@ class TestTier3PairwiseCombinations(unittest.TestCase):
             ("mios-bootstrap", "mios.toml"),
         ]
         for repo_name, rel_path in matrix:
-            full_path = Path("c:/-dev-loop").parent / repo_name / rel_path
+            full_path = SIBLINGS / repo_name / rel_path
             self.assertTrue(full_path.exists(), f"Path not found: {full_path}")
 
     def test_p6_process_signals_and_platforms(self) -> None:
@@ -1329,9 +1332,9 @@ class TestTier4WorkloadAndStress(unittest.TestCase):
     def test_w5_e2e_multi_repo_gate_contract_stress(self) -> None:
         """Workload 5: Multi-repo gate verification contract across all active workspaces."""
         workspaces = [
-            ("MiOS", Path("c:/-dev-loop").parent / "MiOS"),
-            ("mios-micro", Path("c:/-dev-loop").parent / "mios-micro"),
-            ("mios-bootstrap", Path("c:/-dev-loop").parent / "mios-bootstrap"),
+            ("MiOS", SIBLINGS / "MiOS"),
+            ("mios-micro", SIBLINGS / "mios-micro"),
+            ("mios-bootstrap", SIBLINGS / "mios-bootstrap"),
         ]
         for name, ws_path in workspaces:
             self.assertTrue(ws_path.is_dir(), f"Workspace directory missing: {name} at {ws_path}")

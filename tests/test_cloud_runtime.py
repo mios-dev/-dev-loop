@@ -572,6 +572,63 @@ class WrapperDir(Base):
             self.assertEqual(sha256(system), before, "the system wrapper must be untouched")
 
 
+class WorkspaceMount(Base):
+    """Projection mode: the devcontainer lifecycle links the repo's files into
+    the image through workspaceFolder, so the wrapper mounts a checkout there
+    (the session's /home/*/<name>, else the build snapshot) or every such link
+    dangles (measured on MiOS: /usr/lib/os-release, prepare-root.conf)."""
+
+    def wrapper(self, script=SCRIPT):
+        if not installed("podman"):
+            self.skipTest("podman is not installed")
+        path = self.bindir("podman")
+        for t in ("python3", "dirname", "basename"):
+            src = shutil.which(t)
+            if src and not os.path.exists(os.path.join(path, t)):
+                os.symlink(src, os.path.join(path, t))
+        snap = os.path.join(self.ctx, "src", "proj")
+        os.makedirs(os.path.join(snap, ".devcontainer"))
+        with open(os.path.join(snap, ".devcontainer", "devcontainer.json"), "w", encoding="utf-8") as f:
+            f.write('{"workspaceFolder": "/ws/Proj"}')
+        wd = os.path.join(self.tmp, "bin")
+        r = run(["--wrapper-only"], path, {
+            "FEDORA_RUNTIME": "podman", "FEDORA_BUILD_CTX": self.ctx, "FEDORA_WRAPPER_DIR": wd,
+            "FEDORA_DEVCONTAINER_REPO": "https://example.invalid/org/Proj",
+            "FEDORA_DEVCONTAINER_NAME": "proj", "FEDORA_DEVCONTAINER_REF": "main"}, script)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        names = [n for n in os.listdir(wd) if not n.startswith(".")]
+        self.assertTrue(names, r.stdout)
+        return os.path.join(wd, names[0]), snap
+
+    def mounts(self, wrapper):
+        """run_args of the generated wrapper, as -v pairs."""
+        r = subprocess.run([BASH, "-c", f'eval "$(sed -n "/^WORKSPACE/p; /^run_args()/,/^}}/p" {shlex.quote(wrapper)})"; run_args'],
+                           capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"})
+        a = r.stdout.split("\n")
+        return [a[i + 1] for i, x in enumerate(a) if x == "-v"]
+
+    def test_wrapper_bakes_the_workspace_folder(self):
+        w, snap = self.wrapper()
+        with open(w, encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("\nWORKSPACE=/ws/Proj\n", src)
+        self.assertIn(f"\nWORKSPACE_SNAPSHOT={snap}\n", src)
+
+    def test_a_checkout_is_mounted_at_the_workspace_folder(self):
+        w, snap = self.wrapper()
+        got = [m for m in self.mounts(w) if m.endswith(":/ws/Proj")]
+        self.assertEqual(len(got), 1, self.mounts(w))
+        self.assertIn(got[0].split(":")[0], [d for d in (f"/home/{u}/Proj" for u in os.listdir("/home")) if os.path.isdir(d)] + [snap])
+
+    def test_without_the_mount_the_workspace_folder_is_empty(self):
+        m = self.mutated(SCRIPT, '[ -d "$d" ] && { printf', '[ -d "$d" ] && false && { printf')
+        before = sha256(SCRIPT)
+        w, _ = self.wrapper(script=m)
+        self.assertEqual([x for x in self.mounts(w) if x.endswith(":/ws/Proj")], [],
+                         "negative control: the mutated wrapper must mount nothing there")
+        self.assertEqual(sha256(SCRIPT), before)
+
+
 class Hook(Base):
     """The repo SessionStart hook installs the wrapper only when none exists
     (R3, hook side) and refreshes the cached script copy when it leaves one

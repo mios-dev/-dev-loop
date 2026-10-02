@@ -311,7 +311,8 @@ is_fedora() {
     { command -v dnf5 >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; } || return 1
     [ -r "$OS_RELEASE" ] || return 1
     # shellcheck source=/dev/null
-    ( . "$OS_RELEASE" && [ "${ID:-}" = fedora ] )
+    # Fedora or a Fedora derivative (MiOS: ID=mios, ID_LIKE="fedora coreos").
+    ( . "$OS_RELEASE" && case " ${ID:-} ${ID_LIKE:-} " in *" fedora "*) ;; *) exit 1 ;; esac )
 }
 
 # probe_image: which runtime holds $DC_IMAGE. The decision is delegated to
