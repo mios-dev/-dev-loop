@@ -102,7 +102,7 @@ In reality, this refusal is **pure prose**:
 - skills/dev-loop/scripts/validate.sh
 
 ## NEGATIVE CONTROL
-The negative control script plants a non-resolvable citation to the sentinel `DEVLOOP-PLANTED-DESIGN-AUDIT` and asserts that `check_finding.py` fails naming that sentinel.
+The negative control script plants a non-resolvable citation to the lane's planted sentinel (named in `.devloop/lanes.research.json`) and asserts that `check_finding.py` fails naming that sentinel.
 
 ## UNVERIFIED
 - We have not executed a full live test of `agy plugin import` against Claude Code plugin manifests to exhaustively catalog which specific keys are dropped beyond `settings.json` permissions.

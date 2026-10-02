@@ -93,7 +93,7 @@ The Confirmation table in the ADR and Section 9 in the design reference define c
 - tests/test_loop_envelope.py
 
 ## NEGATIVE CONTROL
-Run the contract negative control command. The script appends an unresolvable planted citation and verifies that check_finding fails with exit code 1 naming DEVLOOP-PLANTED-DESIGN-AUDIT.
+Run the contract negative control command. The script appends an unresolvable planted citation and verifies that check_finding fails with exit code 1 naming the lane's planted sentinel (named in .devloop/lanes.research.json).
 
 ## UNVERIFIED
 1. We have not checked whether undocumented flags or future versions of `agy` or `claude` expose wire listeners.

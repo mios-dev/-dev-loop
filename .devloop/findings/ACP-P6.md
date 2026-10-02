@@ -50,7 +50,7 @@ If ACP were to be adopted in the future upon a native Google release, the affect
 - `skills/dev-loop/references/translation-layer.md` (update open question 6 and P6 phasing)
 
 ## NEGATIVE CONTROL
-The negative control command appends an unresolved citation token (`DEVLOOP-PLANTED-ACP-P6`) to this findings file. When `check_finding.py` evaluates the mutated file, citation resolution fails on the unresolvable reference with a non-zero exit code, matching the sentinel regex `DEVLOOP-PLANTED-ACP-P6`.
+The negative control command appends an unresolved citation token (the lane's planted sentinel (named in `.devloop/lanes.research.json`)) to this findings file. When `check_finding.py` evaluates the mutated file, citation resolution fails on the unresolvable reference with a non-zero exit code, matching the sentinel regex the lane's planted sentinel (named in `.devloop/lanes.research.json`).
 
 ## UNVERIFIED
 - Internal Google timelines or roadmap milestones for implementing native ACP in `agy` (issue #31 has no assigned milestone).

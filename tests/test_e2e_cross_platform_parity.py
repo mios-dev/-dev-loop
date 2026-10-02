@@ -1176,7 +1176,7 @@ class TestTier3PairwiseCombinations(unittest.TestCase):
         """Pairwise 4: (CRLF vs LF) x (simple vs complex YAML) x (read-only vs writable)."""
         tmp = self._make_temp()
         for le in ("\r\n", "\n"):
-            f = tmp / f"test_{'crlf' if le == '\\r\\n' else 'lf'}.md"
+            f = tmp / ("test_crlf.md" if le == "\r\n" else "test_lf.md")
             content = f"---{le}name: test{le}version: 1{le}---{le}body{le}"
             f.write_text(content, encoding="utf-8")
             norm = f.read_text(encoding="utf-8").replace("\r\n", "\n")
