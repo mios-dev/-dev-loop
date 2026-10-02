@@ -667,6 +667,55 @@ class Hook(Base):
         self.assertEqual(sha256(HOOK), hook_before, "the real hook must be untouched")
 
 
+class InstallPodman(Base):
+    """A full run on a host without podman installs it through apt-get first
+    (MiOS is Podman-native; Anthropic's VM ships Docker only). apt-get is a
+    recorder here, so nothing is really installed."""
+
+    def full_run(self, extra=None, script=SCRIPT):
+        d = self.bindir()
+        log = os.path.join(self.tmp, "apt.log")
+        self.recorder(d, "apt-get", log)
+        e = {"FEDORA_BUILD_CTX": self.ctx, "FEDORA_IMAGE": "rt-sel-never:0",
+             "FEDORA_CONTAINER": "rt-sel-never", "FEDORA_WRAPPER_DIR": os.path.join(self.tmp, "bin")}
+        e.update(extra or {})
+        r = run([], d, e, script)
+        self.assertEqual(r.returncode, 0, "setup-script contract: always exit 0")
+        calls = open(log, encoding="utf-8").read() if os.path.exists(log) else ""
+        return r, calls
+
+    def test_auto_installs_podman_when_absent(self):
+        r, calls = self.full_run()
+        self.assertIn("apt-get install -y -q podman", calls)
+        self.assertIn("installing podman", r.stdout)
+
+    def test_explicit_podman_installs_it_too(self):
+        _, calls = self.full_run({"FEDORA_RUNTIME": "podman"})
+        self.assertIn("apt-get install -y -q podman", calls)
+
+    def test_explicit_docker_installs_nothing(self):
+        _, calls = self.full_run({"FEDORA_RUNTIME": "docker"})
+        self.assertEqual(calls, "")
+
+    def test_opt_out_installs_nothing(self):
+        _, calls = self.full_run({"FEDORA_INSTALL_PODMAN": "0"})
+        self.assertEqual(calls, "")
+
+    def test_print_runtime_installs_nothing(self):
+        d = self.bindir()
+        log = os.path.join(self.tmp, "apt.log")
+        self.recorder(d, "apt-get", log)
+        run(["--print-runtime"], d)
+        self.assertFalse(os.path.exists(log))
+
+    def test_without_the_call_podman_is_never_installed(self):
+        before = sha256(SCRIPT)
+        m = self.mutated(SCRIPT, "    ensure_podman\n    select_runtime", "    select_runtime")
+        _, calls = self.full_run(script=m)
+        self.assertEqual(calls, "", "negative control: the mutated script must not install podman")
+        self.assertEqual(sha256(SCRIPT), before)
+
+
 class NoHardwiredDocker(unittest.TestCase):
     """Every container call goes through the chosen runtime ($RT, or $RUNTIME
     in the generated wrapper); `docker` survives only in the dockerd starter."""

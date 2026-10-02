@@ -51,6 +51,10 @@
 #                     runtime that is missing or cannot run, or any other value,
 #                     logs an error and skips the Fedora build -- never a silent
 #                     fallback. `--print-runtime` prints the choice and exits.
+#   FEDORA_INSTALL_PODMAN=0  do not install podman. By default a full run whose
+#                     runtime is auto or podman installs it through apt-get when
+#                     it is absent (Anthropic's VM ships Docker only), so a MiOS
+#                     session builds and runs its images under podman.
 #   FEDORA_WRAPPER_DIR  where the wrapper(s) are installed (default /usr/local/bin);
 #                     the repo's SessionStart hook honours it too
 #   FEDORA_BUILD_CTX  build context + script cache dir   (default /opt/dev-loop-fedora)
@@ -251,6 +255,20 @@ ensure_runtime() {
     log "$RT_WHY"
     [ "$FEDORA_RUNTIME" = auto ] || log "FEDORA_RUNTIME=$FEDORA_RUNTIME: refusing to fall back to another runtime"
     return 1
+}
+
+# MiOS is Podman-native, so a host without podman gets it before the runtime is
+# chosen. Only for auto/podman (an explicit docker is honoured) and only through
+# the host's own package manager; a failed install is logged and auto then
+# selects among what is installed, as before.
+ensure_podman() {
+    [ "${FEDORA_INSTALL_PODMAN:-1}" = 0 ] && return 0
+    case "$FEDORA_RUNTIME" in auto|podman) ;; *) return 0 ;; esac
+    command -v podman >/dev/null 2>&1 && return 0
+    command -v apt-get >/dev/null 2>&1 || { log "podman is not installed and there is no apt-get to install it"; return 0; }
+    log "installing podman (MiOS is Podman-native)"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q podman >>/var/log/dev-loop-podman-install.log 2>&1 ||
+        log "podman install failed (see /var/log/dev-loop-podman-install.log)"
 }
 
 # --- 1. the Docker daemon (docker runtime only) ----------------------------------
@@ -747,6 +765,7 @@ main() {
     # cheapest and most essential piece, so a later overrun cannot cost it.
     [ "${FEDORA_NO_AUTOBUILD:-0}" = 1 ] || provision_host
 
+    ensure_podman
     select_runtime && ensure_runtime || { log "skipping Fedora provisioning"; return 0; }
     log "container runtime: $RT"
 

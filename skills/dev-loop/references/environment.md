@@ -232,8 +232,11 @@ with both runtimes installed, the runtime whose store already holds `FEDORA_IMAG
 log says `auto: <image> already lives in <rt> -- keeping it there`), so an image built
 under docker is never silently rebuilt under podman; (2) **usability**: a runtime that is
 on PATH but cannot run (`podman info` fails, `dockerd` will not start) is skipped with a
-log line naming why; (3) podman. So this cloud VM (docker only) keeps working unchanged,
-and a VM where podman was installed later keeps its docker-held image. An explicit
+log line naming why; (3) podman. A full run whose runtime is `auto` or `podman` first
+installs podman through `apt-get` when it is absent (`FEDORA_INSTALL_PODMAN=0` opts out),
+so a fresh environment snapshot of this Docker-only VM builds and runs under podman
+(Ubuntu 24.04 ships podman 4.9.3: rootful, overlay storage). A snapshot whose image
+already lives in docker keeps it there until the environment is rebuilt. An explicit
 runtime that is not installed, or any other value, logs an error naming it and builds
 nothing (the setup-script contract still exits 0); it never falls back on its own. The
 Dev Containers CLI build gets `--docker-path podman` under podman, and podman is never
