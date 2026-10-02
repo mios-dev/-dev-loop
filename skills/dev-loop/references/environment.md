@@ -157,8 +157,9 @@ FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile   # the default
 
 It shallow-clones the repo to `/opt/dev-loop-fedora/src/<name>` and builds its
 Containerfile **unedited**, with the repo root as context. The Containerfile's
-hard-coded `FROM` (MiOS: `quay.io/podman/machine-os:<tag>`, the Fedora CoreOS
-podman machine OS; plain `fedora:<release>` works the same) is made to resolve to a
+hard-coded `FROM` (MiOS: `ghcr.io/mios-dev/machine-os:<tag>`, the container-only
+mirror of the Fedora CoreOS podman machine OS `quay.io/podman/machine-os:<tag>`;
+plain `fedora:<release>` works the same) is made to resolve to a
 base built first — that upstream plus the egress CA, the pinned repos (every
 other repo disabled, since a devcontainer's `dnf install` has no
 `--disablerepo`) and `ENV SSL_CERT_FILE`/`CURL_CA_BUNDLE`/`REQUESTS_CA_BUNDLE`/

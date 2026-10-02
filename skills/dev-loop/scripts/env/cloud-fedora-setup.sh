@@ -574,8 +574,9 @@ build_devcontainer() {
     [ -f "$cf" ] || { log "$DC_FILE not found in $DC_REPO"; return 1; }
     from=$(awk 'toupper($1) == "FROM" { for (i = 2; i <= NF; i++) if ($i !~ /^--/) { print $i; exit } }' "$cf")
     case "$from" in
-        # Fedora, or the Fedora CoreOS podman machine OS: same repos and CA layout.
-        */fedora:*|fedora:*|*/podman/machine-os:*)
+        # Fedora, or the Fedora CoreOS podman machine OS (upstream, or MiOS's
+        # container-only mirror of it): same repos and CA layout.
+        */fedora:*|fedora:*|*/machine-os:*)
             tag=$(printf '%s' "${from##*/}" | tr ':' '-')
             upstream="dev-loop-fedora-upstream:$tag"
             log "pulling $from"

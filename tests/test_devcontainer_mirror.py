@@ -39,7 +39,8 @@ LOCAL = ROOT / MIRROR
 REMOTE = "https://raw.githubusercontent.com/mios-dev/MiOS/main/.devcontainer/Containerfile"
 # What every genuine copy of the file contains; an HTML error page or a captive
 # portal answering the fetch does not, so it is refused as a reference.
-SIGNATURE = b"FROM quay.io/podman/machine-os:"
+# The podman machine OS, upstream or MiOS's container-only mirror of it.
+SIGNATURE = b"/machine-os:"
 
 
 def _candidates() -> list[tuple[str, Path]]:
