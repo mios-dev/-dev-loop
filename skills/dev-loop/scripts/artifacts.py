@@ -26,8 +26,11 @@ around load-modify-save, so another tool taking the same lock never loses an upd
 
 Vocabularies (also enforced by `tasks validate`):
   task.status  open | in_progress | blocked | done | cancelled      task.type  task | epic | bug
-               A file is in the OpenAI plan-status dialect when any record says pending, completed or incomplete:
-               those read as open, done and blocked, input accepts either dialect, and a save writes the file's own words.
+               OpenAI plan-status dialect: pending, completed, incomplete read as open, done, blocked. A file's dialect is
+               decided once at load ({"_dialect": ...} marker line, else the records' majority, else legacy); input
+               accepts either; a mutating op rewrites only the record it changes, in the file's dialect.
+TASKS.md overrides: JSON lines between '<!-- overrides:begin -->' and '<!-- overrides:end -->' are applied on top of
+the task file by every read-only op; render keeps that block verbatim.
   goal.status  active | at_risk | met | dropped                    adr.status proposed | accepted | deprecated | superseded
 """
 from __future__ import annotations
@@ -93,34 +96,94 @@ def norm_status(s):
     return STATUS_ALIASES.get(s, s)
 
 
+DIALECT_KEY = "_dialect"  # a line {"_dialect": "openai"|"legacy"} pins the file's status dialect; it is not a task
+_LEGACY_ONLY = {v for v in STATUS_ALIASES.values()}  # open, done, blocked: the words only the legacy dialect uses
+
+
+def _is_marker(t) -> bool:
+    return isinstance(t, dict) and set(t) == {DIALECT_KEY} and t[DIALECT_KEY] in ("openai", "legacy")
+
+
+def _content_dialect(statuses) -> str | None:
+    """The dialect the status words themselves show: the majority of dialect-specific words, a tie going to the first
+    one seen; None when no record uses a word only one dialect has (in_progress and cancelled are shared)."""
+    o = l = 0; first = None
+    for st in statuses:
+        if st in STATUS_ALIASES: o += 1; first = first or "openai"
+        elif st in _LEGACY_ONLY: l += 1; first = first or "legacy"
+    return None if first is None else "openai" if o > l else "legacy" if l > o else first
+
+
+class TaskFile:
+    """A task file as it is on disk: every line kept verbatim, the records parsed with status normalised to the
+    internal words, and the file's status dialect decided once, at load - an explicit marker line wins, else the
+    dialect the records show, else legacy. A save rewrites only the records that changed, in that dialect."""
+
+    def __init__(self, p: Path):
+        self.path = Path(p); self.lines: list[tuple[str, dict | None, dict | None]] = []  # (raw, record, snapshot)
+        self.tasks: list[dict] = []; marker = None; words = []
+        if self.path.exists():
+            for n, raw in enumerate(self.path.read_text("utf-8").splitlines(), 1):
+                if not raw.strip(): self.lines.append((raw, None, None)); continue
+                try: t = json.loads(raw)
+                except json.JSONDecodeError as e: die(f"{self.path.name} line {n}: {e}")
+                if _is_marker(t):
+                    marker = marker or t[DIALECT_KEY]; self.lines.append((raw, None, None)); continue
+                if isinstance(t, dict):
+                    words.append(t.get("status")); t["status"] = norm_status(t.get("status"))
+                self.lines.append((raw, t, json.loads(json.dumps(t)))); self.tasks.append(t)
+        self.marker = marker
+        self.dialect = marker or _content_dialect(words) or "legacy"
+
+    def dump(self, t: dict) -> str:
+        if self.dialect == "openai" and isinstance(t, dict) and t.get("status") in STATUS_DIALECT_OUT:
+            t = {**t, "status": STATUS_DIALECT_OUT[t["status"]]}
+        return json.dumps(t, ensure_ascii=False)
+
+    def render(self, tasks: list[dict]) -> str:
+        """The file with `tasks` in place of the loaded records. A loaded record that is still present and unchanged
+        keeps its line byte for byte; a changed one is re-serialised in the file's dialect; a missing one is dropped;
+        a new one is appended. Blank and marker lines stay where they were."""
+        by_obj = {id(t): t for t in tasks}; by_id: dict = {}
+        for t in tasks: by_id.setdefault(t.get("id") if isinstance(t, dict) else None, []).append(t)
+        used: set = set(); out: list[str] = []
+        for raw, rec, snap in self.lines:
+            if rec is None: out.append(raw); continue
+            cur = by_obj.get(id(rec))
+            if cur is None or id(cur) in used:
+                cur = next((t for t in by_id.get(rec.get("id") if isinstance(rec, dict) else None, []) if id(t) not in used), None)
+            if cur is None: continue  # removed
+            used.add(id(cur))
+            out.append(raw if cur == snap else self.dump(cur))
+        out += [self.dump(t) for t in tasks if id(t) not in used]
+        if self.marker is None and self.dialect == "openai":
+            # The content alone no longer says 'openai' (e.g. every record is in_progress): pin it, or the next load
+            # would read the file as legacy and write legacy words into it.
+            recs = [json.loads(l) for l in out if l.strip()]
+            left = [r.get("status") for r in recs if isinstance(r, dict) and not _is_marker(r)]
+            if _content_dialect(left) != "openai": out.insert(0, json.dumps({DIALECT_KEY: "openai"}))
+        return "".join(l + "\n" for l in out)
+
+
 def read_task_file(p: Path) -> tuple[list[dict], str]:
-    """(records with status normalised to the internal words, dialect) where dialect is 'openai' when any record
-    uses pending/completed/incomplete and 'legacy' otherwise (also for an absent or empty file)."""
-    if not p.exists(): return [], "legacy"
-    out, dialect = [], "legacy"
-    for n, line in enumerate(p.read_text("utf-8").splitlines(), 1):
-        if line.strip():
-            try: t = json.loads(line)
-            except json.JSONDecodeError as e: die(f"{p.name} line {n}: {e}")
-            if isinstance(t, dict) and t.get("status") in STATUS_ALIASES:
-                dialect = "openai"; t["status"] = STATUS_ALIASES[t["status"]]
-            out.append(t)
-    return out, dialect
+    """(records with status normalised to the internal words, the file's dialect: 'openai' or 'legacy')."""
+    f = TaskFile(p); return f.tasks, f.dialect
 
 
 def load_tasks(root: Path, path=None) -> list[dict]:
-    return read_task_file(Path(path) if path else tasks_path(root))[0]
+    return TaskFile(Path(path) if path else tasks_path(root)).tasks
 
 
-def save_tasks(root: Path, tasks: list[dict], path=None) -> None:
-    """Write back in the file's own dialect, read from the file as it is on disk (the caller holds the lock)."""
-    p = Path(path) if path else tasks_path(root); p.parent.mkdir(parents=True, exist_ok=True)
-    dialect = read_task_file(p)[1]
-    def out(t):
-        if dialect == "openai" and t.get("status") in STATUS_DIALECT_OUT: t = {**t, "status": STATUS_DIALECT_OUT[t["status"]]}
-        return json.dumps(t, ensure_ascii=False) + "\n"
+def save_tasks(root: Path, tasks: list[dict], path=None, loaded: "TaskFile | None" = None) -> None:
+    """Write `tasks` back, changing only the records that differ from the file as loaded (the caller holds the lock;
+    without `loaded` the file is re-read from disk, which under the lock is the same file)."""
+    p = Path(path) if path else tasks_path(root)
+    f = loaded if loaded is not None else TaskFile(p)
+    text = f.render(tasks)
+    if p.exists() and p.read_text("utf-8") == text: return  # nothing changed: leave the file (and its mtime) alone
+    p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text("".join(out(t) for t in tasks), "utf-8")
+    tmp.write_text(text, "utf-8")
     tmp.replace(p)  # atomic
 
 
@@ -321,16 +384,94 @@ MUTATING_TASK_OPS = ("set", "add", "reconcile", "archive-stale", "fold-stale", "
 RENDER_BANNER = "# TASKS"
 
 
+OVERRIDES_BEGIN = "<!-- overrides:begin -->"
+OVERRIDES_END = "<!-- overrides:end -->"
+OVERRIDES_HELP = ("<!-- Operator overrides: one JSON object per line, e.g. {\"id\": \"T-001\", \"status\": \"blocked\", "
+                  "\"owner\": \"me\"}. Its fields are applied on top of the task file whenever the tooling reads it; "
+                  "`tasks render` keeps this block verbatim. -->")
+
+
+def read_overrides_block(root: Path) -> list[str] | None:
+    """The lines strictly between the overrides markers of this renderer's TASKS.md, verbatim; None when there is no
+    such TASKS.md or no block. A TASKS.md that does not open with the '# TASKS' banner belongs to someone else."""
+    md = Path(root) / "TASKS.md"
+    if not md.is_file(): return None
+    lines = md.read_text("utf-8", errors="replace").splitlines()
+    if not lines or lines[0] != RENDER_BANNER: return None
+    try: b = lines.index(OVERRIDES_BEGIN); e = lines.index(OVERRIDES_END, b + 1)
+    except ValueError: return None
+    return lines[b + 1:e]
+
+
+def parse_overrides(block: list[str] | None) -> list[dict]:
+    """Every line of the block that starts with '{' is one override: a JSON object with an "id" and the fields to
+    apply. Fences, comments and prose around them are ignored; a malformed override is an error, never skipped."""
+    out = []
+    for n, raw in enumerate(block or [], 1):
+        line = raw.strip()
+        if line.startswith("- "): line = line[2:].lstrip()
+        if not line.startswith("{"): continue
+        try: o = json.loads(line)
+        except json.JSONDecodeError as e: die(f"TASKS.md overrides line {n}: {e}")
+        if not isinstance(o, dict) or not isinstance(o.get("id"), str): die(f"TASKS.md overrides line {n}: needs an \"id\"")
+        out.append(o)
+    return out
+
+
+def apply_overrides(tasks: list[dict], overrides: list[dict]) -> list[str]:
+    """Overlay each override's fields (status in either dialect) onto the task with its id, in place. Returns the
+    ids no task carries."""
+    by_id = {t.get("id"): t for t in tasks}; unknown = []
+    for o in overrides:
+        t = by_id.get(o["id"])
+        if t is None: unknown.append(o["id"]); continue
+        for k, v in o.items():
+            if k != "id": t[k] = norm_status(v) if k == "status" else v
+    return unknown
+
+
+def _precheck(a, tasks: list[dict]) -> None:
+    """Every refusal a mutating op can make that does not depend on a concurrent writer, made BEFORE the lock (and
+    the lock file, and its directory) exist - a refused op leaves the tree byte-identical."""
+    if a.op in ("set", "reconcile"):
+        if not a.id: die(f"tasks {a.op} needs a task id")
+        t = next((t for t in tasks if t.get("id") == a.id), None) or die(f"no task {a.id}")
+    if a.op == "set":
+        st = norm_status(a.status)
+        if st not in TASK_STATUS: die(f"status must be one of {TASK_STATUS} (or {sorted(STATUS_ALIASES)})")
+        if st == "done" and not (a.evidence or t.get("verification_evidence")): die("done requires --evidence (both controls, exact commands)")
+    elif a.op == "add":
+        if any(t.get("id") == a.id for t in tasks): die(f"{a.id} exists")
+        new = {"id": a.id, "type": a.type, "title": a.title, "status": "open", "epic": a.epic or "",
+               "depends_on": [d for d in (a.depends or "").split(",") if d]}
+        errs = validate(tasks + [new])  # the same check the op makes, so it cannot fail later on this account
+        if errs: die("would make the task file invalid:\n  " + "\n  ".join(errs))
+    elif a.op == "recycle":
+        tid = a.id or getattr(a, "id_flag", None)
+        if tid and (getattr(a, "reactivate", False) or getattr(a, "re_research", False)):
+            arc = Path(a.root).resolve() / ".devloop" / "backlog_archive.jsonl"
+            if arc.exists() and not any(json.loads(l).get("id") == tid for l in arc.read_text("utf-8").splitlines() if l.strip()):
+                die(f"Task {tid} not found in archive")
+
+
 def cmd_tasks(a):
     root = Path(a.root).resolve(); path = tasks_path(root, getattr(a, "tasks", None))
     if a.op == "path":
         print(path); return
-    with (task_lock(path) if a.op in MUTATING_TASK_OPS else contextlib.nullcontext()):
+    if a.op not in MUTATING_TASK_OPS:
+        _cmd_tasks(a, root, path); return
+    _precheck(a, TaskFile(path).tasks)
+    if not path.exists() and a.op not in ("add", "recycle"):
+        _cmd_tasks(a, root, path); return  # nothing to modify, so nothing to lock (and no lock file to leave behind)
+    with task_lock(path):
         _cmd_tasks(a, root, path)
 
 
 def _cmd_tasks(a, root: Path, path: Path):
-    tasks, dialect = read_task_file(path); name = path.name
+    tf = TaskFile(path); tasks, dialect = tf.tasks, tf.dialect; name = path.name
+    if a.op not in MUTATING_TASK_OPS:  # a view: the operator's TASKS.md overrides sit on top of the store
+        unknown = apply_overrides(tasks, parse_overrides(read_overrides_block(root)))
+        if unknown and a.op == "validate": die(f"{name} invalid:\n  " + "\n  ".join(f"TASKS.md override for unknown task {i!r}" for i in unknown))
     shown = (lambda st: STATUS_DIALECT_OUT.get(st, st)) if dialect == "openai" else (lambda st: st)
     if a.op == "validate":
         errs = validate(tasks)
@@ -344,7 +485,9 @@ def _cmd_tasks(a, root: Path, path: Path):
         errs = validate(tasks)
         if errs: die(f"refusing to render invalid {name}:\n  " + "\n  ".join(errs))
         box = {"done": "x", "cancelled": "-"}; src = _rel(root, path)
-        lines = [RENDER_BANNER, "", f"_Rendered from `{src}` — edit the JSONL (or `artifacts.py tasks set/add`), then `artifacts.py tasks render`. Do not hand-edit this file._", ""]
+        lines = [RENDER_BANNER, "", f"_Rendered from `{src}` — edit the JSONL (or `artifacts.py tasks set/add`), then `artifacts.py tasks render`. Do not hand-edit this file outside the overrides block._", ""]
+        block = read_overrides_block(root)
+        lines += [OVERRIDES_BEGIN] + (block if block is not None else [OVERRIDES_HELP]) + [OVERRIDES_END, ""]
         epics = [t for t in tasks if t.get("type") == "epic"]; by_epic = {}
         for t in tasks:
             if t.get("type") != "epic": by_epic.setdefault(t.get("epic") or "_none", []).append(t)
@@ -367,7 +510,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         t["status"] = a.status
         if a.evidence: t["verification_evidence"] = a.evidence
         t["updated"] = time.strftime("%Y-%m-%d")
-        save_tasks(root, tasks, path); print(f"{a.id} -> {shown(a.status)}")
+        save_tasks(root, tasks, path, tf); print(f"{a.id} -> {shown(a.status)}")
     elif a.op == "add":
         if any(t["id"] == a.id for t in tasks): die(f"{a.id} exists")
         t = {"id": a.id, "type": a.type, "title": a.title, "status": "open", "owner": a.owner or "", "epic": a.epic or "", "goal": a.goal or "",
@@ -376,7 +519,7 @@ def _cmd_tasks(a, root: Path, path: Path):
              "verification_evidence": "", "links": [], "notes": "", "created": time.strftime("%Y-%m-%d")}
         tasks.append(t); errs = validate(tasks)
         if errs: die(f"would make {name} invalid:\n  " + "\n  ".join(errs))
-        save_tasks(root, tasks, path); print(f"added {a.id}")
+        save_tasks(root, tasks, path, tf); print(f"added {a.id}")
     elif a.op == "next":
         done = {t["id"] for t in tasks if t["status"] in ("done", "cancelled")}
         ready = [t for t in tasks if t["status"] == "open" and t.get("type") != "epic" and set(t.get("depends_on", [])) <= done]
@@ -414,7 +557,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         hl["last_reconciled_commit"] = head_sha
         hl["staleness_score"] = 0.0
         t["updated"] = time.strftime("%Y-%m-%d")
-        save_tasks(root, tasks, path)
+        save_tasks(root, tasks, path, tf)
         print(f"{a.id} reconciled to HEAD ({head_sha[:8]}); staleness reset to 0.0")
     elif a.op in ("archive-stale", "fold-stale"):
         thresh = getattr(a, "threshold", 0.5) or 0.5
@@ -422,7 +565,6 @@ def _cmd_tasks(a, root: Path, path: Path):
         archived = []
         archive_jsonl = root / ".devloop" / "backlog_archive.jsonl"
         historical_md = root / ".devloop" / "HISTORICAL_BACKLOG.md"
-        archive_jsonl.parent.mkdir(parents=True, exist_ok=True)
         head_sha = get_git_head_commit(root)
         
         for t in tasks:
@@ -440,6 +582,7 @@ def _cmd_tasks(a, root: Path, path: Path):
                 surviving.append(t)
         
         if archived:
+            archive_jsonl.parent.mkdir(parents=True, exist_ok=True)
             with open(archive_jsonl, "a", encoding="utf-8") as af:
                 for t in archived:
                     af.write(json.dumps(t, ensure_ascii=False) + "\n")
@@ -469,7 +612,7 @@ def _cmd_tasks(a, root: Path, path: Path):
                         if b not in arch_deps:
                             arch_deps.append(b)
 
-            save_tasks(root, surviving, path)
+            save_tasks(root, surviving, path, tf)
             print(f"Folded {len(archived)} tasks wholly to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
         else:
             print(f"No tasks exceeded staleness threshold {thresh}. None folded.")

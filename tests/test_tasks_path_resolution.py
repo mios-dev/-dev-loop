@@ -234,6 +234,137 @@ class Lock(Base):
         self.assertEqual(read(self.top)[0]["status"], "in_progress")
 
 
+class StickyDialect(Base):
+    """Defect 1: the dialect is decided once and kept, even after the last openai-only word leaves the file."""
+    def test_dialect_survives_losing_its_last_openai_word(self):
+        write(self.top, [rec("T-001", "pending"), rec("T-002", "in_progress")])
+        self.art("set", "T-001", "in_progress")   # no record says pending/completed/incomplete any more
+        self.art("set", "T-002", "done", "--evidence", "pos+neg")
+        st = {r["id"]: r["status"] for r in read(self.top) if "id" in r}
+        self.assertEqual(st["T-002"], "completed", "an openai-dialect file was written a legacy word")
+        self.assertEqual(st["T-001"], "in_progress")
+        self.art("set", "T-001", "open")
+        st = {r["id"]: r["status"] for r in read(self.top) if "id" in r}
+        self.assertEqual(st["T-001"], "pending")
+        self.assertIn("ok: 2 tasks", self.art("validate").stdout)    # the marker line is not a task
+
+    def test_explicit_marker_wins(self):
+        self.top.write_text(json.dumps({"_dialect": "openai"}) + "\n" + json.dumps(rec("T-001", "in_progress")) + "\n", "utf-8")
+        self.art("set", "T-001", "blocked")
+        self.assertEqual([r["status"] for r in read(self.top) if "id" in r], ["incomplete"])
+        self.assertEqual(self.top.read_text("utf-8").splitlines()[0], json.dumps({"_dialect": "openai"}))
+
+    def test_legacy_file_gets_no_marker(self):
+        write(self.top, [rec("T-001"), rec("T-002", "in_progress")])
+        before = self.top.read_text("utf-8").splitlines()
+        self.art("set", "T-001", "in_progress")
+        after = self.top.read_text("utf-8").splitlines()
+        self.assertEqual(len(after), 2); self.assertEqual(after[1], before[1])
+
+
+class OnlyTheTarget(Base):
+    """Defect 2: a mutating op rewrites only the record it targets; every other line keeps its bytes."""
+    def test_mixed_file_set_touches_one_line(self):
+        # Hand-written lines: odd spacing and key order no serialiser would produce, both dialects mixed.
+        lines = ['{"id": "T-001", "status": "pending",  "title": "a", "type": "task"}',
+                 '{"title":"b","id":"T-002","status":"open","type":"task"}',
+                 '{"id": "T-003", "status": "completed", "verification_evidence": "x", "title": "c", "type": "task"}',
+                 '{"id": "T-004", "status": "done", "verification_evidence": "x", "title": "d", "type": "task"}',
+                 '{"id": "T-005", "status": "incomplete", "title": "\u00e9", "type": "task"}']
+        self.top.write_bytes(("\n".join(lines) + "\n").encode())
+        self.art("set", "T-002", "in_progress")
+        after = self.top.read_bytes().decode().splitlines()
+        self.assertEqual(len(after), len(lines))
+        for i, (b, a) in enumerate(zip(lines, after)):
+            if i == 1:
+                self.assertNotEqual(a, b); self.assertEqual(json.loads(a)["status"], "in_progress")
+            else:
+                self.assertEqual(a.encode(), b.encode(), f"untouched line {i + 1} was rewritten")
+
+    def test_add_appends_without_rewriting(self):
+        lines = ['{"id":"T-001","status":"pending","title":"a"}', '', '{"id":"T-002","status":"open","title":"b"}']
+        self.top.write_bytes(("\n".join(lines) + "\n").encode())
+        self.art("add", "--id", "T-003", "--title", "c")
+        after = self.top.read_bytes().decode().splitlines()
+        self.assertEqual(after[:3], lines)
+        self.assertEqual(json.loads(after[3])["id"], "T-003")
+
+
+def snapshot(root: Path) -> dict:
+    return {str(p.relative_to(root)): (p.read_bytes() if p.is_file() else None)
+            for p in root.rglob("*") if ".git" not in p.relative_to(root).parts}
+
+
+class FailedOpLeavesNoTrace(Base):
+    """Defect 3: a refused mutating op creates no directory, no lock file, nothing."""
+    def test_set_without_task_file(self):
+        before = snapshot(self.root)
+        cp = self.art("set", "T-1", "done", check=False)
+        self.assertNotEqual(cp.returncode, 0)
+        self.assertEqual(snapshot(self.root), before)
+        self.assertFalse((self.root / ".devloop").exists())
+
+    def test_refusals_with_a_task_file(self):
+        write(self.top, [rec("T-001")])
+        before = snapshot(self.root)
+        for args in (("set", "T-999", "open"), ("set", "T-001", "bogus"), ("set", "T-001", "done"),
+                     ("reconcile", "T-999"), ("add", "--id", "T-001", "--title", "dup"),
+                     ("add", "--id", "bad id", "--title", "x"), ("add", "--id", "T-002", "--title", "x", "--depends", "T-404")):
+            cp = self.art(*args, check=False)
+            self.assertNotEqual(cp.returncode, 0, args)
+            self.assertEqual(snapshot(self.root), before, f"{args} left a trace")
+
+    def test_fold_without_task_file_creates_nothing(self):
+        before = snapshot(self.root)
+        self.art("fold-stale")
+        self.assertEqual(snapshot(self.root), before)
+
+
+class Overrides(Base):
+    """Defect 4: TASKS.md carries an operator overrides block that render keeps and readers apply."""
+    def test_block_kept_and_applied(self):
+        write(self.top, [rec("T-001"), rec("T-002")])
+        self.art("render")
+        md = (self.root / "TASKS.md").read_text("utf-8")
+        self.assertIn(artifacts.OVERRIDES_BEGIN, md); self.assertIn(artifacts.OVERRIDES_END, md)
+        block = ["Operator note: T-001 waits on an outside party.", "```jsonl",
+                 '{"id": "T-001", "status": "blocked", "owner": "ops"}', "```"]
+        b, e = md.index(artifacts.OVERRIDES_BEGIN), md.index(artifacts.OVERRIDES_END)
+        md = md[:b] + artifacts.OVERRIDES_BEGIN + "\n" + "\n".join(block) + "\n" + md[e:]
+        (self.root / "TASKS.md").write_text(md, "utf-8")
+        store = self.top.read_bytes()
+        self.assertEqual(self.art("next").stdout.splitlines(), ["T-002  title T-002"])   # applied on read
+        self.art("render")
+        md2 = (self.root / "TASKS.md").read_text("utf-8")
+        self.assertIn(artifacts.OVERRIDES_BEGIN + "\n" + "\n".join(block) + "\n" + artifacts.OVERRIDES_END, md2)
+        self.assertIn("**T-001** title T-001 **[blocked]** @ops", md2)
+        self.assertEqual(self.top.read_bytes(), store, "reading overrides must not write the store")
+        lane = json.loads(self.art("lane", "T-001").stdout)
+        self.assertIsInstance(lane, dict)
+
+    def test_unknown_or_malformed_override_is_an_error(self):
+        write(self.top, [rec("T-001")])
+        self.art("render")
+        md = (self.root / "TASKS.md").read_text("utf-8")
+        e = md.index(artifacts.OVERRIDES_END)
+        (self.root / "TASKS.md").write_text(md[:e] + '{"id": "T-404", "status": "done"}\n' + md[e:], "utf-8")
+        cp = self.art("validate", check=False)
+        self.assertNotEqual(cp.returncode, 0); self.assertIn("T-404", cp.stderr)
+        (self.root / "TASKS.md").write_text(md[:e] + '{"id": "T-001", \n' + md[e:], "utf-8")
+        self.assertNotEqual(self.art("next", check=False).returncode, 0)
+
+    def test_foreign_tasks_md_has_no_overrides(self):
+        write(self.top, [rec("T-001")])
+        (self.root / "TASKS.md").write_text("# Other\n<!-- overrides:begin -->\n{\"id\": \"T-001\", \"status\": \"blocked\"}\n<!-- overrides:end -->\n", "utf-8")
+        self.assertEqual(self.art("next").stdout.splitlines(), ["T-001  title T-001"])
+
+
+class GoalImport(unittest.TestCase):
+    def test_goal_py_inserts_its_dir_once(self):
+        src = (SCRIPTS / "goal.py").read_text("utf-8")
+        self.assertEqual(src.count("sys.path.insert("), 1)
+
+
 if __name__ == "__main__":
     os.chdir(tempfile.gettempdir())
     unittest.main(verbosity=2)

@@ -17,13 +17,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import artifacts as _artifacts  # noqa: E402  (ships beside this file; the one task-file resolver)
-
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
     sys.path.insert(0, str(HERE))
 from repo_root import cli_repo_root, find_repo_root  # noqa: E402  -- the one repo-root resolver
+import artifacts as _artifacts  # noqa: E402  -- the one task-file resolver, also beside this file
 
 
 # The closed set evaluate() dispatches on. Anything outside it fails rather than passes:

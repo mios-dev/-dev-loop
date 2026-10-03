@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 _Paths: `${CLAUDE_SKILL_DIR}/../dev-loop/scripts/` resolves in Claude Code; in other harnesses use `<skills dir>/dev-loop/scripts/` (the shims in `shims/<harness>/` already do)._ Below, `$S` = that scripts directory, and every command takes `--root .` (the repository root).
 
-State lives on disk in the task file - one JSON object per line - never in the context window. `artifacts.py tasks path` prints the resolved task file: `--tasks FILE`, then `$DEVLOOP_TASKS_FILE` (relative to the root), then `<root>/tasks.jsonl` when it exists, then `.devloop/tasks.jsonl` (the scaffold default). `TASKS.md` is a **rendered view**; editing it by hand loses the edit on the next render. Route on the first word of `$ARGUMENTS`; default `next`.
+State lives on disk in the task file - one JSON object per line - never in the context window. `artifacts.py tasks path` prints the resolved task file: `--tasks FILE`, then `$DEVLOOP_TASKS_FILE` (relative to the root), then `<root>/tasks.jsonl` when it exists, then `.devloop/tasks.jsonl` (the scaffold default). `TASKS.md` is a **rendered view**; editing it by hand loses the edit on the next render, except inside its `<!-- overrides:begin -->`/`<!-- overrides:end -->` block, which render keeps verbatim and whose JSON lines (`{"id": "T-001", "status": "blocked"}`) every read applies on top of the task file. Route on the first word of `$ARGUMENTS`; default `next`.
 
 ## next - what is unblocked right now
 
