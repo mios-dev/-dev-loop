@@ -131,45 +131,85 @@ def _split_lines(text: str) -> list[tuple[str, str]]:
     return out
 
 
-class TaskFile:
-    """A task file as it is on disk: every line kept verbatim (its terminator included), the records parsed with
-    status normalised to the internal words, and the file's status dialect decided once, at load - an explicit marker
-    line wins, else the dialect the records show, else legacy. A save rewrites only the records that changed, in that
-    dialect, ending each changed or new line with the file's prevailing terminator."""
+class LineFile:
+    """Any text file a task op reads or writes, as it is on disk: (body, terminator) per line, split on '\\n' only.
+    Every write goes through here, so an untouched line keeps its bytes (terminator included), a new or changed
+    line takes the file's prevailing terminator, and a file that ended without a newline still does. One reader and
+    writer for the task file, the archive JSONL, HISTORICAL_BACKLOG.md, spike and distillation documents, TASKS.md
+    and the info/exclude line - never a per-file copy."""
 
     def __init__(self, p: Path):
-        self.path = Path(p); self.lines: list[tuple[str, str, dict | None, dict | None]] = []  # (body, eol, record, snapshot)
-        self.tasks: list[dict] = []; marker = None; words = []
-        split = _split_lines(self.path.read_bytes().decode("utf-8")) if self.path.exists() else []
-        for n, (raw, eol) in enumerate(split, 1):
+        self.path = Path(p)
+        self.split = _split_lines(self.path.read_bytes().decode("utf-8")) if self.path.is_file() else []
+        eols = [e for _, e in self.split if e]
+        crlf, lf = eols.count("\r\n"), eols.count("\n")
+        self.eol = "\r\n" if crlf > lf or (crlf == lf and eols and eols[0] == "\r\n") else "\n"  # prevailing; a tie goes to the first
+        # False: the file ends without a newline, and keeps doing so. None: nothing on disk yet, the new content decides.
+        self.final_eol = None if not self.split else self.split[-1][1] != ""
+
+    @property
+    def bodies(self) -> list[str]:
+        return [b for b, _ in self.split]
+
+    def join(self, rows: list[list], final_default: bool = True) -> str:
+        """rows: [body, terminator | None]; None (a new or changed line) takes the prevailing terminator."""
+        for ln in rows:
+            if ln[1] is None: ln[1] = self.eol
+        for ln in rows[:-1]:
+            if not ln[1]: ln[1] = self.eol  # the old last line, now followed by another, needs a separator
+        final = final_default if self.final_eol is None else self.final_eol
+        if rows: rows[-1][1] = (rows[-1][1] or self.eol) if final else ""
+        return "".join(b + e for b, e in rows)
+
+    def render_text(self, text: str) -> str:
+        """The file with `text` ('\\n'-separated) as its new content: every line that survives unchanged (matched in
+        order) keeps its own terminator; the rest take the prevailing one."""
+        import difflib
+        new = [b for b, _ in _split_lines(text)]; old = self.split
+        rows: list[list] = [[b, None] for b in new]
+        sm = difflib.SequenceMatcher(None, [b for b, _ in old], new, autojunk=False)
+        for i, j, n in sm.get_matching_blocks():
+            for k in range(n): rows[j + k][1] = old[i + k][1]
+        return self.join(rows, final_default=text.endswith("\n"))
+
+    def append_text(self, text: str, header: str = "") -> str:
+        """The file with `text` ('\\n'-separated) appended; `header` first when nothing is on disk yet."""
+        if self.final_eol is None: text = header + text
+        return self.join([[b, e] for b, e in self.split] + [[b, None] for b, _ in _split_lines(text)],
+                         final_default=text.endswith("\n"))
+
+
+class JsonlFile(LineFile):
+    """A JSONL file on top of LineFile: the records parsed, the other lines (blank, or what _accept passes over)
+    kept verbatim. render() rewrites only the records that changed; an unchanged record keeps its line byte for
+    byte, a removed one is dropped, a new one is appended."""
+
+    def __init__(self, p: Path):
+        super().__init__(p)
+        self.lines: list[tuple[str, str, dict | None, dict | None]] = []  # (body, eol, record, snapshot)
+        self.records: list = []
+        for n, (raw, eol) in enumerate(self.split, 1):
             if not raw.strip(): self.lines.append((raw, eol, None, None)); continue
             try: t = json.loads(raw)
             except json.JSONDecodeError as e: die(f"{self.path.name} line {n}: {e}")
-            if _is_marker(t):
-                marker = marker or t[DIALECT_KEY]; self.lines.append((raw, eol, None, None)); continue
-            if isinstance(t, dict):
-                words.append(t.get("status")); t["status"] = norm_status(t.get("status"))
-            self.lines.append((raw, eol, t, json.loads(json.dumps(t)))); self.tasks.append(t)
-        eols = [e for _, e in split if e]
-        crlf, lf = eols.count("\r\n"), eols.count("\n")
-        self.eol = "\r\n" if crlf > lf or (crlf == lf and eols and eols[0] == "\r\n") else "\n"  # prevailing; a tie goes to the first
-        self.final_eol = not split or split[-1][1] != ""  # False: the file ends without a newline, and keeps doing so
-        self.marker = marker
-        self.dialect = marker or _content_dialect(words) or "legacy"
+            t = self._accept(t)
+            if t is None: self.lines.append((raw, eol, None, None)); continue
+            self.lines.append((raw, eol, t, json.loads(json.dumps(t)))); self.records.append(t)
 
-    def dump(self, t: dict) -> str:
-        if self.dialect == "openai" and isinstance(t, dict) and t.get("status") in STATUS_DIALECT_OUT:
-            t = {**t, "status": STATUS_DIALECT_OUT[t["status"]]}
+    def _accept(self, t):
+        """The record a parsed line holds, or None to keep the line verbatim as a non-record."""
+        return t
+
+    def dump(self, t) -> str:
         return json.dumps(t, ensure_ascii=False)
 
-    def render(self, tasks: list[dict]) -> str:
-        """The file with `tasks` in place of the loaded records. A loaded record that is still present and unchanged
-        keeps its line byte for byte, terminator included; a changed one is re-serialised in the file's dialect; a
-        missing one is dropped; a new one is appended. Blank and marker lines stay where they were. Changed and new
-        lines end with the prevailing terminator; a file that ended without a newline still does."""
-        by_obj = {id(t): t for t in tasks}; by_id: dict = {}
-        for t in tasks: by_id.setdefault(t.get("id") if isinstance(t, dict) else None, []).append(t)
-        used: set = set(); out: list[list[str]] = []
+    def _pin(self, out: list[list]) -> None:
+        """Hook: adjust the rendered rows before they are joined."""
+
+    def render(self, records: list) -> str:
+        by_obj = {id(t): t for t in records}; by_id: dict = {}
+        for t in records: by_id.setdefault(t.get("id") if isinstance(t, dict) else None, []).append(t)
+        used: set = set(); out: list[list] = []
         for raw, eol, rec, snap in self.lines:
             if rec is None: out.append([raw, eol]); continue
             cur = by_obj.get(id(rec))
@@ -177,19 +217,48 @@ class TaskFile:
                 cur = next((t for t in by_id.get(rec.get("id") if isinstance(rec, dict) else None, []) if id(t) not in used), None)
             if cur is None: continue  # removed
             used.add(id(cur))
-            out.append([raw, eol] if cur == snap else [self.dump(cur), self.eol])
-        out += [[self.dump(t), self.eol] for t in tasks if id(t) not in used]
+            out.append([raw, eol] if cur == snap else [self.dump(cur), None])
+        out += [[self.dump(t), None] for t in records if id(t) not in used]
+        self._pin(out)
+        return self.join(out)
+
+
+class TaskFile(JsonlFile):
+    """A task file as it is on disk (a JsonlFile): the records with status normalised to the internal words, and the
+    file's status dialect decided once, at load - an explicit marker line wins, else the dialect the records show,
+    else legacy. A save rewrites only the records that changed, in that dialect."""
+
+    def __init__(self, p: Path):
+        self.marker = None; self._words: list = []
+        super().__init__(p)
+        self.tasks = self.records
+        self.dialect = self.marker or _content_dialect(self._words) or "legacy"
+
+    def _accept(self, t):
+        if _is_marker(t):
+            self.marker = self.marker or t[DIALECT_KEY]; return None
+        if isinstance(t, dict):
+            self._words.append(t.get("status")); t["status"] = norm_status(t.get("status"))
+        return t
+
+    def dump(self, t) -> str:
+        if self.dialect == "openai" and isinstance(t, dict) and t.get("status") in STATUS_DIALECT_OUT:
+            t = {**t, "status": STATUS_DIALECT_OUT[t["status"]]}
+        return json.dumps(t, ensure_ascii=False)
+
+    def _pin(self, out: list[list]) -> None:
         if self.marker is None:
             # The content left may no longer say the dialect the file loaded with (every record in_progress, or a
             # legacy file whose last legacy words left so openai words now hold the majority): pin it - whichever it
             # is - or the next load would read the file in the other dialect and write that dialect's words into it.
             recs = [json.loads(b) for b, _ in out if b.strip()]
             left = [r.get("status") for r in recs if isinstance(r, dict) and not _is_marker(r)]
-            if (_content_dialect(left) or "legacy") != self.dialect: out.insert(0, [json.dumps({DIALECT_KEY: self.dialect}), self.eol])
-        for ln in out[:-1]:
-            if not ln[1]: ln[1] = self.eol  # the old last line, now followed by another, needs a separator
-        if out: out[-1][1] = (out[-1][1] or self.eol) if self.final_eol else ""
-        return "".join(b + e for b, e in out)
+            if (_content_dialect(left) or "legacy") != self.dialect: out.insert(0, [json.dumps({DIALECT_KEY: self.dialect}), None])
+
+    def render(self, tasks: list[dict]) -> str:
+        """The file with `tasks` in place of the loaded records (see JsonlFile.render); blank and marker lines stay
+        where they were, and a dialect marker is added when the remaining content would no longer say the dialect."""
+        return super().render(tasks)
 
 
 def read_task_file(p: Path) -> tuple[list[dict], str]:
@@ -228,9 +297,15 @@ def _put(p: Path, data) -> None:
 
 
 def _append(p: Path, data: str, header: str = "") -> None:
-    """Append `data` to p (starting it with `header` when p does not exist yet), through the sink."""
-    old = Path(p).read_bytes() if Path(p).is_file() else header.encode("utf-8")
-    _put(p, old + data.encode("utf-8"))
+    """Append `data` ('\n'-separated lines) to p, starting it with `header` when p does not exist yet, through the
+    sink: the lines already there keep their bytes, the new ones take the file's prevailing terminator."""
+    _put(p, LineFile(p).append_text(data, header))
+
+
+def _put_text(p: Path, text: str) -> None:
+    """Replace p's content with `text` ('\n'-separated), through the sink, keeping the terminator of every line
+    that survives unchanged."""
+    _put(p, LineFile(p).render_text(text))
 
 
 def save_tasks(root: Path, tasks: list[dict], path=None, loaded: "TaskFile | None" = None) -> None:
@@ -255,10 +330,9 @@ def _exclude_lock_file(lock: Path) -> None:
         if ex.returncode: return
         exf = Path(ex.stdout.strip()); exf = exf if exf.is_absolute() else Path(top.stdout.strip()) / exf
         exf.parent.mkdir(parents=True, exist_ok=True)
-        cur = exf.read_text("utf-8") if exf.exists() else ""
-        line = "/" + rel
-        if line not in cur.splitlines():
-            exf.write_text(cur + ("" if not cur or cur.endswith("\n") else "\n") + line + "\n", "utf-8")
+        cur = LineFile(exf); line = "/" + rel
+        if line not in cur.bodies:
+            exf.write_bytes(cur.append_text(line + "\n").encode("utf-8"))
     except (OSError, ValueError):
         pass
 
@@ -451,7 +525,7 @@ def read_overrides_block(root: Path) -> list[str] | None:
     such TASKS.md or no block. A TASKS.md that does not open with the '# TASKS' banner belongs to someone else."""
     md = Path(root) / "TASKS.md"
     if not md.is_file(): return None
-    lines = md.read_text("utf-8", errors="replace").splitlines()
+    lines = [b for b, _ in _split_lines(md.read_bytes().decode("utf-8", errors="replace"))]
     if not lines or lines[0] != RENDER_BANNER: return None
     try: b = lines.index(OVERRIDES_BEGIN); e = lines.index(OVERRIDES_END, b + 1)
     except ValueError: return None
@@ -543,7 +617,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         if by_epic.get("_none"):
             lines += ["## Unassigned", ""] + [line(t) for t in by_epic["_none"]] + [""]
         n_done = sum(t["status"] == "done" for t in tasks); lines += [f"_{n_done}/{len(tasks)} {shown('done')} · {time.strftime('%Y-%m-%d')}_", ""]
-        _put(root / "TASKS.md", "\n".join(lines)); print(f"TASKS.md rendered ({len(tasks)} tasks)")
+        _put_text(root / "TASKS.md", "\n".join(lines)); print(f"TASKS.md rendered ({len(tasks)} tasks)")
     elif a.op == "set":
         t = next((t for t in tasks if t["id"] == a.id), None) or die(f"no task {a.id}")
         a.status = norm_status(a.status)
@@ -624,7 +698,8 @@ def _cmd_tasks(a, root: Path, path: Path):
                 surviving.append(t)
         
         if archived:
-            _append(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived))
+            arch = JsonlFile(archive_jsonl)
+            _put(archive_jsonl, arch.render(arch.records + archived))
             
             # Append markdown record
             md_entries = [f"\n## [FOLDED] [{t['id']}] {t['title']} (Folded {t['folded_at']} @ {t['folded_commit'][:8]})\n"
@@ -658,7 +733,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         if not archive_jsonl.exists():
             print("No archived tasks found to recycle.")
             return
-        archived_tasks = [json.loads(l) for l in archive_jsonl.read_text("utf-8").splitlines() if l.strip()]
+        arch = JsonlFile(archive_jsonl); archived_tasks = arch.records
         cadence = getattr(a, "cadence", 25) or 25
         head_sha = get_git_head_commit(root)
         target_id = a.id or getattr(a, "id_flag", None)
@@ -676,14 +751,15 @@ def _cmd_tasks(a, root: Path, path: Path):
             hl["staleness_score"] = 0.0
             target_task.pop("folded_status", None)
             target_task["review_state"] = "reactivated"
-            active = load_tasks(root, path)
-            active.append(target_task)
-            save_tasks(root, active, path)
+            if any(t.get("id") == target_id for t in tasks):
+                print(f"{target_id} is already active in {name}; nothing to reactivate"); return
+            tasks.append(target_task)
+            save_tasks(root, tasks, path, tf)
             for t in archived_tasks:
                 if t["id"] == target_id:
                     t["review_state"] = "reactivated"
                     t["reactivated_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
-            _put(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks))
+            _put(archive_jsonl, arch.render(archived_tasks))
             print(f"Task {target_id} reactivated to active {name} at HEAD ({head_sha[:8]})")
             return
 
@@ -720,12 +796,12 @@ def _cmd_tasks(a, root: Path, path: Path):
                 "- [ ] Supercede with new ADR / Milestone",
                 "- [ ] Keep folded for future review cycle",
             ]
-            _put(spike_file, "\n".join(spike_lines))
+            _put_text(spike_file, "\n".join(spike_lines))
             for t in archived_tasks:
                 if t["id"] == target_id:
                     t["review_state"] = "re-researched"
                     t["spike_file"] = str(spike_file.relative_to(root))
-            _put(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks))
+            _put(archive_jsonl, arch.render(archived_tasks))
             print(f"Generated research spike for {target_id} at {spike_file}")
             return
 
@@ -755,7 +831,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         if not archive_jsonl.exists():
             print(f"No archive file found at {archive_jsonl} to distill.")
             return
-        archived_tasks = [json.loads(line) for line in archive_jsonl.read_text("utf-8").splitlines() if line.strip()]
+        archived_tasks = JsonlFile(archive_jsonl).records
         distill_dir = root / "docs" / "distilled"
         distill_out = distill_dir / "knowledge_distillation.md"
         
@@ -787,7 +863,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         lines.append("- Broken file anchors are the strongest leading indicator of task obsolescence.")
         lines.append("- Historical reasoning is preserved losslessly for future architectural synthesis.")
         
-        _put(distill_out, "\n".join(lines))
+        _put_text(distill_out, "\n".join(lines))
         print(f"Distilled {len(archived_tasks)} archived tasks into {distill_out}")
     elif a.op == "export-openai":
         schema = {

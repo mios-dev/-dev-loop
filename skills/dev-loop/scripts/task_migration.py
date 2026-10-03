@@ -395,7 +395,7 @@ def main():
 
     existing = []
     if args.existing_jsonl and os.path.isfile(args.existing_jsonl):
-        for line in Path(args.existing_jsonl).read_text(encoding="utf-8").splitlines():
+        for line in Path(args.existing_jsonl).read_text(encoding="utf-8").split("\n"):  # '\n' only: a JSON string may hold U+2028 raw
             if line.strip():
                 try:
                     existing.append(json.loads(line))

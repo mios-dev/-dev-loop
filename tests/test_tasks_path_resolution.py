@@ -512,6 +512,108 @@ class LineTerminators(Base):
         self.assertFalse(b1.endswith(b"\n"))
 
 
+
+def crlf(p: Path) -> bytes:
+    """Rewrite p with every terminator CRLF (what a text-mode writer on Windows leaves); return the new bytes."""
+    b = p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"); p.write_bytes(b); return b
+
+
+def bare_lf(b: bytes) -> int:
+    return b.count(b"\n") - b.count(b"\r\n")
+
+
+class SideFiles(Base):
+    """Every file a task op reads or writes - the archive JSONL, HISTORICAL_BACKLOG.md, spike documents,
+    info/exclude - goes through the same line-preserving reader/writer as the task file: untouched lines keep their
+    bytes, new lines take the file's prevailing terminator, a run with nothing to change leaves no trace."""
+
+    OLD = {"updated": "2000-01-01"}
+
+    def setUp(self):
+        super().setUp()
+        self.arc = self.root / ".devloop" / "backlog_archive.jsonl"
+        self.hist = self.root / ".devloop" / "HISTORICAL_BACKLOG.md"
+        self.ex = self.root / ".git" / "info" / "exclude"
+
+    def _drop_lock(self, ex0: bytes):
+        self.top.with_name("tasks.jsonl.lock").unlink(missing_ok=True); self.ex.write_bytes(ex0)
+
+    def test_crlf_archive_repeated_re_research_leaves_no_trace(self):
+        ex0 = self.ex.read_bytes()
+        write(self.top, [rec("T-1", **self.OLD), rec("T-2", **self.OLD), rec("T-3")])
+        self.art("fold-stale")
+        self.art("recycle", "T-1", "--re-research")
+        spike = self.root / "docs" / "research" / "spike-t-1.md"
+        for f in (self.arc, self.hist, spike): crlf(f)
+        spike.write_bytes(spike.read_bytes().replace(b"\r\n", b"\n", 1))  # mixed: each line keeps its own
+        self._drop_lock(ex0)
+        before = tree_and_exclude(self.root)
+        cp = self.art("recycle", "T-1", "--re-research")
+        self.assertIn("spike", cp.stdout)
+        self.assertEqual(tree_and_exclude(self.root), before, "a no-change re-research on a CRLF archive left a trace")
+        # a real change to one archive record rewrites that line only, with the archive's CRLF
+        a0 = line_map(self.arc.read_bytes())
+        self.art("recycle", "T-2", "--re-research")
+        b = self.arc.read_bytes(); a1 = line_map(b)
+        self.assertEqual(a1["T-1"], a0["T-1"]); self.assertNotEqual(a1["T-2"], a0["T-2"])
+        self.assertEqual(bare_lf(b), 0, b)
+
+    def test_appends_take_the_prevailing_terminator(self):
+        write(self.top, [rec("T-1", **self.OLD), rec("T-2")])
+        self.art("fold-stale")
+        a0, h0 = crlf(self.arc), crlf(self.hist)
+        tasks = read(self.top); tasks.append(rec("T-4", **self.OLD)); write(self.top, tasks)
+        self.art("fold-stale")
+        a1, h1 = self.arc.read_bytes(), self.hist.read_bytes()
+        self.assertTrue(a1.startswith(a0)); self.assertTrue(h1.startswith(h0))
+        self.assertEqual(set(line_map(a1)), {"T-1", "T-4"})
+        self.assertEqual(bare_lf(a1), 0, a1); self.assertEqual(bare_lf(h1), 0, h1)
+        self.assertIn(b"[T-4]", h1)
+
+    def test_lf_archive_stays_lf(self):
+        write(self.top, [rec("T-1", **self.OLD), rec("T-2")])
+        self.art("fold-stale"); self.art("recycle", "T-1", "--re-research")
+        for f in (self.arc, self.hist): self.assertNotIn(b"\r", f.read_bytes())
+
+    def test_crlf_exclude_gains_a_crlf_line(self):
+        self.ex.parent.mkdir(parents=True, exist_ok=True)
+        ex0 = b"# git ls-files --others --exclude-from=.git/info/exclude\r\n*.swp\r\n"; self.ex.write_bytes(ex0)
+        write(self.top, [rec("T-1")])
+        self.art("set", "T-1", "blocked")
+        ex1 = self.ex.read_bytes()
+        self.assertTrue(ex1.startswith(ex0)); self.assertIn(b"/tasks.jsonl.lock\r\n", ex1); self.assertEqual(bare_lf(ex1), 0)
+
+
+class LineSeparatorInArchive(Base):
+    """A JSON string may hold U+2028 raw (ensure_ascii=False); every JSONL reader splits on '\n' only, so a folded
+    task with one in its title survives fold -> recycle -> re-research -> distill."""
+
+    def test_fold_recycle_distill(self):
+        write(self.top, [rec("T-1", title="before after", updated="2000-01-01"), rec("T-2")])
+        self.art("fold-stale")
+        arc = self.root / ".devloop" / "backlog_archive.jsonl"
+        self.assertIn(" ".encode("utf-8"), arc.read_bytes())  # written raw: the case str.splitlines() breaks on
+        self.assertIn("T-1", self.art("recycle").stdout)
+        self.art("recycle", "T-1", "--re-research")
+        self.assertIn("Distilled 1 archived tasks", self.art("distill").stdout)
+        self.assertIn("before after", (self.root / "docs" / "distilled" / "knowledge_distillation.md").read_text("utf-8"))
+
+
+class ReactivateIsIdempotent(Base):
+    """'recycle T-1 --reactivate' run twice: the second run finds T-1 already active and writes nothing."""
+
+    def test_twice(self):
+        write(self.top, [rec("T-1", updated="2000-01-01"), rec("T-2")])
+        self.art("fold-stale")
+        self.art("recycle", "T-1", "--reactivate")
+        before = tree_and_exclude(self.root)
+        cp = self.art("recycle", "T-1", "--reactivate")
+        self.assertIn("already active", cp.stdout)
+        self.assertEqual(tree_and_exclude(self.root), before, "a second reactivate changed something")
+        self.assertEqual([r["id"] for r in read(self.top)].count("T-1"), 1)
+        self.art("validate")
+
+
 class GoalImport(unittest.TestCase):
     def test_goal_py_inserts_its_dir_once(self):
         src = (SCRIPTS / "goal.py").read_text("utf-8")
