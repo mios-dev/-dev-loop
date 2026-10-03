@@ -21,9 +21,11 @@ Every `tasks` op also takes --tasks FILE. Task file resolution (first match wins
   2. $DEVLOOP_TASKS_FILE                  (relative to --root)
   3. <root>/tasks.jsonl                   when it is a file (a project keeping its canonical list at the root)
   4. <root>/.devloop/tasks.jsonl          the default; `scaffold` creates it when no task file resolves yet
-Mutating ops (set, add, reconcile, archive-stale, fold-stale, recycle) hold an exclusive lock on '<task file>.lock'
-around load-modify-save, so another tool taking the same lock never loses an update. An op that can change nothing
-(a recycle listing, or any recycle with no archive) takes no lock and leaves the tree byte-identical.
+Mutating ops (set, add, reconcile, archive-stale, fold-stale, recycle) are planned first against a dry sink; one that
+would write holds an exclusive lock on '<task file>.lock' around load-modify-save, so another tool taking the same lock
+never loses an update. One that is refused, or would change nothing (already in that state, nothing stale, a recycle
+listing), takes no lock and leaves the tree - .git/info/exclude included - byte-identical. Task-file lines keep their
+own terminators (CRLF, LF, none at the end); changed and new lines take the file's prevailing one.
 
 Vocabularies (also enforced by `tasks validate`):
   task.status  open | in_progress | blocked | done | cancelled      task.type  task | epic | bug
@@ -116,24 +118,42 @@ def _content_dialect(statuses) -> str | None:
     return None if first is None else "openai" if o > l else "legacy" if l > o else first
 
 
+def _split_lines(text: str) -> list[tuple[str, str]]:
+    """(body, terminator) per line, splitting on '\n' only: the terminator is '\r\n', '\n', or '' for a last line
+    without one. str.splitlines() would also split on characters a JSON string may hold raw (U+2028, form feed...)
+    and would drop which terminator each line had."""
+    out = []; parts = text.split("\n")
+    for i, s in enumerate(parts):
+        if i == len(parts) - 1:
+            if s: out.append((s, ""))
+        elif s.endswith("\r"): out.append((s[:-1], "\r\n"))
+        else: out.append((s, "\n"))
+    return out
+
+
 class TaskFile:
-    """A task file as it is on disk: every line kept verbatim, the records parsed with status normalised to the
-    internal words, and the file's status dialect decided once, at load - an explicit marker line wins, else the
-    dialect the records show, else legacy. A save rewrites only the records that changed, in that dialect."""
+    """A task file as it is on disk: every line kept verbatim (its terminator included), the records parsed with
+    status normalised to the internal words, and the file's status dialect decided once, at load - an explicit marker
+    line wins, else the dialect the records show, else legacy. A save rewrites only the records that changed, in that
+    dialect, ending each changed or new line with the file's prevailing terminator."""
 
     def __init__(self, p: Path):
-        self.path = Path(p); self.lines: list[tuple[str, dict | None, dict | None]] = []  # (raw, record, snapshot)
+        self.path = Path(p); self.lines: list[tuple[str, str, dict | None, dict | None]] = []  # (body, eol, record, snapshot)
         self.tasks: list[dict] = []; marker = None; words = []
-        if self.path.exists():
-            for n, raw in enumerate(self.path.read_text("utf-8").splitlines(), 1):
-                if not raw.strip(): self.lines.append((raw, None, None)); continue
-                try: t = json.loads(raw)
-                except json.JSONDecodeError as e: die(f"{self.path.name} line {n}: {e}")
-                if _is_marker(t):
-                    marker = marker or t[DIALECT_KEY]; self.lines.append((raw, None, None)); continue
-                if isinstance(t, dict):
-                    words.append(t.get("status")); t["status"] = norm_status(t.get("status"))
-                self.lines.append((raw, t, json.loads(json.dumps(t)))); self.tasks.append(t)
+        split = _split_lines(self.path.read_bytes().decode("utf-8")) if self.path.exists() else []
+        for n, (raw, eol) in enumerate(split, 1):
+            if not raw.strip(): self.lines.append((raw, eol, None, None)); continue
+            try: t = json.loads(raw)
+            except json.JSONDecodeError as e: die(f"{self.path.name} line {n}: {e}")
+            if _is_marker(t):
+                marker = marker or t[DIALECT_KEY]; self.lines.append((raw, eol, None, None)); continue
+            if isinstance(t, dict):
+                words.append(t.get("status")); t["status"] = norm_status(t.get("status"))
+            self.lines.append((raw, eol, t, json.loads(json.dumps(t)))); self.tasks.append(t)
+        eols = [e for _, e in split if e]
+        crlf, lf = eols.count("\r\n"), eols.count("\n")
+        self.eol = "\r\n" if crlf > lf or (crlf == lf and eols and eols[0] == "\r\n") else "\n"  # prevailing; a tie goes to the first
+        self.final_eol = not split or split[-1][1] != ""  # False: the file ends without a newline, and keeps doing so
         self.marker = marker
         self.dialect = marker or _content_dialect(words) or "legacy"
 
@@ -144,28 +164,32 @@ class TaskFile:
 
     def render(self, tasks: list[dict]) -> str:
         """The file with `tasks` in place of the loaded records. A loaded record that is still present and unchanged
-        keeps its line byte for byte; a changed one is re-serialised in the file's dialect; a missing one is dropped;
-        a new one is appended. Blank and marker lines stay where they were."""
+        keeps its line byte for byte, terminator included; a changed one is re-serialised in the file's dialect; a
+        missing one is dropped; a new one is appended. Blank and marker lines stay where they were. Changed and new
+        lines end with the prevailing terminator; a file that ended without a newline still does."""
         by_obj = {id(t): t for t in tasks}; by_id: dict = {}
         for t in tasks: by_id.setdefault(t.get("id") if isinstance(t, dict) else None, []).append(t)
-        used: set = set(); out: list[str] = []
-        for raw, rec, snap in self.lines:
-            if rec is None: out.append(raw); continue
+        used: set = set(); out: list[list[str]] = []
+        for raw, eol, rec, snap in self.lines:
+            if rec is None: out.append([raw, eol]); continue
             cur = by_obj.get(id(rec))
             if cur is None or id(cur) in used:
                 cur = next((t for t in by_id.get(rec.get("id") if isinstance(rec, dict) else None, []) if id(t) not in used), None)
             if cur is None: continue  # removed
             used.add(id(cur))
-            out.append(raw if cur == snap else self.dump(cur))
-        out += [self.dump(t) for t in tasks if id(t) not in used]
+            out.append([raw, eol] if cur == snap else [self.dump(cur), self.eol])
+        out += [[self.dump(t), self.eol] for t in tasks if id(t) not in used]
         if self.marker is None:
             # The content left may no longer say the dialect the file loaded with (every record in_progress, or a
             # legacy file whose last legacy words left so openai words now hold the majority): pin it - whichever it
             # is - or the next load would read the file in the other dialect and write that dialect's words into it.
-            recs = [json.loads(l) for l in out if l.strip()]
+            recs = [json.loads(b) for b, _ in out if b.strip()]
             left = [r.get("status") for r in recs if isinstance(r, dict) and not _is_marker(r)]
-            if (_content_dialect(left) or "legacy") != self.dialect: out.insert(0, json.dumps({DIALECT_KEY: self.dialect}))
-        return "".join(l + "\n" for l in out)
+            if (_content_dialect(left) or "legacy") != self.dialect: out.insert(0, [json.dumps({DIALECT_KEY: self.dialect}), self.eol])
+        for ln in out[:-1]:
+            if not ln[1]: ln[1] = self.eol  # the old last line, now followed by another, needs a separator
+        if out: out[-1][1] = (out[-1][1] or self.eol) if self.final_eol else ""
+        return "".join(b + e for b, e in out)
 
 
 def read_task_file(p: Path) -> tuple[list[dict], str]:
@@ -177,17 +201,45 @@ def load_tasks(root: Path, path=None) -> list[dict]:
     return TaskFile(Path(path) if path else tasks_path(root)).tasks
 
 
+class _Sink:
+    """Where a task op's file writes go. Every write names the whole new content of one file; a write that would
+    leave the file's bytes as they are is no write at all. Live, the rest are written atomically (parent directory
+    created on demand); dry, nothing is written and `changed` lists the files that would have changed - so an op can
+    be planned first and the lock taken only when it will really write."""
+
+    def __init__(self, dry: bool = False): self.dry = dry; self.changed: list[Path] = []
+
+    def put(self, p: Path, data) -> None:
+        p = Path(p); data = data.encode("utf-8") if isinstance(data, str) else data
+        if p.is_file() and p.read_bytes() == data: return
+        self.changed.append(p)
+        if self.dry: return
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_bytes(data)  # bytes: no newline translation on any platform
+        tmp.replace(p)  # atomic
+
+
+_SINK = _Sink()
+
+
+def _put(p: Path, data) -> None:
+    _SINK.put(p, data)
+
+
+def _append(p: Path, data: str, header: str = "") -> None:
+    """Append `data` to p (starting it with `header` when p does not exist yet), through the sink."""
+    old = Path(p).read_bytes() if Path(p).is_file() else header.encode("utf-8")
+    _put(p, old + data.encode("utf-8"))
+
+
 def save_tasks(root: Path, tasks: list[dict], path=None, loaded: "TaskFile | None" = None) -> None:
     """Write `tasks` back, changing only the records that differ from the file as loaded (the caller holds the lock;
-    without `loaded` the file is re-read from disk, which under the lock is the same file)."""
+    without `loaded` the file is re-read from disk, which under the lock is the same file). Nothing changed: the
+    file (and its mtime) is left alone."""
     p = Path(path) if path else tasks_path(root)
     f = loaded if loaded is not None else TaskFile(p)
-    text = f.render(tasks)
-    if p.exists() and p.read_text("utf-8") == text: return  # nothing changed: leave the file (and its mtime) alone
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(text, "utf-8")
-    tmp.replace(p)  # atomic
+    _put(p, f.render(tasks))
 
 
 def _exclude_lock_file(lock: Path) -> None:
@@ -433,48 +485,26 @@ def apply_overrides(tasks: list[dict], overrides: list[dict]) -> list[str]:
     return unknown
 
 
-def _precheck(a, tasks: list[dict]) -> None:
-    """Every refusal a mutating op can make that does not depend on a concurrent writer, made BEFORE the lock (and
-    the lock file, and its directory) exist - a refused op leaves the tree byte-identical."""
-    if a.op in ("set", "reconcile"):
-        if not a.id: die(f"tasks {a.op} needs a task id")
-        t = next((t for t in tasks if t.get("id") == a.id), None) or die(f"no task {a.id}")
-    if a.op == "set":
-        st = norm_status(a.status)
-        if st not in TASK_STATUS: die(f"status must be one of {TASK_STATUS} (or {sorted(STATUS_ALIASES)})")
-        if st == "done" and not (a.evidence or t.get("verification_evidence")): die("done requires --evidence (both controls, exact commands)")
-    elif a.op == "add":
-        if any(t.get("id") == a.id for t in tasks): die(f"{a.id} exists")
-        new = {"id": a.id, "type": a.type, "title": a.title, "status": "open", "epic": a.epic or "",
-               "depends_on": [d for d in (a.depends or "").split(",") if d]}
-        errs = validate(tasks + [new])  # the same check the op makes, so it cannot fail later on this account
-        if errs: die("would make the task file invalid:\n  " + "\n  ".join(errs))
-    elif a.op == "recycle":
-        tid = a.id or getattr(a, "id_flag", None)
-        if tid and (getattr(a, "reactivate", False) or getattr(a, "re_research", False)):
-            arc = Path(a.root).resolve() / ".devloop" / "backlog_archive.jsonl"
-            if arc.exists() and not any(json.loads(l).get("id") == tid for l in arc.read_text("utf-8").splitlines() if l.strip()):
-                die(f"Task {tid} not found in archive")
-
-
-def _recycle_writes(a, root: Path) -> bool:
-    """Whether this recycle can change anything: only --reactivate / --re-research of a task, with an archive."""
-    tid = a.id or getattr(a, "id_flag", None)
-    return bool(tid and (getattr(a, "reactivate", False) or getattr(a, "re_research", False))
-                and (root / ".devloop" / "backlog_archive.jsonl").exists())
-
-
 def cmd_tasks(a):
     root = Path(a.root).resolve(); path = tasks_path(root, getattr(a, "tasks", None))
     if a.op == "path":
         print(path); return
     if a.op not in MUTATING_TASK_OPS:
         _cmd_tasks(a, root, path); return
-    _precheck(a, TaskFile(path).tasks)
-    if a.op == "recycle" and not _recycle_writes(a, root):
-        _cmd_tasks(a, root, path); return  # no archive, or a listing only: changes nothing, so takes no lock
-    if not path.exists() and a.op not in ("add", "recycle"):
-        _cmd_tasks(a, root, path); return  # nothing to modify, so nothing to lock (and no lock file to leave behind)
+    # Plan first, with no lock and no writes: the op runs against a dry sink that only records which files would
+    # change. A refusal dies here; an op that would change nothing (already in that state, nothing stale, nothing
+    # to recycle) prints what it printed and stops - no lock file, no info/exclude line, no directory: the tree is
+    # byte-identical. Only an op that will write takes the lock and runs again, live, on the file as it is then.
+    global _SINK
+    import io
+    plan, out = _Sink(dry=True), io.StringIO()
+    _SINK = plan
+    try:
+        with contextlib.redirect_stdout(out): _cmd_tasks(a, root, path)
+    finally:
+        _SINK = _Sink()
+    if not plan.changed:
+        sys.stdout.write(out.getvalue()); return
     with task_lock(path):
         _cmd_tasks(a, root, path)
 
@@ -513,7 +543,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         if by_epic.get("_none"):
             lines += ["## Unassigned", ""] + [line(t) for t in by_epic["_none"]] + [""]
         n_done = sum(t["status"] == "done" for t in tasks); lines += [f"_{n_done}/{len(tasks)} {shown('done')} · {time.strftime('%Y-%m-%d')}_", ""]
-        (root / "TASKS.md").write_text("\n".join(lines), "utf-8"); print(f"TASKS.md rendered ({len(tasks)} tasks)")
+        _put(root / "TASKS.md", "\n".join(lines)); print(f"TASKS.md rendered ({len(tasks)} tasks)")
     elif a.op == "set":
         t = next((t for t in tasks if t["id"] == a.id), None) or die(f"no task {a.id}")
         a.status = norm_status(a.status)
@@ -594,10 +624,7 @@ def _cmd_tasks(a, root: Path, path: Path):
                 surviving.append(t)
         
         if archived:
-            archive_jsonl.parent.mkdir(parents=True, exist_ok=True)
-            with open(archive_jsonl, "a", encoding="utf-8") as af:
-                for t in archived:
-                    af.write(json.dumps(t, ensure_ascii=False) + "\n")
+            _append(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived))
             
             # Append markdown record
             md_entries = [f"\n## [FOLDED] [{t['id']}] {t['title']} (Folded {t['folded_at']} @ {t['folded_commit'][:8]})\n"
@@ -609,10 +636,8 @@ def _cmd_tasks(a, root: Path, path: Path):
                           f"- **Acceptance Criteria:** {'; '.join(t.get('acceptance_criteria', [])) or 'none'}\n"
                           f"- **Notes & Historical Context:**\n\n```\n{t.get('notes', '')}\n```\n"
                           for t in archived]
-            if not historical_md.exists():
-                historical_md.write_text("# HISTORICAL BACKLOG & KNOWLEDGE ARCHIVE\n\n_Rolling append-only record of tasks that exceeded half-life horizon, preserved wholly with complete reasoning context and recycled every 25-50 commits._\n\n", "utf-8")
-            with open(historical_md, "a", encoding="utf-8") as hf:
-                hf.write("".join(md_entries))
+            _append(historical_md, "".join(md_entries),
+                    header="# HISTORICAL BACKLOG & KNOWLEDGE ARCHIVE\n\n_Rolling append-only record of tasks that exceeded half-life horizon, preserved wholly with complete reasoning context and recycled every 25-50 commits._\n\n")
             
             archived_ids = {t["id"] for t in archived}
             for t in surviving:
@@ -658,7 +683,7 @@ def _cmd_tasks(a, root: Path, path: Path):
                 if t["id"] == target_id:
                     t["review_state"] = "reactivated"
                     t["reactivated_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
-            archive_jsonl.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks), "utf-8")
+            _put(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks))
             print(f"Task {target_id} reactivated to active {name} at HEAD ({head_sha[:8]})")
             return
 
@@ -667,7 +692,6 @@ def _cmd_tasks(a, root: Path, path: Path):
             if not target_task:
                 die(f"Task {target_id} not found in archive")
             spike_dir = root / "docs" / "research"
-            spike_dir.mkdir(parents=True, exist_ok=True)
             spike_file = spike_dir / f"spike-{target_id.lower()}.md"
             spike_lines = [
                 f"# Research Spike: {target_id} — {target_task['title']}",
@@ -696,12 +720,12 @@ def _cmd_tasks(a, root: Path, path: Path):
                 "- [ ] Supercede with new ADR / Milestone",
                 "- [ ] Keep folded for future review cycle",
             ]
-            spike_file.write_text("\n".join(spike_lines), "utf-8")
+            _put(spike_file, "\n".join(spike_lines))
             for t in archived_tasks:
                 if t["id"] == target_id:
                     t["review_state"] = "re-researched"
                     t["spike_file"] = str(spike_file.relative_to(root))
-            archive_jsonl.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks), "utf-8")
+            _put(archive_jsonl, "".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks))
             print(f"Generated research spike for {target_id} at {spike_file}")
             return
 
@@ -733,7 +757,6 @@ def _cmd_tasks(a, root: Path, path: Path):
             return
         archived_tasks = [json.loads(line) for line in archive_jsonl.read_text("utf-8").splitlines() if line.strip()]
         distill_dir = root / "docs" / "distilled"
-        distill_dir.mkdir(parents=True, exist_ok=True)
         distill_out = distill_dir / "knowledge_distillation.md"
         
         lines = [
@@ -764,7 +787,7 @@ def _cmd_tasks(a, root: Path, path: Path):
         lines.append("- Broken file anchors are the strongest leading indicator of task obsolescence.")
         lines.append("- Historical reasoning is preserved losslessly for future architectural synthesis.")
         
-        distill_out.write_text("\n".join(lines), "utf-8")
+        _put(distill_out, "\n".join(lines))
         print(f"Distilled {len(archived_tasks)} archived tasks into {distill_out}")
     elif a.op == "export-openai":
         schema = {

@@ -16,7 +16,9 @@ Cases (each in a throwaway git repo; this checkout is never touched):
   (g) render guard: a foreign-banner TASKS.md is left byte-identical; a '# TASKS' file is rewritten
   (h) widened id regex
   (i) next --limit
-  plus: mutating ops wait on '<task file>.lock', and the lock file never dirties `git status`.
+  plus: mutating ops wait on '<task file>.lock', and the lock file never dirties `git status`;
+  an op that changes nothing leaves the tree and .git/info/exclude byte-identical (every mutating op swept);
+  every untouched task-file line keeps its own terminator (CRLF, LF, none at the end).
 
 Negative control for the resolver: make tasks_path() always return root/.devloop/tasks.jsonl and
 cases (b), (c) and (e) fail.
@@ -388,6 +390,126 @@ class Overrides(Base):
         write(self.top, [rec("T-001")])
         (self.root / "TASKS.md").write_text("# Other\n<!-- overrides:begin -->\n{\"id\": \"T-001\", \"status\": \"blocked\"}\n<!-- overrides:end -->\n", "utf-8")
         self.assertEqual(self.art("next").stdout.splitlines(), ["T-001  title T-001"])
+
+
+def tree_and_exclude(root: Path) -> dict:
+    """The work tree (bar .git) byte for byte, plus .git/info/exclude - where a lock file's ignore line would go."""
+    snap = snapshot(root); ex = root / ".git" / "info" / "exclude"
+    snap["<.git/info/exclude>"] = ex.read_bytes() if ex.is_file() else None
+    return snap
+
+
+class NoChangeLeavesNoTrace(Base):
+    """Every mutating op, in the form whose outcome writes nothing, leaves the tree and .git/info/exclude
+    byte-identical: no lock file, no exclude line, no directory. The sweep must name every mutating op."""
+
+    def _git(self, *a):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=self.root, check=True, capture_output=True)
+
+    def _fixture(self, p: Path):
+        self._git("commit", "-q", "--allow-empty", "-m", "base")
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True).stdout.strip()
+        today = time.strftime("%Y-%m-%d")
+        write(p, [rec("T-001", updated=today, half_life={"last_reconciled_commit": head, "staleness_score": 0.0}),
+                  rec("T-002", "done", verification_evidence="pos+neg", updated=today)])
+        arc = self.root / ".devloop" / "backlog_archive.jsonl"; arc.parent.mkdir(parents=True, exist_ok=True)
+        arc.write_text(json.dumps(rec("T-009", folded_commit=head, review_state="re-research_pending")) + "\n", "utf-8")
+
+    # (args, expected exit code): the no-change form of each op; add has none but a refusal.
+    SWEEP = [(("set", "T-001", "open"), 0), (("set", "T-002", "done"), 0), (("set", "T-002", "completed"), 0),
+             (("add", "--id", "T-001", "--title", "dup"), 1), (("reconcile", "T-001"), 0),
+             (("archive-stale", "--threshold", "99"), 0), (("fold-stale", "--threshold", "99"), 0),
+             (("archive-stale",), 0), (("fold-stale",), 0), (("recycle",), 0)]
+
+    def test_sweep_names_every_mutating_op(self):
+        self.assertEqual({a[0] for a, _ in self.SWEEP}, set(artifacts.MUTATING_TASK_OPS))
+
+    def _sweep(self, p: Path):
+        self._fixture(p)
+        before = tree_and_exclude(self.root)
+        for args, rc in self.SWEEP:
+            cp = self.art(*args, check=False)
+            self.assertEqual(cp.returncode, rc, f"{args}: {cp.stdout}{cp.stderr}")
+            self.assertEqual(tree_and_exclude(self.root), before, f"{args} left a trace")
+        # the sweep is not vacuous: a real change does take the lock and write
+        self.art("set", "T-001", "blocked")
+        self.assertTrue(p.with_name(p.name + ".lock").exists())
+        self.assertNotEqual(tree_and_exclude(self.root), before)
+
+    def test_root_task_file(self): self._sweep(self.top)
+
+    def test_devloop_task_file(self): self._sweep(self.dl)
+
+    def test_repeated_re_research_leaves_no_trace(self):
+        self._fixture(self.top); ex = self.root / ".git" / "info" / "exclude"; ex0 = ex.read_bytes()
+        self.art("recycle", "T-009", "--re-research")  # writes the spike and the archive, takes the lock
+        self.top.with_name("tasks.jsonl.lock").unlink(); ex.write_bytes(ex0)
+        before = tree_and_exclude(self.root)
+        self.art("recycle", "T-009", "--re-research")  # same day, same spike: nothing to write
+        self.assertEqual(tree_and_exclude(self.root), before)
+
+
+def line_map(data: bytes) -> dict:
+    """id -> that record's line, terminator included, exactly as the bytes have it."""
+    out = {}
+    parts = data.split(b"\n")
+    for i, ln in enumerate(parts):
+        raw = ln + (b"\n" if i < len(parts) - 1 else b"")
+        if ln.strip():
+            o = json.loads(ln.decode("utf-8"))
+            if "id" in o: out[o["id"]] = raw
+    return out
+
+
+class LineTerminators(Base):
+    """Each untouched line keeps its own terminator byte for byte; a changed or appended line takes the file's
+    prevailing terminator; a file without a final newline does not gain one."""
+
+    def _lines(self, *pairs) -> bytes:
+        return b"".join(json.dumps(r, ensure_ascii=False).encode("utf-8") + eol for r, eol in pairs)
+
+    def test_crlf_file(self):
+        recs = [rec("T-001", title="line sep"), rec("T-002"), rec("T-003")]
+        self.top.write_bytes(self._lines(*[(r, b"\r\n") for r in recs]))
+        before = line_map(self.top.read_bytes())
+        self.art("set", "T-002", "blocked")
+        self.art("add", "--id", "T-004", "--title", "new")
+        data = self.top.read_bytes(); after = line_map(data)
+        for i in ("T-001", "T-003"): self.assertEqual(after[i], before[i], i)
+        self.assertTrue(after["T-002"].endswith(b"\r\n")); self.assertIn(b'"blocked"', after["T-002"])
+        self.assertTrue(after["T-004"].endswith(b"\r\n"))
+        self.assertEqual(data.count(b"\n"), data.count(b"\r\n"))
+
+    def test_mixed_terminators_and_no_final_newline(self):
+        recs = [rec("T-001"), rec("T-002"), rec("T-003"), rec("T-004")]
+        self.top.write_bytes(self._lines((recs[0], b"\r\n"), (recs[1], b"\n"), (recs[2], b"\r\n"), (recs[3], b"")))
+        before = line_map(self.top.read_bytes())
+        self.art("set", "T-002", "blocked")
+        after = line_map(self.top.read_bytes())
+        for i in ("T-001", "T-003", "T-004"): self.assertEqual(after[i], before[i], i)
+        self.assertTrue(after["T-002"].endswith(b"}\r\n"), after["T-002"])  # prevailing: CRLF, 2 to 1
+        self.art("set", "T-004", "blocked")  # the final line itself changes: still no trailing newline
+        data = self.top.read_bytes(); after2 = line_map(data)
+        self.assertFalse(data.endswith(b"\n")); self.assertIn(b'"blocked"', after2["T-004"])
+        for i in ("T-001", "T-002", "T-003"): self.assertEqual(after2[i], after[i], i)
+
+    def test_lf_file_without_final_newline_append(self):
+        recs = [rec("T-001"), rec("T-002")]
+        self.top.write_bytes(self._lines((recs[0], b"\n"), (recs[1], b"")))
+        before = line_map(self.top.read_bytes())
+        self.art("add", "--id", "T-003", "--title", "new")
+        data = self.top.read_bytes(); after = line_map(data)
+        self.assertEqual(after["T-001"], before["T-001"])
+        self.assertEqual(after["T-002"], before["T-002"] + b"\n")  # now followed by a line: gains only the separator
+        self.assertFalse(data.endswith(b"\n")); self.assertNotIn(b"\r", data)
+
+    def test_changed_last_line_keeps_no_final_newline(self):
+        self.top.write_bytes(self._lines((rec("T-001"), b"\r\n"), (rec("T-002", "done", verification_evidence="e"), b"")))
+        b0 = self.top.read_bytes()
+        self.art("fold-stale", "--threshold", "99"); self.art("set", "T-002", "done")
+        b1 = self.top.read_bytes()
+        self.assertEqual(line_map(b1)["T-001"], line_map(b0)["T-001"])
+        self.assertFalse(b1.endswith(b"\n"))
 
 
 class GoalImport(unittest.TestCase):
