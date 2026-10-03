@@ -22,13 +22,15 @@ Every `tasks` op also takes --tasks FILE. Task file resolution (first match wins
   3. <root>/tasks.jsonl                   when it is a file (a project keeping its canonical list at the root)
   4. <root>/.devloop/tasks.jsonl          the default; `scaffold` creates it when no task file resolves yet
 Mutating ops (set, add, reconcile, archive-stale, fold-stale, recycle) hold an exclusive lock on '<task file>.lock'
-around load-modify-save, so another tool taking the same lock never loses an update.
+around load-modify-save, so another tool taking the same lock never loses an update. An op that can change nothing
+(a recycle listing, or any recycle with no archive) takes no lock and leaves the tree byte-identical.
 
 Vocabularies (also enforced by `tasks validate`):
   task.status  open | in_progress | blocked | done | cancelled      task.type  task | epic | bug
                OpenAI plan-status dialect: pending, completed, incomplete read as open, done, blocked. A file's dialect is
                decided once at load ({"_dialect": ...} marker line, else the records' majority, else legacy); input
-               accepts either; a mutating op rewrites only the record it changes, in the file's dialect.
+               accepts either; a mutating op rewrites only the record it changes, in the file's dialect, and adds the
+               marker whenever the records left would no longer decide that dialect on their own.
 TASKS.md overrides: JSON lines between '<!-- overrides:begin -->' and '<!-- overrides:end -->' are applied on top of
 the task file by every read-only op; render keeps that block verbatim.
   goal.status  active | at_risk | met | dropped                    adr.status proposed | accepted | deprecated | superseded
@@ -156,12 +158,13 @@ class TaskFile:
             used.add(id(cur))
             out.append(raw if cur == snap else self.dump(cur))
         out += [self.dump(t) for t in tasks if id(t) not in used]
-        if self.marker is None and self.dialect == "openai":
-            # The content alone no longer says 'openai' (e.g. every record is in_progress): pin it, or the next load
-            # would read the file as legacy and write legacy words into it.
+        if self.marker is None:
+            # The content left may no longer say the dialect the file loaded with (every record in_progress, or a
+            # legacy file whose last legacy words left so openai words now hold the majority): pin it - whichever it
+            # is - or the next load would read the file in the other dialect and write that dialect's words into it.
             recs = [json.loads(l) for l in out if l.strip()]
             left = [r.get("status") for r in recs if isinstance(r, dict) and not _is_marker(r)]
-            if _content_dialect(left) != "openai": out.insert(0, json.dumps({DIALECT_KEY: "openai"}))
+            if (_content_dialect(left) or "legacy") != self.dialect: out.insert(0, json.dumps({DIALECT_KEY: self.dialect}))
         return "".join(l + "\n" for l in out)
 
 
@@ -454,6 +457,13 @@ def _precheck(a, tasks: list[dict]) -> None:
                 die(f"Task {tid} not found in archive")
 
 
+def _recycle_writes(a, root: Path) -> bool:
+    """Whether this recycle can change anything: only --reactivate / --re-research of a task, with an archive."""
+    tid = a.id or getattr(a, "id_flag", None)
+    return bool(tid and (getattr(a, "reactivate", False) or getattr(a, "re_research", False))
+                and (root / ".devloop" / "backlog_archive.jsonl").exists())
+
+
 def cmd_tasks(a):
     root = Path(a.root).resolve(); path = tasks_path(root, getattr(a, "tasks", None))
     if a.op == "path":
@@ -461,6 +471,8 @@ def cmd_tasks(a):
     if a.op not in MUTATING_TASK_OPS:
         _cmd_tasks(a, root, path); return
     _precheck(a, TaskFile(path).tasks)
+    if a.op == "recycle" and not _recycle_writes(a, root):
+        _cmd_tasks(a, root, path); return  # no archive, or a listing only: changes nothing, so takes no lock
     if not path.exists() and a.op not in ("add", "recycle"):
         _cmd_tasks(a, root, path); return  # nothing to modify, so nothing to lock (and no lock file to leave behind)
     with task_lock(path):

@@ -262,6 +262,27 @@ class StickyDialect(Base):
         self.assertEqual(len(after), 2); self.assertEqual(after[1], before[1])
 
 
+    def test_legacy_file_survives_gaining_an_openai_majority(self):
+        # Loads legacy (open, open vs pending: 2:1); once both legacy words leave, pending holds the majority.
+        write(self.top, [rec("T-1"), rec("T-2"), rec("T-3", "pending")])
+        self.art("set", "T-1", "in_progress")
+        self.art("set", "T-2", "in_progress")
+        self.art("set", "T-1", "blocked")
+        st = {r["id"]: r["status"] for r in read(self.top) if "id" in r}
+        self.assertEqual(st["T-1"], "blocked", "a legacy-dialect file was written an openai word")
+        self.assertEqual(self.top.read_text("utf-8").splitlines()[0], json.dumps({"_dialect": "legacy"}))
+        self.assertIn("ok: 3 tasks", self.art("validate").stdout)
+
+    def test_fold_stale_keeps_a_legacy_file_legacy(self):
+        old = {"updated": "2000-01-01"}
+        write(self.top, [rec("T-1", **old), rec("T-2", **old), rec("T-3", "pending"), rec("T-4", "in_progress")])
+        self.art("fold-stale")   # drops T-1 and T-2, the only legacy words
+        self.assertEqual([r["id"] for r in read(self.top) if "id" in r], ["T-3", "T-4"])
+        self.art("set", "T-4", "blocked")
+        st = {r["id"]: r["status"] for r in read(self.top) if "id" in r}
+        self.assertEqual(st["T-4"], "blocked", "a legacy-dialect file was written an openai word after fold-stale")
+
+
 class OnlyTheTarget(Base):
     """Defect 2: a mutating op rewrites only the record it targets; every other line keeps its bytes."""
     def test_mixed_file_set_touches_one_line(self):
@@ -318,6 +339,16 @@ class FailedOpLeavesNoTrace(Base):
         before = snapshot(self.root)
         self.art("fold-stale")
         self.assertEqual(snapshot(self.root), before)
+
+
+    def test_recycle_without_archive_creates_nothing(self):
+        write(self.top, [rec("T-001")])
+        before = snapshot(self.root)
+        for args in (("recycle",), ("recycle", "T-1", "--reactivate"), ("recycle", "T-1", "--re-research")):
+            cp = self.art(*args)
+            self.assertIn("No archived tasks found to recycle.", cp.stdout)
+            self.assertEqual(snapshot(self.root), before, f"{args} left a trace")
+            self.assertFalse((self.root / ".devloop").exists(), args)
 
 
 class Overrides(Base):
