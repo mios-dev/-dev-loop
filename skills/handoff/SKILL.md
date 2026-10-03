@@ -40,7 +40,7 @@ That refusal is the §6 rule in code: a check that cannot fail passes identicall
 python3 $S/artifacts.py tasks render --root .
 ```
 
-Rewrites `TASKS.md` from `.devloop/tasks.jsonl`; it refuses to render an invalid JSONL and names the errors. `TASKS.md` is generated — never hand-edit it, or step 2 silently discards your edit next time.
+Rewrites `TASKS.md` from the task file (`artifacts.py tasks path`; `<root>/tasks.jsonl`, else `.devloop/tasks.jsonl`), and leaves a `TASKS.md` owned by another renderer alone; it refuses to render an invalid JSONL and names the errors. `TASKS.md` is generated — never hand-edit it, or step 2 silently discards your edit next time.
 
 ### 3. Park uncommitted work as a patch (§11)
 

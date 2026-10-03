@@ -6,7 +6,7 @@ version: 1.0.0
 
 # GitHub Copilot /backlog Workflow
 
-Task state is the repository's memory across sessions. It lives in `.devloop/tasks.jsonl` (one JSON object per line), never in the context window. `TASKS.md` is a **rendered view** — hand-editing it loses the edit on the next render.
+Task state is the repository's memory across sessions. It lives in the task file that `artifacts.py tasks path` resolves (`<root>/tasks.jsonl`, else `.devloop/tasks.jsonl`) (one JSON object per line), never in the context window. `TASKS.md` is a **rendered view** — hand-editing it loses the edit on the next render.
 
 `$S` = the dev-loop `scripts/` directory. Every command takes `--root .`. Mode comes from the first argument; default `next`.
 

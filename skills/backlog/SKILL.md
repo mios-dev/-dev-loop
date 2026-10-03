@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 _Paths: `${CLAUDE_SKILL_DIR}/../dev-loop/scripts/` resolves in Claude Code; in other harnesses use `<skills dir>/dev-loop/scripts/` (the shims in `shims/<harness>/` already do)._ Below, `$S` = that scripts directory, and every command takes `--root .` (the repository root).
 
-State lives on disk in `.devloop/tasks.jsonl` - one JSON object per line - never in the context window. `TASKS.md` is a **rendered view**; editing it by hand loses the edit on the next render. Route on the first word of `$ARGUMENTS`; default `next`.
+State lives on disk in the task file - one JSON object per line - never in the context window. `artifacts.py tasks path` prints the resolved task file: `--tasks FILE`, then `$DEVLOOP_TASKS_FILE` (relative to the root), then `<root>/tasks.jsonl` when it exists, then `.devloop/tasks.jsonl` (the scaffold default). `TASKS.md` is a **rendered view**; editing it by hand loses the edit on the next render. Route on the first word of `$ARGUMENTS`; default `next`.
 
 ## next - what is unblocked right now
 
@@ -129,7 +129,7 @@ Emits strict OpenAI JSON Schema tool definition (`strict: true`, `additionalProp
 
 - **Not `/goal`.** `/goal` owns the objective, its stopping conditions and the eval loop, and decomposes a goal into tasks *at definition time*. `/backlog` is the day-to-day ledger afterwards.
 - The dev loop already flips a task's status automatically on a successful merge. `/backlog` is for everything outside that path.
-- `/backlog` never runs `git add`, `git commit` or `git push`; it edits `.devloop/tasks.jsonl` and `TASKS.md` only.
+- `/backlog` never runs `git add`, `git commit` or `git push`; it edits the task file and `TASKS.md` only.
 
 Return: the exact command run, its output, and - for `set <id> done` - the two cited controls.
 

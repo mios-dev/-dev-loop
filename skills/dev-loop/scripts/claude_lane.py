@@ -187,7 +187,7 @@ PROTECTED_BASENAMES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".gitattributes", 
 # that edit by name if the lane makes it.
 PROTECTED_PROBES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".git", ".git/config",
                     ".git/hooks/pre-commit", ".gitattributes", ".gitignore", ".gitmodules",
-                    ".devloop/tasks.jsonl")
+                    ".devloop/tasks.jsonl", "tasks.jsonl")
 PR_SET_CHILD_SUBREAPER, PR_GET_CHILD_SUBREAPER = 36, 37
 
 EX_OK, EX_FAIL, EX_VACUOUS, EX_TIMEOUT = 0, 1, 2, 3

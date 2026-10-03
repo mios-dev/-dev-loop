@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Cursor Rule: /backlog
 
-Task state is the repo's memory across sessions: it lives in `.devloop/tasks.jsonl`, one JSON object per line, never in the context window. `TASKS.md` is generated — hand-editing it loses the edit on the next render. Every command below takes `--root .`; `<scripts>` is the dev-loop scripts directory. Default mode is `next`.
+Task state is the repo's memory across sessions: it lives in the task file that `artifacts.py tasks path` resolves (`<root>/tasks.jsonl`, else `.devloop/tasks.jsonl`), one JSON object per line, never in the context window. `TASKS.md` is generated — hand-editing it loses the edit on the next render. Every command below takes `--root .`; `<scripts>` is the dev-loop scripts directory. Default mode is `next`.
 
 - **next** — `python3 <scripts>/artifacts.py tasks next --root .`: ids that are `open`, not epics, with every `depends_on` already `done` or `cancelled`. `(nothing ready — check blocked/in_progress tasks and the ledger)` is an answer, not an error. Run it first in a fresh session, right after the last `.devloop/LEDGER.md` entry.
 - **add** — `python3 <scripts>/artifacts.py tasks add --root . --id T-0NN --title "…" --ac "WHEN … THE SYSTEM SHALL …" --positive CMD --negative CMD --expect REGEX` plus optional `--type task|epic|bug`, `--owner`, `--epic`, `--goal`, `--depends a,b`. `--id` must match `^[A-Z]+-\d+$`; the task starts `open`; `--ac` is repeatable. The tool refuses a duplicate id, an unknown `--depends` and an unknown `--epic` — but it **accepts** a task with no acceptance criterion and no controls, so refuse that yourself: the definition of done is written before the code, and `tasks lane` will otherwise hand back the literal `<fill>`.

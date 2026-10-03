@@ -274,9 +274,11 @@ merge_lane() { # $1=id — merge verified lane into base tree. Updates STATUS.
     echo "  merged $BR"
     [ "$KEEP" = 1 ] || { git worktree remove --force "$WT"; git branch -D "$BR" >/dev/null; }
     TID=$(field "$LJ" task_id)
-    if [ -n "$TID" ] && [ -f "$ROOT/.devloop/tasks.jsonl" ]; then
+    TF=$("$PY" "$SKILL_DIR/scripts/artifacts.py" tasks path --root "$ROOT" 2>/dev/null)
+    if [ -n "$TID" ] && [ -n "$TF" ] && [ -f "$TF" ]; then
+      # TASKS.md is staged as well: unchanged when another renderer owns it, and `git add` of an unchanged file is a no-op.
       "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks set "$TID" done --evidence "lane $ID merged $(git rev-parse --short HEAD); see $RUN/report-$ID.json" --root "$ROOT" >/dev/null \
-        && "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks render --root "$ROOT" >/dev/null && git add -- .devloop/tasks.jsonl TASKS.md && git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" || echo "  (task ledger update skipped)"
+        && "$PY" "$SKILL_DIR/scripts/artifacts.py" tasks render --root "$ROOT" >/dev/null && git add -- "$TF" TASKS.md && git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" || echo "  (task ledger update skipped)"
     fi
   else
     git merge --abort 2>/dev/null || true

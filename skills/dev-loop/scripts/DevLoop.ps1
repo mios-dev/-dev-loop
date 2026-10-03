@@ -74,10 +74,11 @@ function GateMerge($Id) {
   if ($LASTEXITCODE) { git merge --abort; Write-Host '  MERGE CONFLICT — aborted; worktree and branch kept for review'; Bump 1; return }
   Write-Host "  merged $BR"
   if (-not $Keep) { git worktree remove --force $WT; git branch -D $BR | Out-Null }
-  if ($TID -and (Test-Path (Join-Path $Root '.devloop/tasks.jsonl'))) {
-    $ART = Join-Path $SkillDir 'scripts/artifacts.py'
+  $ART = Join-Path $SkillDir 'scripts/artifacts.py'
+  $TF = (& $PY $ART tasks path --root $Root 2>$null | Select-Object -First 1)
+  if ($TID -and $TF -and (Test-Path $TF)) {
     & $PY $ART tasks set $TID done --evidence "lane $Id merged $(git rev-parse --short HEAD); see $Rep" --root $Root | Out-Null
-    if (-not $LASTEXITCODE) { & $PY $ART tasks render --root $Root | Out-Null; git add -- .devloop/tasks.jsonl TASKS.md; git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" }
+    if (-not $LASTEXITCODE) { & $PY $ART tasks render --root $Root | Out-Null; git add -- $TF TASKS.md; git commit -q -m "chore(tasks): $TID done" -m "Task-Id: $TID" }
   }
 }
 

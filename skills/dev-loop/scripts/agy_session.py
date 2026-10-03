@@ -229,7 +229,7 @@ def harvest_teamwork_receipt(run_root: str | Path, terminal_handoff: Path, promp
 # SSOT. Every lane gate passed, because lane gates read WORKTREES. The dispatch prompt
 # already said to use isolated workspaces; a rule with no measurement behind it is a check
 # that cannot fail (SKILL.md 7), so this measures it.
-BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", ".agents/")
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", "tasks.jsonl", ".agents/")
 
 
 def base_tree_state(root: Path) -> dict[str, str] | None:

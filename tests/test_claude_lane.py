@@ -549,7 +549,7 @@ def test_committed_staged_and_hidden_edits(c: Ctx) -> None:
 def test_owned_patterns(c: Ctx) -> None:
     print("ownership patterns are matched per segment, and protected paths are never owned:")
     for pat in ("*", "**", ".", "./", "AGENTS.md", "*.md", ".git/hooks/pre-commit",
-                ".gitattributes", ".devloop/tasks.jsonl", "docs/**/AGENTS.md", "../x", "/etc/passwd"):
+                ".gitattributes", ".devloop/tasks.jsonl", "tasks.jsonl", "docs/**/AGENTS.md", "../x", "/etc/passwd"):
         before = c.artefacts()
         rc, d, _, _ = c.dispatch("ownbad", owned=[pat])
         check(f"--owned {pat!r} refused (64) and created nothing", rc == 64 and c.artefacts() == before,

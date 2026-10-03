@@ -1,6 +1,8 @@
 #!/bin/sh
 # UserPromptSubmit: attach the in-progress task (if any) so work stays scoped
-R=$(git rev-parse --show-toplevel 2>/dev/null || pwd); F="$R/.devloop/tasks.jsonl"; [ -f "$F" ] || exit 0
+R=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+# artifacts.py resolves the task file (<root>/tasks.jsonl, else .devloop/tasks.jsonl, or an override).
+F=$(python3 "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/skills/dev-loop/scripts/artifacts.py" tasks path --root "$R" 2>/dev/null); [ -n "$F" ] && [ -f "$F" ] || exit 0
 python3 - "$F" <<'PY' 2>/dev/null
 import json, sys
 ts = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8") if l.strip()]

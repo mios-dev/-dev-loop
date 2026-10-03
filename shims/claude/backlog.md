@@ -9,7 +9,7 @@ Input: `$ARGUMENTS` — a mode (`next` | `add` | `set` | `validate` | `render` |
 
 Below, `$S` = the dev-loop `scripts/` directory (`<skills dir>/dev-loop/scripts/`). Every command takes `--root .`.
 
-Task state is the repository's memory across sessions. It lives on disk in `.devloop/tasks.jsonl` (one JSON object per line), never in the context window. `TASKS.md` is a **rendered view** — hand-editing it loses the edit on the next render.
+Task state is the repository's memory across sessions. It lives on disk in the task file that `artifacts.py tasks path` resolves (`<root>/tasks.jsonl`, else `.devloop/tasks.jsonl`) (one JSON object per line), never in the context window. `TASKS.md` is a **rendered view** — hand-editing it loses the edit on the next render.
 
 ## Modes
 
@@ -47,6 +47,6 @@ A check that cannot fail passes identically on correct and on broken code. Every
 
 - Not `/goal`: `/goal` owns the objective, its stopping conditions and the eval loop, and decomposes a goal into tasks at definition time. `/backlog` is the day-to-day ledger afterwards.
 - The dev loop already flips a task's status on a successful merge; `/backlog` covers everything outside that path.
-- `/backlog` never runs `git add`, `git commit` or `git push`. It writes `.devloop/tasks.jsonl` and `TASKS.md` only.
+- `/backlog` never runs `git add`, `git commit` or `git push`. It writes the task file and `TASKS.md` only.
 
 Return the exact command run, its output, and — for `set <id> done` — the two cited controls.

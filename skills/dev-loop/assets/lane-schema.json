@@ -267,7 +267,7 @@
         },
         "task_id": {
           "type": "string",
-          "description": "Id of the task in .devloop/tasks.jsonl this lane implements; the host writes it as a Task-Id: commit trailer and flips the task to done on merge."
+          "description": "Id of the task in the resolved task file (artifacts.py tasks path: <root>/tasks.jsonl, else .devloop/tasks.jsonl) this lane implements; the host writes it as a Task-Id: commit trailer and flips the task to done on merge."
         }
       }
     }

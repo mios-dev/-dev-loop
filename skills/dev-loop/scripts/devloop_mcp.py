@@ -15,7 +15,7 @@ Tools
   run_lanes       {lanes_path, layout?, dry_run?}      run scripts/devloop.sh (POSIX) / DevLoop.ps1 (Windows); returns run dir + per-lane reports
   gate            {lane_path, worktree, run_dir?}      positive / negative(+expect, tree-restore) / mutation / full gate; exit 0 pass, 1 fail, 2 vacuous
   probe           {harness?[]}                         verify installed harness CLIs and the flags the adapters rely on
-  tasks_next      {root?}                              unblocked tasks from .devloop/tasks.jsonl
+  tasks_next      {root?}                              unblocked tasks from the resolved task file (tasks path)
   task_set        {root?, id, status, evidence?}       flip a task (done requires evidence)
   ledger          {root?, status, objective, done?, next?, blockers?, unverified?}
   report          {run_dir}                            collect .devloop/run-*/report-*.json into one object
@@ -54,13 +54,13 @@ TOOLS = [
      "inputSchema": S(lane_path={"type": "string"}, worktree={"type": "string"}, run_dir=opt("string"))},
     {"name": "probe", "description": "Check which harness CLIs (claude, codex, gemini, agy, copilot, opencode, agent) are installed and whether the flags the adapters rely on still appear in --help.",
      "inputSchema": S(harness=opt("array", items={"type": "string"}))},
-    {"name": "tasks_next", "description": "List tasks in .devloop/tasks.jsonl that are open with all dependencies done.", "inputSchema": S(root=opt("string"))},
-    {"name": "task_set", "description": "Set a task's status (open|in_progress|blocked|done|cancelled); done requires evidence citing both controls. Re-renders TASKS.md.",
+    {"name": "tasks_next", "description": "List tasks in the resolved task file (tasks path: <root>/tasks.jsonl, else .devloop/tasks.jsonl) that are open (or pending) with all dependencies done.", "inputSchema": S(root=opt("string"))},
+    {"name": "task_set", "description": "Set a task's status in the resolved task file (tasks path). Either dialect: open|in_progress|blocked|done|cancelled or pending|in_progress|incomplete|completed|cancelled; the file keeps its own words. done/completed requires evidence citing both controls. Re-renders TASKS.md unless another renderer owns it.",
      "inputSchema": S(id={"type": "string"}, status={"type": "string"}, evidence=opt("string"), root=opt("string"))},
     {"name": "ledger", "description": "Append a handoff note to .devloop/LEDGER.md (status, objective, done, next, blockers, unverified).",
      "inputSchema": S(status={"type": "string"}, objective={"type": "string"}, done=opt("string"), next=opt("string"), blockers=opt("string"), unverified=opt("string"), root=opt("string"))},
     {"name": "report", "description": "Collect every lane report under a run directory into one object.", "inputSchema": S(run_dir={"type": "string"})},
-    {"name": "scaffold", "description": "Create any missing canonical project artifacts (AGENTS.md, docs/GOALS.md, ROADMAP, DOD, CHECKLISTS, CHANGELOG, .devloop/tasks.jsonl, LEDGER) and the per-harness pointer files. Never overwrites.",
+    {"name": "scaffold", "description": "Create any missing canonical project artifacts (AGENTS.md, docs/GOALS.md, ROADMAP, DOD, CHECKLISTS, CHANGELOG, the task file (.devloop/tasks.jsonl unless one already resolves), LEDGER) and the per-harness pointer files. Never overwrites.",
      "inputSchema": S(root=opt("string"), dry_run=opt("boolean"))},
 ]
 

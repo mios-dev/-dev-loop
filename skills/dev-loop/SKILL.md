@@ -150,7 +150,7 @@ overwrites):
 | Goals | `docs/GOALS.md` | North star + OKR-style objectives (`active / at_risk / met / dropped`) |
 | Roadmap | `docs/ROADMAP.md` | Milestones → tasks → decisions |
 | Decisions | `docs/decisions/NNNN-title.md` | MADR 4.0 ADRs (`proposed / accepted / deprecated / superseded`); **Confirmation** names the gate that enforces the decision |
-| Tasks | `.devloop/tasks.jsonl` (source of truth) → rendered `TASKS.md` | `open / in_progress / blocked / done / cancelled`; acceptance criteria in EARS; `verification` = the lane's controls; `done` requires evidence |
+| Tasks | the resolved task file (source of truth; `tasks path`: `--tasks`, `$DEVLOOP_TASKS_FILE`, `<root>/tasks.jsonl`, else `.devloop/tasks.jsonl`) → rendered `TASKS.md` (left alone when another renderer owns it) | `open / in_progress / blocked / done / cancelled`, or the OpenAI plan dialect `pending / in_progress / incomplete / completed / cancelled` (each file keeps its own words); acceptance criteria in EARS; `verification` = the lane's controls; `done` requires evidence |
 | Definition of Done | `docs/DOD.md` | Project default; a task may tighten, never loosen |
 | Checklists | `CHECKLISTS.md` | Pre-commit, pre-merge, dependency change, release, session end |
 | Changelog | `CHANGELOG.md` | Keep a Changelog |

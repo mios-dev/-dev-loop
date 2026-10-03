@@ -22,7 +22,8 @@ docs/runbooks/                 operational procedures
 CHECKLISTS.md                  pre-commit / pre-merge / dependency / release / session-end
 CHANGELOG.md                   Keep a Changelog 1.1
 TASKS.md                       rendered, human view — do not hand-edit
-.devloop/tasks.jsonl           machine source of truth for tasks (beads-style, one JSON object per line)
+.devloop/tasks.jsonl           machine source of truth for tasks (beads-style, one JSON object per line);
+                               a project may keep it at <root>/tasks.jsonl instead (see `tasks path` below)
 .devloop/LEDGER.md             handoff notes (newest last)
 .devloop/run-*/                orchestrator artefacts: normalized lanes, prompts, worker logs, gate logs, reports, patches
 ```
@@ -33,6 +34,8 @@ Specs, when the project uses them, live where the house framework puts them (`sp
 ## 2. Fields and vocabularies
 
 **Task** (`tasks.jsonl`, enforced by `artifacts.py tasks validate`)
+
+Task file resolution (`--tasks FILE`, then `$DEVLOOP_TASKS_FILE` (relative to the root), then `<root>/tasks.jsonl` when it exists, then `.devloop/tasks.jsonl` (the scaffold default)); `artifacts.py tasks path` prints the result, and every `tasks` op, hook, `goal.py` and the orchestrators use it. Mutating ops hold an exclusive lock on `<task file>.lock` around load-modify-save. Status words come in two dialects: `open / in_progress / blocked / done / cancelled`, or the OpenAI plan-status words `pending / in_progress / incomplete / completed / cancelled`; a file using any of `pending`, `completed` or `incomplete` is in the OpenAI dialect, input accepts either, and saves write the file's own words. `tasks render` leaves a `TASKS.md` alone unless its first line is this renderer's `# TASKS` banner. Ids match `[A-Z][A-Z0-9]*(?:[- ][A-Z0-9]+)*(?:\.\.(?:[A-Z][A-Z0-9]*-)?[0-9]+)?(?:#[0-9]+)?` (`T-001`, `AGY-106..122`, `AGY-503..AGY-510`, `G-TASK 1`, `T-031#2`).
 
 | field | type | notes |
 |---|---|---|
@@ -76,7 +79,7 @@ Every run appends a ledger entry.
 | Harness artifact | Canonical file |
 |---|---|
 | Antigravity Implementation Plan | plan/design doc (spec dir) or an ADR when it records a decision |
-| Antigravity Task List | `.devloop/tasks.jsonl` → `TASKS.md` |
+| Antigravity Task List | the task file (`tasks path`) → `TASKS.md` |
 | Antigravity Walkthrough | `.devloop/run-*/report-*.json` + `CHANGELOG.md` entry |
 | Claude Code plan-mode file | plan/design doc |
 | Spec Kit `constitution.md` / `spec.md` / `plan.md` / `tasks.md` | `AGENTS.md`+`GOALS.md` / spec / plan / `tasks.jsonl` |

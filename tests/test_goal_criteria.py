@@ -114,6 +114,30 @@ class CriterionEvaluation(unittest.TestCase):
         got = self.evaluate(repo, [{"description": "artifacts", "type": "artifact"}])
         self.assertTrue(got["C-01"]["passed"])
 
+    # --- a project keeping its task list at <root>/tasks.jsonl -----------------------
+
+    def test_root_task_file_mints_and_passes_c03(self):
+        """C-03 follows the resolved task file, not a hardcoded .devloop path."""
+        repo = self.make_repo()
+        (repo / "tasks.jsonl").write_text('{"id":"T-001","title":"x","status":"pending","type":"task"}\n')
+        engine = self.goal.GoalEngine(str(repo))
+        engine.init_goal("gate", "true")
+        ids = [c.id for c in engine.goal.criteria]
+        self.assertIn("C-03", ids, "C-03 not minted for a root-only task file")
+        engine.evaluate()
+        state = json.loads((repo / ".devloop" / "goal_state.json").read_text(encoding="utf-8"))
+        c03 = {c["id"]: c for c in state["criteria"]}["C-03"]
+        self.assertTrue(c03["passed"], c03["details"])
+
+    def test_root_task_file_is_what_c03_validates(self):
+        repo = self.make_repo()
+        (repo / "tasks.jsonl").write_text(
+            '{"id":"T-001","title":"x","status":"open","type":"task"}\n'
+            '{"id":"T-001","title":"y","status":"open","type":"task"}\n')
+        got = self.evaluate(repo, [{"description": "artifacts", "type": "artifact"}])
+        self.assertFalse(got["C-01"]["passed"])
+        self.assertIn("duplicate ids", got["C-01"]["details"])
+
     def make_clean_repo(self):
         """make_repo() leaves artifacts.py untracked; git_clean tests need a real clean tree.
         A baseline that is dirty for its own unrelated reasons inverts every result (SKILL.md §6)."""

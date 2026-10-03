@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob, Bash, Agent, Skill
 
 _Paths: `${CLAUDE_SKILL_DIR}/../dev-loop/scripts/` resolves in Claude Code; in other harnesses use `<skills dir>/dev-loop/scripts/` (the shims in `shims/<harness>/` already do)._
 
-Goal state lives on disk (`.devloop/goal_state.json`, `docs/GOALS.md`, `.devloop/tasks.jsonl`); never in the context window. Operating procedure: the `dev-loop` skill.
+Goal state lives on disk (`.devloop/goal_state.json`, `docs/GOALS.md`, the task file from `artifacts.py tasks path`); never in the context window. Operating procedure: the `dev-loop` skill.
 
 Route on the first word of `$ARGUMENTS`:
 

@@ -3,7 +3,10 @@
 R=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 [ -f "$R/AGENTS.md" ] && printf 'dev-loop: project constitution is %s/AGENTS.md (read it before acting).\n' "$R"
 [ -f "$R/.devloop/LEDGER.md" ] && { printf '\n## Last dev-loop ledger entry\n'; awk '/^## /{b=""} {b=b $0 "\n"} END{printf "%s", b}' "$R/.devloop/LEDGER.md" | tail -n 12; }
-[ -f "$R/.devloop/tasks.jsonl" ] && command -v python3 >/dev/null && { printf '\n## Unblocked tasks\n'; python3 "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/skills/dev-loop/scripts/artifacts.py" tasks next --root "$R" 2>/dev/null | head -10; }
+ART="${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/skills/dev-loop/scripts/artifacts.py"
+# The task file is resolved by artifacts.py (<root>/tasks.jsonl, else .devloop/tasks.jsonl, or an override), never hardcoded here.
+F=$(command -v python3 >/dev/null && python3 "$ART" tasks path --root "$R" 2>/dev/null)
+[ -n "$F" ] && [ -f "$F" ] && { printf '\n## Unblocked tasks\n'; python3 "$ART" tasks next --root "$R" --limit 15 2>/dev/null; }
 # Cloud sessions: agy keeps its credential in a keyring whose daemon is a process, so it is gone on
 # every cold start while agy itself survives in the environment snapshot. Revive it and hand its bus
 # address to every later tool call through CLAUDE_ENV_FILE, whatever repo the session is in.

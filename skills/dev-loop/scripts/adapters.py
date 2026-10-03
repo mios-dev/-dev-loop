@@ -554,7 +554,7 @@ def run_shell(cmd: str, cwd: Path, timeout: int, env: dict | None = None, prefer
         return 124, out + f"\nTIMEOUT after {timeout}s", True
 
 
-BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", ".agents/")
+BASE_TREE_ALWAYS_ALLOWED = (".devloop/", ".git/", "AGENTS.md", "TASKS.md", "tasks.jsonl", ".agents/")
 ALLOWED_AGENTS_METADATA_EXTS = {".md", ".json", ".toml", ".yaml", ".yml", ".txt", ".log", ".patch"}
 
 

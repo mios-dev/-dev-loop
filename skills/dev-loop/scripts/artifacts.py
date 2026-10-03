@@ -4,25 +4,40 @@ artifacts.py — canonical autonomous-development artifacts (stdlib only).
 
   scaffold  [--root .] [--dry-run]        create any missing canonical files from assets/templates/ (never overwrites)
   bridges   [--root .]                    create thin pointer files (CLAUDE.md @AGENTS.md, GEMINI.md, .agents/rules, copilot, cursor, opencode)
-  tasks     render   [--root .]           .devloop/tasks.jsonl -> TASKS.md (human view; grouped by epic; - [ ] boxes)
+  tasks     path     [--root .]           print the resolved task file (see "Task file resolution" below)
+  tasks     render   [--root .]           task file -> TASKS.md (human view; grouped by epic; - [ ] boxes); a TASKS.md whose
+                                          first line is not this renderer's '# TASKS' banner belongs to another renderer and is left alone
   tasks     validate [--root .]           ids unique, status vocabulary, depends_on resolvable, no cycles, done ⇒ evidence present
   tasks     set <id> <status> [--evidence TEXT] [--root .]
   tasks     add --id T-00N --title ... [--epic ID] [--goal ID] [--depends a,b] [--ac "..."] [--positive CMD --negative CMD --expect RE]
-  tasks     next [--root .]               ids that are open with all depends_on done (what a fresh session should pick up)
+  tasks     next [--root .] [--limit N]   ids that are open with all depends_on done (what a fresh session should pick up)
   tasks     lane <id> [--root .]          print a lane object (v2 schema) for this task, ready to drop into lanes.json
   adr       new "<title>" [--root .]      next NNNN-title.md in docs/decisions from the MADR 4.0 template, status: proposed
   trailer   <id>                           print the commit trailer line for a task
   strip-frontmatter <SKILL.md>             keep only the six agentskills.io frontmatter keys (used when installing into non-Claude harnesses)
 
+Every `tasks` op also takes --tasks FILE. Task file resolution (first match wins):
+  1. --tasks FILE                         (relative to the current directory)
+  2. $DEVLOOP_TASKS_FILE                  (relative to --root)
+  3. <root>/tasks.jsonl                   when it is a file (a project keeping its canonical list at the root)
+  4. <root>/.devloop/tasks.jsonl          the default; `scaffold` creates it when no task file resolves yet
+Mutating ops (set, add, reconcile, archive-stale, fold-stale, recycle) hold an exclusive lock on '<task file>.lock'
+around load-modify-save, so another tool taking the same lock never loses an update.
+
 Vocabularies (also enforced by `tasks validate`):
   task.status  open | in_progress | blocked | done | cancelled      task.type  task | epic | bug
+               A file is in the OpenAI plan-status dialect when any record says pending, completed or incomplete:
+               those read as open, done and blocked, input accepts either dialect, and a save writes the file's own words.
   goal.status  active | at_risk | met | dropped                    adr.status proposed | accepted | deprecated | superseded
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -30,6 +45,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TPL = HERE.parent / "assets" / "templates"
 TASK_STATUS = ["open", "in_progress", "blocked", "done", "cancelled"]
+# The OpenAI plan-status dialect: same five states, three spelled differently. Detected per file.
+STATUS_ALIASES = {"pending": "open", "completed": "done", "incomplete": "blocked"}
+STATUS_DIALECT_OUT = {v: k for k, v in STATUS_ALIASES.items()}
+# A strict superset of the former ^[A-Z]+-\d+(?:(?:\.\.|-)\d+)?$ - ranges with a prefix (AGY-503..AGY-510), space-
+# separated words (G-TASK 1) and a '#n' suffix for a second task that reused an id (T-031#2). fullmatch, never a
+# trailing newline.
+TASK_ID_RE = re.compile(r"[A-Z][A-Z0-9]*(?:[- ][A-Z0-9]+)*(?:\.\.(?:[A-Z][A-Z0-9]*-)?[0-9]+)?(?:#[0-9]+)?")
+TASKS_FILE_ENV = "DEVLOOP_TASKS_FILE"
 TASK_TYPE = ["task", "epic", "bug"]
 CANON = {  # target path -> template
     "AGENTS.md": "AGENTS.md", "docs/GOALS.md": "GOALS.md", "docs/ROADMAP.md": "ROADMAP.md", "docs/DOD.md": "DOD.md",
@@ -48,22 +71,98 @@ def die(m, c=1):
     print(m, file=sys.stderr); sys.exit(c)
 
 
-def load_tasks(root: Path) -> list[dict]:
-    p = root / ".devloop" / "tasks.jsonl"
-    if not p.exists(): return []
-    out = []
+def tasks_path(root, explicit=None) -> Path:
+    """The project's task file: --tasks FILE, then $DEVLOOP_TASKS_FILE (relative to root), then <root>/tasks.jsonl
+    when it is a file, then <root>/.devloop/tasks.jsonl. The result need not exist yet."""
+    root = Path(root)
+    if explicit: return Path(explicit).resolve()
+    env = os.environ.get(TASKS_FILE_ENV, "").strip()
+    if env:
+        p = Path(env)
+        return p if p.is_absolute() else root / p
+    top = root / "tasks.jsonl"
+    return top if top.is_file() else root / ".devloop" / "tasks.jsonl"
+
+
+def _rel(root: Path, p: Path) -> str:
+    try: return p.resolve().relative_to(Path(root).resolve()).as_posix()
+    except ValueError: return str(p)
+
+
+def norm_status(s):
+    return STATUS_ALIASES.get(s, s)
+
+
+def read_task_file(p: Path) -> tuple[list[dict], str]:
+    """(records with status normalised to the internal words, dialect) where dialect is 'openai' when any record
+    uses pending/completed/incomplete and 'legacy' otherwise (also for an absent or empty file)."""
+    if not p.exists(): return [], "legacy"
+    out, dialect = [], "legacy"
     for n, line in enumerate(p.read_text("utf-8").splitlines(), 1):
         if line.strip():
-            try: out.append(json.loads(line))
-            except json.JSONDecodeError as e: die(f"tasks.jsonl line {n}: {e}")
-    return out
+            try: t = json.loads(line)
+            except json.JSONDecodeError as e: die(f"{p.name} line {n}: {e}")
+            if isinstance(t, dict) and t.get("status") in STATUS_ALIASES:
+                dialect = "openai"; t["status"] = STATUS_ALIASES[t["status"]]
+            out.append(t)
+    return out, dialect
 
 
-def save_tasks(root: Path, tasks: list[dict]) -> None:
-    p = root / ".devloop" / "tasks.jsonl"; p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".jsonl.tmp")
-    tmp.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in tasks), "utf-8")
+def load_tasks(root: Path, path=None) -> list[dict]:
+    return read_task_file(Path(path) if path else tasks_path(root))[0]
+
+
+def save_tasks(root: Path, tasks: list[dict], path=None) -> None:
+    """Write back in the file's own dialect, read from the file as it is on disk (the caller holds the lock)."""
+    p = Path(path) if path else tasks_path(root); p.parent.mkdir(parents=True, exist_ok=True)
+    dialect = read_task_file(p)[1]
+    def out(t):
+        if dialect == "openai" and t.get("status") in STATUS_DIALECT_OUT: t = {**t, "status": STATUS_DIALECT_OUT[t["status"]]}
+        return json.dumps(t, ensure_ascii=False) + "\n"
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text("".join(out(t) for t in tasks), "utf-8")
     tmp.replace(p)  # atomic
+
+
+def _exclude_lock_file(lock: Path) -> None:
+    """A lock file this tool just created must not dirty `git status` (a dirty base tree stops the orchestrator).
+    Add one anchored line for it to the repository's info/exclude unless something already ignores it."""
+    try:
+        d = lock.parent
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=d, capture_output=True, text=True)
+        if top.returncode: return
+        rel = lock.resolve().relative_to(Path(top.stdout.strip()).resolve()).as_posix()
+        if subprocess.run(["git", "check-ignore", "-q", "--", rel], cwd=top.stdout.strip(), capture_output=True).returncode == 0: return
+        ex = subprocess.run(["git", "rev-parse", "--git-path", "info/exclude"], cwd=top.stdout.strip(), capture_output=True, text=True)
+        if ex.returncode: return
+        exf = Path(ex.stdout.strip()); exf = exf if exf.is_absolute() else Path(top.stdout.strip()) / exf
+        exf.parent.mkdir(parents=True, exist_ok=True)
+        cur = exf.read_text("utf-8") if exf.exists() else ""
+        line = "/" + rel
+        if line not in cur.splitlines():
+            exf.write_text(cur + ("" if not cur or cur.endswith("\n") else "\n") + line + "\n", "utf-8")
+    except (OSError, ValueError):
+        pass
+
+
+@contextlib.contextmanager
+def task_lock(p: Path):
+    """Exclusive lock on '<task file>.lock' for a load-modify-save. Any other tool that rewrites the same file must take
+    the same lock (flock on POSIX, a byte-range lock on Windows)."""
+    lock = p.with_name(p.name + ".lock"); lock.parent.mkdir(parents=True, exist_ok=True)
+    fresh = not lock.exists()
+    f = open(lock, "a+")
+    try:
+        if fresh: _exclude_lock_file(lock)
+        try:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        except ImportError:  # Windows
+            import msvcrt
+            f.seek(0); msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        yield
+    finally:
+        f.close()  # closing the descriptor releases either lock
 
 
 _HEAD_COMMIT_CACHE: dict = {}
@@ -173,6 +272,7 @@ def cmd_scaffold(a):
     for rel, tpl in CANON.items():
         dst = root / rel
         if dst.exists(): continue
+        if rel == ".devloop/tasks.jsonl" and tasks_path(root).is_file(): continue  # the project already keeps its task file elsewhere
         made.append(rel)
         if not a.dry_run:
             dst.parent.mkdir(parents=True, exist_ok=True); dst.write_text((TPL / tpl).read_text("utf-8"), "utf-8")
@@ -200,7 +300,7 @@ def validate(tasks: list[dict]) -> list[str]:
     if len(ids) != len(set(ids)): errs.append("duplicate ids")
     for t in tasks:
         i = t.get("id", "?")
-        if not re.match(r"^[A-Z]+-\d+(?:(?:\.\.|\-)\d+)?$", str(i)): errs.append(f"{i}: id must look like T-001 or AGY-106..122")
+        if not (isinstance(i, str) and TASK_ID_RE.fullmatch(i)): errs.append(f"{i!r}: id must look like T-001, AGY-106..122, AGY-503..AGY-510, G-TASK 1 or T-031#2")
         if t.get("status") not in TASK_STATUS: errs.append(f"{i}: status {t.get('status')!r} not in {TASK_STATUS}")
         if t.get("type", "task") not in TASK_TYPE: errs.append(f"{i}: type {t.get('type')!r} not in {TASK_TYPE}")
         for d in t.get("depends_on", []):
@@ -217,38 +317,57 @@ def validate(tasks: list[dict]) -> list[str]:
     return errs
 
 
+MUTATING_TASK_OPS = ("set", "add", "reconcile", "archive-stale", "fold-stale", "recycle")
+RENDER_BANNER = "# TASKS"
+
+
 def cmd_tasks(a):
-    root = Path(a.root).resolve(); tasks = load_tasks(root)
+    root = Path(a.root).resolve(); path = tasks_path(root, getattr(a, "tasks", None))
+    if a.op == "path":
+        print(path); return
+    with (task_lock(path) if a.op in MUTATING_TASK_OPS else contextlib.nullcontext()):
+        _cmd_tasks(a, root, path)
+
+
+def _cmd_tasks(a, root: Path, path: Path):
+    tasks, dialect = read_task_file(path); name = path.name
+    shown = (lambda st: STATUS_DIALECT_OUT.get(st, st)) if dialect == "openai" else (lambda st: st)
     if a.op == "validate":
         errs = validate(tasks)
-        die("tasks.jsonl invalid:\n  " + "\n  ".join(errs)) if errs else print(f"tasks.jsonl ok: {len(tasks)} tasks")
+        die(f"{name} invalid:\n  " + "\n  ".join(errs)) if errs else print(f"{name} ok: {len(tasks)} tasks")
     elif a.op == "render":
+        md = root / "TASKS.md"
+        if md.exists():
+            with open(md, encoding="utf-8", errors="replace") as fh: first = fh.readline().rstrip("\r\n")
+            if first != RENDER_BANNER:
+                print("TASKS.md owned by another renderer; skipped"); return
         errs = validate(tasks)
-        if errs: die("refusing to render invalid tasks.jsonl:\n  " + "\n  ".join(errs))
-        box = {"done": "x", "cancelled": "-"}
-        lines = ["# TASKS", "", "_Rendered from `.devloop/tasks.jsonl` — edit the JSONL (or `artifacts.py tasks set/add`), then `artifacts.py tasks render`. Do not hand-edit this file._", ""]
+        if errs: die(f"refusing to render invalid {name}:\n  " + "\n  ".join(errs))
+        box = {"done": "x", "cancelled": "-"}; src = _rel(root, path)
+        lines = [RENDER_BANNER, "", f"_Rendered from `{src}` — edit the JSONL (or `artifacts.py tasks set/add`), then `artifacts.py tasks render`. Do not hand-edit this file._", ""]
         epics = [t for t in tasks if t.get("type") == "epic"]; by_epic = {}
         for t in tasks:
             if t.get("type") != "epic": by_epic.setdefault(t.get("epic") or "_none", []).append(t)
         def line(t):
             b = box.get(t["status"], " "); dep = f" ← {', '.join(t['depends_on'])}" if t.get("depends_on") else ""
-            own = f" @{t['owner']}" if t.get("owner") else ""; st = "" if t["status"] in ("open", "done") else f" **[{t['status']}]**"
+            own = f" @{t['owner']}" if t.get("owner") else ""; st = "" if t["status"] in ("open", "done") else f" **[{shown(t['status'])}]**"
             return f"- [{b}] **{t['id']}** {t['title']}{st}{own}{dep}"
         for e in epics:
-            lines += [f"## {e['id']} · {e['title']} · `{e['status']}`" + (f" · goal {e['goal']}" if e.get("goal") else ""), ""]
+            lines += [f"## {e['id']} · {e['title']} · `{shown(e['status'])}`" + (f" · goal {e['goal']}" if e.get("goal") else ""), ""]
             lines += [line(t) for t in by_epic.get(e["id"], [])] + [""]
         if by_epic.get("_none"):
             lines += ["## Unassigned", ""] + [line(t) for t in by_epic["_none"]] + [""]
-        n_done = sum(t["status"] == "done" for t in tasks); lines += [f"_{n_done}/{len(tasks)} done · {time.strftime('%Y-%m-%d')}_", ""]
+        n_done = sum(t["status"] == "done" for t in tasks); lines += [f"_{n_done}/{len(tasks)} {shown('done')} · {time.strftime('%Y-%m-%d')}_", ""]
         (root / "TASKS.md").write_text("\n".join(lines), "utf-8"); print(f"TASKS.md rendered ({len(tasks)} tasks)")
     elif a.op == "set":
         t = next((t for t in tasks if t["id"] == a.id), None) or die(f"no task {a.id}")
-        if a.status not in TASK_STATUS: die(f"status must be one of {TASK_STATUS}")
+        a.status = norm_status(a.status)
+        if a.status not in TASK_STATUS: die(f"status must be one of {TASK_STATUS} (or {sorted(STATUS_ALIASES)})")
         if a.status == "done" and not (a.evidence or t.get("verification_evidence")): die("done requires --evidence (both controls, exact commands)")
         t["status"] = a.status
         if a.evidence: t["verification_evidence"] = a.evidence
         t["updated"] = time.strftime("%Y-%m-%d")
-        save_tasks(root, tasks); print(f"{a.id} -> {a.status}")
+        save_tasks(root, tasks, path); print(f"{a.id} -> {shown(a.status)}")
     elif a.op == "add":
         if any(t["id"] == a.id for t in tasks): die(f"{a.id} exists")
         t = {"id": a.id, "type": a.type, "title": a.title, "status": "open", "owner": a.owner or "", "epic": a.epic or "", "goal": a.goal or "",
@@ -256,12 +375,16 @@ def cmd_tasks(a):
              "verification": {k: v for k, v in (("positive_cmd", a.positive), ("negative_control_cmd", a.negative), ("negative_expect", a.expect)) if v},
              "verification_evidence": "", "links": [], "notes": "", "created": time.strftime("%Y-%m-%d")}
         tasks.append(t); errs = validate(tasks)
-        if errs: die("would make tasks.jsonl invalid:\n  " + "\n  ".join(errs))
-        save_tasks(root, tasks); print(f"added {a.id}")
+        if errs: die(f"would make {name} invalid:\n  " + "\n  ".join(errs))
+        save_tasks(root, tasks, path); print(f"added {a.id}")
     elif a.op == "next":
         done = {t["id"] for t in tasks if t["status"] in ("done", "cancelled")}
         ready = [t for t in tasks if t["status"] == "open" and t.get("type") != "epic" and set(t.get("depends_on", [])) <= done]
-        print("\n".join(f"{t['id']}  {t['title']}" for t in ready) or "(nothing ready — check blocked/in_progress tasks and the ledger)")
+        lim = a.limit if a.limit is not None and a.limit >= 0 else None
+        shown_ready = ready if lim is None else ready[:lim]
+        out = [f"{t['id']}  {t['title']}" for t in shown_ready]
+        if len(ready) > len(shown_ready): out.append(f"(+{len(ready) - len(shown_ready)} more)")
+        print("\n".join(out) or "(nothing ready — check blocked/in_progress tasks and the ledger)")
     elif a.op == "lane":
         t = next((t for t in tasks if t["id"] == a.id), None) or die(f"no task {a.id}")
         v = t.get("verification", {})
@@ -291,7 +414,7 @@ def cmd_tasks(a):
         hl["last_reconciled_commit"] = head_sha
         hl["staleness_score"] = 0.0
         t["updated"] = time.strftime("%Y-%m-%d")
-        save_tasks(root, tasks)
+        save_tasks(root, tasks, path)
         print(f"{a.id} reconciled to HEAD ({head_sha[:8]}); staleness reset to 0.0")
     elif a.op in ("archive-stale", "fold-stale"):
         thresh = getattr(a, "threshold", 0.5) or 0.5
@@ -346,7 +469,7 @@ def cmd_tasks(a):
                         if b not in arch_deps:
                             arch_deps.append(b)
 
-            save_tasks(root, surviving)
+            save_tasks(root, surviving, path)
             print(f"Folded {len(archived)} tasks wholly to {archive_jsonl} and {historical_md}. Remaining active tasks: {len(surviving)}")
         else:
             print(f"No tasks exceeded staleness threshold {thresh}. None folded.")
@@ -373,15 +496,15 @@ def cmd_tasks(a):
             hl["staleness_score"] = 0.0
             target_task.pop("folded_status", None)
             target_task["review_state"] = "reactivated"
-            active = load_tasks(root)
+            active = load_tasks(root, path)
             active.append(target_task)
-            save_tasks(root, active)
+            save_tasks(root, active, path)
             for t in archived_tasks:
                 if t["id"] == target_id:
                     t["review_state"] = "reactivated"
                     t["reactivated_at"] = time.strftime("%Y-%m-%d %H:%M:%SZ")
             archive_jsonl.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in archived_tasks), "utf-8")
-            print(f"Task {target_id} reactivated to active tasks.jsonl at HEAD ({head_sha[:8]})")
+            print(f"Task {target_id} reactivated to active {name} at HEAD ({head_sha[:8]})")
             return
 
         if target_id and re_research:
@@ -500,7 +623,7 @@ def cmd_tasks(a):
                 "verification_evidence", "links", "notes", "created"
             ],
             "properties": {
-                "id": {"type": "string", "pattern": "^[A-Z]+-\\d+(?:[\\.\\-]\\d+)?$"},
+                "id": {"type": "string", "pattern": "^" + TASK_ID_RE.pattern + "$"},
                 "type": {"type": "string", "enum": ["task", "epic", "bug"]},
                 "title": {"type": "string"},
                 "status": {"type": "string", "enum": ["open", "in_progress", "blocked", "done", "cancelled"]},
@@ -569,11 +692,12 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("scaffold"); p.add_argument("--root", default="."); p.add_argument("--dry-run", action="store_true"); p.set_defaults(f=cmd_scaffold)
     p = sp.add_parser("bridges"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_bridges)
-    p = sp.add_parser("tasks"); p.add_argument("op", choices=["render", "validate", "set", "add", "next", "lane", "staleness", "reconcile", "archive-stale", "fold-stale", "recycle", "distill", "export-openai"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
+    p = sp.add_parser("tasks"); p.add_argument("op", choices=["path", "render", "validate", "set", "add", "next", "lane", "staleness", "reconcile", "archive-stale", "fold-stale", "recycle", "distill", "export-openai"]); p.add_argument("id", nargs="?"); p.add_argument("status", nargs="?")
     p.add_argument("--root", default="."); p.add_argument("--evidence"); p.add_argument("--id", dest="id_flag"); p.add_argument("--title"); p.add_argument("--type", default="task", choices=TASK_TYPE)
     p.add_argument("--owner"); p.add_argument("--epic"); p.add_argument("--goal"); p.add_argument("--depends"); p.add_argument("--ac", action="append")
     p.add_argument("--positive"); p.add_argument("--negative"); p.add_argument("--expect"); p.add_argument("--threshold", type=float, default=0.5)
     p.add_argument("--cadence", type=int, default=25); p.add_argument("--re-research", action="store_true"); p.add_argument("--reactivate", action="store_true")
+    p.add_argument("--tasks", help="task file (overrides $DEVLOOP_TASKS_FILE and discovery)"); p.add_argument("--limit", type=int, help="next: print at most N tasks (default: all)")
     p.set_defaults(f=cmd_tasks)
     p = sp.add_parser("adr"); p.add_argument("op", choices=["new"]); p.add_argument("title"); p.add_argument("--root", default="."); p.set_defaults(f=cmd_adr)
     p = sp.add_parser("trailer"); p.add_argument("id"); p.set_defaults(f=lambda a: print(f"Task-Id: {a.id}"))

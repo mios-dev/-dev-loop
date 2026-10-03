@@ -3,7 +3,7 @@ description: Run the Dev Loop (verify-hard, two-sided controls, worktree lanes) 
 ---
 Load the `dev-loop` skill from `.agent/skills/dev-loop/SKILL.md` (or the global skills dir) and execute its lifecycle (§1) for the objective given after this command.
 
-Orient first: `AGENTS.md`, the last entry of `.devloop/LEDGER.md`, `TASKS.md`; if the canonical artifacts are missing run `python3 scripts/artifacts.py scaffold` (§3). Flip the task in `.devloop/tasks.jsonl` and append a ledger entry before you stop.
+Orient first: `AGENTS.md`, the last entry of `.devloop/LEDGER.md`, `TASKS.md`; if the canonical artifacts are missing run `python3 scripts/artifacts.py scaffold` (§3). Flip the task in the task file (`artifacts.py tasks path`) and append a ledger entry before you stop.
 1. Write the Definition of Done (§2) into the Implementation Plan artifact AND the repo's own plan file (§3).
 2. Track work in the Task List artifact; the repo doc is the record.
 3. Run both controls before claiming done (§6); put the exact commands and outputs in the Walkthrough.

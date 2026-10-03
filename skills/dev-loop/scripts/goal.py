@@ -17,6 +17,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import artifacts as _artifacts  # noqa: E402  (ships beside this file; the one task-file resolver)
+
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it
     sys.path.insert(0, str(HERE))
@@ -119,7 +122,7 @@ class GoalEngine:
             ]
             # Only mint the artifact criterion where there are task artifacts to validate;
             # a criterion nothing can satisfy is worse than no criterion at all.
-            if (self.artifacts_dir / "tasks.jsonl").is_file():
+            if _artifacts.tasks_path(self.repo_root).is_file():
                 c_objs.append(GoalCriterion(id="C-03", description="Task artifacts validate (ids, vocabulary, dependency graph, done⇒evidence)", criterion_type="artifact"))
 
         self.goal = GoalDefinition(
@@ -238,7 +241,7 @@ class GoalEngine:
                     c.details = f"Dirty files: {len(dirty_lines)} files — {named}"
             elif c.criterion_type == "artifact":
                 art_py = self._artifacts_py()
-                tasks = self.artifacts_dir / "tasks.jsonl"
+                tasks = _artifacts.tasks_path(self.repo_root)
                 if art_py is None:
                     c.passed = False
                     c.details = "artifacts.py not found — cannot validate; drop this criterion or install the skill scripts"
@@ -246,7 +249,7 @@ class GoalEngine:
                     # `tasks validate` reports "ok: 0 tasks" on an absent file. Passing on an
                     # empty set would let this criterion be satisfied by having no artifacts.
                     c.passed = False
-                    c.details = f"{tasks.relative_to(self.repo_root)} does not exist — nothing to validate"
+                    c.details = f"{_artifacts._rel(self.repo_root, tasks)} does not exist — nothing to validate"
                 else:
                     res = subprocess.run([sys.executable, str(art_py), "tasks", "validate", "--root", str(self.repo_root)],
                                          cwd=self.repo_root, capture_output=True, text=True)
