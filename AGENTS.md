@@ -9,25 +9,27 @@ to this file; loaders differ, so those files must stay pointers. Per the dev-loo
 The `dev-loop` plugin/skill set (see `README.md`), plus an environment layer (`skills/dev-loop/scripts/env/`, devcontainers in `.devcontainer/`)
 that provisions Google Antigravity's CLI (`agy`) inside Claude Code on the web containers.
 
-## Orchestration topology (binding)
+## Orchestration topology & Universal Harness Neutrality (binding)
 
-- **L0 host / manager: Antigravity (`agy`), native-first.** All multi-lane dev-loop runs
-  launched from this repository default to topology A of
-  `skills/dev-loop/references/harness-adapters.md` §3 — AGY is the manager of all sub-agents and
-  uses its NATIVE multi-agent machinery (subagents via `invoke_subagent` with
-  `workspace: branch`, native workflows) for its own lanes by default. The dev-loop's reference
-  orchestrator is how OTHER harnesses join the loop, not a replacement for AGY's native
-  patterns. Launch with `sh skills/dev-loop/scripts/agy_host.sh <lanes.json>`.
+- **Zero Hardcoded Master/Worker/Monitor Roles (Universal Harness Neutrality):** No single
+  AI harness (Antigravity, OpenAI Codex, Claude Code, OpenCode, Gemini CLI, Aider, Copilot, or
+  remote cloud endpoints) is permanently hardcoded as the manager, master, worker, or monitor.
+  **Absolutely ANY AGENT** can be dynamically promoted to Orchestrator or Monitor based on
+  whichever Agent CLI is invoked. Multi-lane dev-loop runs promote the active invoking harness
+  dynamically via `/home/user/.local/state/mios/agent-relay/state.json`.
+- **Native MiOS-MCP + tmux-mcp Everywhere:** All multi-agent workflows, inter-agent
+  coordination, sub-pane spawning, command execution, and live monitoring MUST use `MiOS-MCP`
+  (`agent-pipe` / `agent-relay` / `state.json`) and `tmux-mcp v2` native slot tools (`open-pane`,
+  `execute-command`, `send-keys`, `capture-pane`, `start-and-watch`, `nested_workflow`) natively,
+  both in headless slots (`/run/mios-tmux/`) and in the live desktop session (`tmux -L mios-human`).
+- **Harness Multi-Agent Machinery:** When Antigravity (`agy`) is the promoted manager, it uses
+  its native multi-agent machinery (`invoke_subagent` with `workspace: branch`); when Codex, Claude
+  Code, or OpenCode is promoted, it utilizes native tmux-mcp sub-pane spawning and MiOS-MCP relay
+  dispatch. All harnesses join the loop under identical two-sided verification gates.
   **Native lanes require a manager whose process outlives a turn.** `--session` holds a
   stream-json NDJSON session open across turns and is the unattended mode that keeps the
   native topology above; `--headless` is single-turn `agy -p` and routes every lane through
-  the reference orchestrator instead, because a subagent that has not finished when the turn
-  ends dies with the process. This is a lifetime constraint, not an availability one --
-  `invoke_subagent` itself works headlessly (measured 1.2.6, four probes, including one with
-  `settings.json` voided). Controls: `tests/test_agy_dispatch_rule.py`. The first `--session`
-  run dispatched, gated and merged two native lanes in ONE turn, so the poll loop that keeps a
-  session alive past a turn end is implemented but **not yet exercised** -- do not cite it as
-  proven.
+  the reference orchestrator instead. Controls: `tests/test_agy_dispatch_rule.py`.
 - **Remote control is a per-SESSION flag, not a daemon property.** `agy --remote-control`
   ("Create a remote connection for the CLI session on start up") is what puts a running
   manager in the Remote Control list at antigravity.google.com. The
