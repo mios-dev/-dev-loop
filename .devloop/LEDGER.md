@@ -363,6 +363,33 @@
 - blockers: -
 - unverified: -
 
+## 2026-10-07 · f22b85ff · AGY-1113: generate-pod-quadlets native port (Phase 3.17)
+- objective: Port systemd Quadlet projector from tools/generate-pod-quadlets.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 6, Law 11, Law 14, and AGY-1067.
+- done:
+  - Implemented `pod_quadlets.rs` supporting:
+    - Pure-Rust recursive nested variable expansion (`${VAR:-default}`, `ssot_expand`, `expand_str`, `resolve_one`) resolving from SSOT exports and pinned sidecars while preserving `MIOS_PORT_*` and `_PLACEHOLDER_VARS`.
+    - Exact systemd Quadlet section formatting and alphabetical key sorting across `.pod`, `.container`, `.network`, `.volume`, and `.image` files.
+    - Law 6 enforcement: unauthorized root UID/GID or undeclared non-root users rejected unless present in `[security.privileged_quadlets].root`.
+    - Law 11 enforcement: plaintext credential literals rejected unless grandfathered in `[security.credential_literals].grandfathered`.
+    - Bootc additional image store projection (`--storage-opt=additionalimagestore=...`) for non-firstboot, non-user containers from `[build.bake]`.
+    - Exact byte-for-byte fidelity across all 35 Quadlet units on disk with `--check` mode (detecting mutated drift and orphan units), `--list` mode (34 system units), and structured JSON output.
+  - Wired `pod-quadlets` (aliases `pod-gen`, `generate-pod-quadlets`) subcommand into `main.rs` supporting `--root`, `--check`, `--list`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh`: `check_pod_quadlets` dispatches `native_bin mios-gen pod-quadlets --root "$ROOT" --check` first.
+  - Updated `tools/sync-generated.sh`: step 8 dispatches `_gen pod-quadlets --root "$ROOT"`.
+  - Updated `usr/share/mios/mios.toml`: tracked `tools/generate-pod-quadlets.py` in `[rust.categories.gen].replaces` (20 deleted scripts total) and eradicated `tools/generate-*.py` glob from `[rust.categories.gen].scope`.
+  - Decremented `usr/share/mios/reference/python-untested-baseline.txt` by removing `tools/generate-pod-quadlets.py`.
+  - Strangler-deleted `tools/generate-pod-quadlets.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/pod-quadlets/` (`cmd.toml`, `positive_check.trycmd`) and two-sided unit/integration tests in `tools/native/mios-gen/tests/pod_quadlets.rs` (positive CLI check with 35 units, list mode with 34 system units, structured JSON check, negative mutated drift control, and negative orphan unit control).
+  - Built `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and Windows.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_pod_quadlets` passed cleanly.
+  - Synchronized full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `f22b85ff` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1114: Plan and execute Phase 3.18 porting of remaining scripts in `[rust.categories.gen].scope` (e.g. `tools/generate-k3s-manifests.*` or UX/Windows projectors).
+- blockers: -
+- unverified: -
+
+
 
 
 
