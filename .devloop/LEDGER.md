@@ -229,3 +229,24 @@
 - next: AGY-1106: Port `tools/render-globals.py` (generating 3131 constants into `globals.sh` and `globals.ps1`) into native `mios-gen` subcommand.
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · 5776d4ff · AGY-1106: render-globals native port (Phase 3.10)
+- objective: Port 3,131 constant generator from tools/render-globals.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `render_globals.rs` with `build_exports` (resolving merged SSOT, applying `ports.stack_id` offset, walking TOML value tree skipping `EXCLUDED_SECTIONS` and `.comment` keys, deriving aliases including `image.sidecars.*_VERSION` tag splitting, injecting `MIOS_COLOR_*` palette entries, and stripping dead guacamole ports), topological dependency resolution via recursive DFS with cycle-handling and sorted deterministic order (`ordered_names`), POSIX safe single-quoting and conditional assignment (`sh_assign`), PowerShell `$script:VAR` assignment with live subexpressions (`ps_assign`), dual-sided regex parity checking (`check_globals_parity`), universal CRLF/LF normalized drift detection, and atomic UTF-8 / UTF-8 BOM writes.
+  - Wired `render-globals` (alias `globals`) subcommand into `main.rs` supporting `--check` and structured JSON format.
+  - Updated `automation/98-drift-checks.sh` `check_globals_generated` to dispatch `native_bin mios-gen render-globals --root "$ROOT" --check` first.
+  - Updated `tools/sync-generated.sh` step 3 to dispatch `_gen render-globals --root "$ROOT"`.
+  - Updated `tests/drift-gate-negatives.sh` `test_globals_generated` to prioritize `mios-gen`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs`, added `tools/render-globals.py` to `[rust.categories.gen].replaces` (13 deleted scripts total), and removed the empty `tools/render-*.py` glob from `scope` to satisfy the `rust-categories` non-empty glob invariant.
+  - Strangler-deleted `tools/render-globals.py` and `tools/test_render_globals.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/render-globals/` and two-sided unit/integration tests in `tools/native/mios-gen/tests/render_globals.rs` (positive CLI check, structured JSON check, negative `globals.sh` mutation drift control, negative `globals.ps1` mutation drift control).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_globals_generated` passed cleanly.
+  - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `5776d4ff` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1107: Port next configuration/quadlet generator from `[rust.categories.gen]` into native `mios-gen` subcommand (Phase 3.11).
+- blockers: -
+- unverified: -
+
