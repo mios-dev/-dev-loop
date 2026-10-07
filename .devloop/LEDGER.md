@@ -343,6 +343,27 @@
 - blockers: -
 - unverified: -
 
+## 2026-10-07 · b0ade240 · AGY-1112: sync-wiki native port (Phase 3.16)
+- objective: Port wiki and spec metadata synchronizer from tools/sync-wiki.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `sync_wiki.rs` with `get_version` (reads `VERSION` or `[meta].mios_version` from `mios.toml` with `0.3.0` fallback), `get_last_rag_sync` (reads explicit `--rag-sync` date or extracts `manual-corpus.tsv` mtime date formatted `YYYY-MM-DD` via Howard Hinnant civil calendar math), `sync_file_content` (parses ````json:knowledge```` and ````json```` blocks, updates `"version"` to match SSOT, updates `"last_rag_sync"` if missing or explicit, updates `"baseline"` to `v{version}`, formats with 2-space indentation, normalizes newlines, detects drift in check mode, writes atomically in write mode).
+  - Wired `sync-wiki` (alias `wiki-sync`) subcommand into `main.rs` supporting `--root`, `--check`, `--rag-sync`, `[PATHS]...`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh`: added `check_sync_wiki` dispatching `native_bin mios-gen sync-wiki --root "$ROOT" --check` and registered in `main()`.
+  - Updated `tests/drift-gate-negatives.sh`: added `test_sync_wiki` with mutation control, diagnosis assert (`STALE`), restoration check, and registered in `main()`.
+  - Updated `usr/share/mios/mios.toml` to add `tools/sync-wiki.py` to `[rust.categories.gen].replaces` (19 deleted scripts total) and removed `tools/sync-wiki.py` from `scope`.
+  - Decremented `usr/share/mios/reference/python-untested-baseline.txt` by removing `tools/sync-wiki.py`.
+  - Strangler-deleted `tools/sync-wiki.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/sync-wiki/` (`cmd.toml`, `positive_check.trycmd`) and two-sided unit/integration tests in `tools/native/mios-gen/tests/sync_wiki.rs` (positive CLI check, structured JSON check, negative stale version mutation control, negative structured JSON violation control, write mode self-healing check, and clean final check).
+  - Built `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied release binary to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_sync_wiki` passed cleanly.
+  - Synchronized full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `b0ade240` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1113: Plan and execute Phase 3.17 porting of remaining scripts in `[rust.categories.gen].scope`.
+- blockers: -
+- unverified: -
+
+
 
 
 
