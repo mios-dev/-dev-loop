@@ -193,3 +193,21 @@
 - next: address design-audit findings in loop-translation-layer design; keep NDJSON transport for agy_session.py
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · 96a51971 · AGY-1104: render-desktop native port (Phase 3.8)
+- objective: Port Freedesktop .desktop application launcher generation from tools/render-desktop.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `render_desktop.rs` with `load_ssot`, `render_launcher`, port mapping, comment/ai_hint placeholder substitution, default `ai_related`, boolean attributes (`Terminal`, `StartupNotify`, `NoDisplay`), multi-line `trailing_comments`, unmanaged launcher detection, and CRLF-normalized content drift verification.
+  - Wired `render-desktop` (alias `desktop`) subcommand into `main.rs` with text and OpenAI structured JSON formatting.
+  - Updated `automation/98-drift-checks.sh` `check_desktop_launchers` to dispatch `native_bin mios-gen render-desktop --root "$ROOT" --check` first.
+  - Updated `tools/sync-generated.sh` step 4 to dispatch `_gen render-desktop --root "$ROOT"`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs` and added `tools/render-desktop.py` to `[rust.categories.gen].replaces` (11 deleted scripts total).
+  - Strangler-deleted `tools/render-desktop.py` and `tools/test_render-desktop.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/render-desktop/` and two-sided unit/integration tests in `tools/native/mios-gen/tests/render_desktop.rs` (positive CLI check, structured JSON check, negative launcher mutation drift control, negative unmanaged launcher injection control).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_desktop_launchers` passed cleanly.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `96a51971` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1105: Port `tools/render-globals.py` (generating 3131 constants into `globals.sh` and `globals.ps1`) or `tools/render-manpages.py` into native `mios-gen` subcommand.
+- blockers: -
+- unverified: -

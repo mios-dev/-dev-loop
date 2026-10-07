@@ -49,6 +49,17 @@ import sys
 import time
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 HERE = Path(__file__).resolve().parent
 TPL = HERE.parent / "assets" / "templates"
 TASK_STATUS = ["open", "in_progress", "blocked", "done", "cancelled"]
