@@ -302,9 +302,26 @@
   - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
   - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
   - Committed in `C:\MiOS` as `20bea41f` on branch `codex/uncommitted-mcp-ux`.
-- next: AGY-1110: Port `tools/gen-pipe-boundary-manifest.py` into native `mios-gen` subcommand (Phase 3.14).
+## 2026-10-07 · 85a420e9 · AGY-1110: gen-pipe-boundary-manifest native port (Phase 3.14)
+- objective: Port agent-pipe boundary manifest generator from tools/gen-pipe-boundary-manifest.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `pipe_boundaries.rs` with `extract_module_boundaries` (pure-Rust extraction of kwargs from `def configure(...)` kwonly arguments, and public symbols from classes and functions while ignoring comments and multiline docstrings) and `render_manifest` (walking `usr/lib/mios/agent-pipe/mios_pipe/`, filtering `.py` excluding `test_*`, serializing to 2-space indented sorted JSON matching `pipe-boundaries.manifest.json` across all 108 modules byte-for-byte).
+  - Wired `pipe-boundaries` (aliases `pipe-boundary-manifest`, `pipe-manifest`) subcommand into `main.rs` supporting `--root`, `--check`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh` `check_pipe_boundaries` to dispatch `native_bin mios-gen pipe-boundaries --root "$ROOT" --check` first.
+  - Updated `tools/sync-generated.sh` step 12 to dispatch `_gen pipe-boundaries --root "$ROOT"`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs`, added `tools/gen-pipe-boundary-manifest.py` to `[rust.categories.gen].replaces` (17 deleted scripts total), and pruned empty glob `tools/gen-*.py` from `[rust.categories.gen].scope`.
+  - Decremented `usr/share/mios/reference/python-untested-baseline.txt` by removing `tools/gen-pipe-boundary-manifest.py`.
+  - Strangler-deleted `tools/gen-pipe-boundary-manifest.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/pipe-boundaries/` (`cmd.toml`, `positive_check.trycmd`, `negative_missing_root.trycmd`) and two-sided unit/integration tests in `tools/native/mios-gen/tests/pipe_boundaries.rs` (positive CLI check with 108 modules, structured JSON check, negative mutated manifest control `STALE:`, negative missing manifest control `MISSING`, negative nonexistent root control, post-restoration check).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied release binary to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_pipe_boundaries` passed cleanly.
+  - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `85a420e9` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1111: Port `tools/standardize-docs.py` into native `mios-gen` subcommand (Phase 3.15).
 - blockers: -
 - unverified: -
+
 
 
 
