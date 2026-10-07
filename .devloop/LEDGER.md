@@ -211,3 +211,21 @@
 - next: AGY-1105: Port `tools/render-globals.py` (generating 3131 constants into `globals.sh` and `globals.ps1`) or `tools/render-manpages.py` into native `mios-gen` subcommand.
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · 8f0e48ac · AGY-1105: render-manpages native port (Phase 3.9)
+- objective: Port roff manual tree generator from tools/render-manpages.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `render_manpages.rs` with `roff` escaping, `.TH` header generator, version derivation from `VERSION` file, prose markdown reader, full man page generator (`mios.1` index, `mios-<verb>.1` verb pages, `mios.toml.5` config reference, `mios.7` concept page, `mios-variants.7` product line reference), structural validation (`validate_man_page`), orphan detection, and CRLF-normalized content drift verification.
+  - Wired `render-manpages` (alias `manpages`) subcommand into `main.rs` supporting `--check`, `--validate`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh` `check_manpages` to dispatch `native_bin mios-gen render-manpages --root "$ROOT" --check --validate` first.
+  - Updated `tools/sync-generated.sh` step 5 to dispatch `_gen render-manpages --root "$ROOT" --validate`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs` and added `tools/render-manpages.py` to `[rust.categories.gen].replaces` (12 deleted scripts total).
+  - Strangler-deleted `tools/render-manpages.py` and `tools/test_render-manpages.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/render-manpages/` and two-sided unit/integration tests in `tools/native/mios-gen/tests/render_manpages.rs` (positive CLI check, structured JSON check, negative manpage mutation drift control, negative orphan injection control).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_manpages` passed cleanly.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `8f0e48ac` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1106: Port `tools/render-globals.py` (generating 3131 constants into `globals.sh` and `globals.ps1`) into native `mios-gen` subcommand.
+- blockers: -
+- unverified: -
