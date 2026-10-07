@@ -265,8 +265,28 @@
   - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
   - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
   - Committed in `C:\MiOS` as `eb9200d5` on branch `codex/uncommitted-mcp-ux`.
-- next: AGY-1108: Port next configuration generator from `[rust.categories.gen]` into native `mios-gen` subcommand (Phase 3.12: e.g. `tools/generate-cargo-manifests.py`).
+- next: AGY-1108: Port `tools/generate-cargo-manifests.py` into native `mios-gen` subcommand (Phase 3.12).
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · 22e9c203 · AGY-1108: cargo-manifests native port (Phase 3.12)
+- objective: Port cargo native workspace members projector from tools/generate-cargo-manifests.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `cargo_manifests.rs` with `get_ssot_version` (reading `[meta].mios_version` from `mios.toml` or `VERSION` file with fallback to `0.3.0`), `enumerate_members` (sorting crate directories under `tools/native` containing `Cargo.toml` and refusing empty workspaces), `render_cargo_manifest` (byte-for-byte matching existing `tools/native/Cargo.toml`), newline normalization, `--check` mode diff detection, and atomic write mode.
+  - Wired `cargo-manifests` (alias `cargo-manifest`) subcommand into `main.rs` supporting `--root`, `--check`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh`: `check_cargo_manifest_generated` to dispatch `native_bin mios-gen cargo-manifests --root "$ROOT" --check` first; updated `check_guacamole_consistency` to dispatch `native_bin mios-gen render-desktop`.
+  - Updated `tools/sync-generated.sh` step 13 to dispatch `_gen cargo-manifests --root "$ROOT"`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs` and added `tools/generate-cargo-manifests.py` to `[rust.categories.gen].replaces` (15 deleted scripts total).
+  - Strangler-deleted `tools/generate-cargo-manifests.py` and `tools/test_generate-cargo-manifests.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/cargo-manifests/` (`cmd.toml`, `positive_check.trycmd`, `negative_missing_root.trycmd`) and two-sided unit/integration tests in `tools/native/mios-gen/tests/cargo_manifests.rs` (positive CLI check, structured JSON check, negative member mutation drift control, negative version drift control).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_cargo_manifest_generated` passed cleanly.
+  - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `22e9c203` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1109: Port `tools/gen-pipe-boundary-manifest.py` into native `mios-gen` subcommand (Phase 3.13).
+- blockers: -
+- unverified: -
+
 
 
