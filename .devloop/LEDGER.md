@@ -246,7 +246,27 @@
   - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
   - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
   - Committed in `C:\MiOS` as `5776d4ff` on branch `codex/uncommitted-mcp-ux`.
-- next: AGY-1107: Port next configuration/quadlet generator from `[rust.categories.gen]` into native `mios-gen` subcommand (Phase 3.11).
+- next: AGY-1107: Port `tools/generate-bib-configs.py` into native `mios-gen` subcommand (Phase 3.11).
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · eb9200d5 · AGY-1107: bib-configs native port (Phase 3.11)
+- objective: Port artifact filesystem sizing projector from tools/generate-bib-configs.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `bib_configs.rs` with `extract_ssot_sizes` (reading `[deploy.artifacts.raw].size` and `[deploy.artifacts.iso].minsize` from `mios.toml`), regex replacement `minsize\s*=\s*"[^"]+"` -> `minsize = "{size}"` (`render_artifact_config`), line-ending normalization, `--check` mode verifying exact match against committed `config/artifacts/bib.toml` and `config/artifacts/iso.toml`, and atomic write mode.
+  - Wired `bib-configs` (alias `bib`) subcommand into `main.rs` supporting `--root`, `--check`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh` `check_bib_configs_projection` to dispatch `native_bin mios-gen bib-configs --root "$ROOT" --check` first.
+  - Updated `tools/sync-generated.sh` step 15 to dispatch `_gen bib-configs --root "$ROOT"`.
+  - Updated `usr/share/mios/mios.toml` projection registry surface to point to `tools/native/mios-gen/src/main.rs` and added `tools/generate-bib-configs.py` to `[rust.categories.gen].replaces` (14 deleted scripts total).
+  - Strangler-deleted `tools/generate-bib-configs.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/bib-configs/` and two-sided unit/integration tests in `tools/native/mios-gen/tests/bib_configs.rs` (positive CLI check, structured JSON check, negative `bib.toml` mutation drift control, negative `iso.toml` mutation drift control).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_bib_configs_projection` passed cleanly.
+  - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `eb9200d5` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1108: Port next configuration generator from `[rust.categories.gen]` into native `mios-gen` subcommand (Phase 3.12: e.g. `tools/generate-cargo-manifests.py`).
+- blockers: -
+- unverified: -
+
 
