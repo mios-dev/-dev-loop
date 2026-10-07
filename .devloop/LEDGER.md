@@ -322,6 +322,27 @@
 - blockers: -
 - unverified: -
 
+## 2026-10-07 · bbe48c5f · AGY-1111: standardize-docs native port (Phase 3.15)
+- objective: Port documentation standardizer from tools/standardize-docs.py into native Rust subcommand in tools/native/mios-gen per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Implemented `standardize_docs.rs` with `get_version` (reads `VERSION` or `[meta].mios_version` from `mios.toml` with `0.3.0` fallback), `extract_ai_hint` (detects and preserves line 1 `<!-- AI-hint:` comment blocks), `standardize_content` (strips legacy metadata headers/footers, preserves document title and body lines intact, injects canonical MiOS legal notice and versioned footer, 100% idempotent), `run_standardize_docs` (traverses `specs/audit`, `specs/changelogs`, `specs/core`, `specs/engineering`, `specs/memory`, `specs/knowledge` or explicit paths, normalizes newlines, checks for drift with exit code 1 or formats in-place in write mode).
+  - Wired `standardize-docs` (alias `docs-standardize`) subcommand into `main.rs` supporting `--root`, `--check`, `[PATHS]...`, and structured JSON format.
+  - Updated `automation/98-drift-checks.sh`: added `check_standardize_docs` dispatching `native_bin mios-gen standardize-docs --root "$ROOT" --check` and registered in `main()`.
+  - Updated `tests/drift-gate-negatives.sh`: added `test_standardize_docs` with mutation control, diagnosis assert (`UNSTANDARDIZED`), restoration check, and registered in `main()`.
+  - Updated `usr/share/mios/mios.toml` to add `tools/standardize-docs.py` to `[rust.categories.gen].replaces` (18 deleted scripts total) and removed `tools/standardize-docs.py` from `scope`.
+  - Decremented `usr/share/mios/reference/python-untested-baseline.txt` by removing `tools/standardize-docs.py`.
+  - Strangler-deleted `tools/standardize-docs.py`.
+  - Standardized `specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md` in-place.
+  - Added Trycmd golden master fixtures in `tests/golden/standardize-docs/` (`cmd.toml`, `positive_check.trycmd`) and two-sided unit/integration tests in `tools/native/mios-gen/tests/standardize_docs.rs` (positive CLI check, structured JSON check, negative unstandardized mutation control, negative structured JSON violation control, write mode self-healing check, and clean final check).
+  - Rebuilt `mios-gen` debug and release in WSL (`podman-MiOS-DEV`) and copied release binary to `/usr/bin/mios-gen`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_standardize_docs` passed cleanly.
+  - Synchronized full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `bbe48c5f` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1112: Port `tools/sync-wiki.py` into native `mios-gen` subcommand (Phase 3.16).
+- blockers: -
+- unverified: -
+
 
 
 
