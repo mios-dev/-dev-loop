@@ -284,9 +284,28 @@
   - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
   - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
   - Committed in `C:\MiOS` as `22e9c203` on branch `codex/uncommitted-mcp-ux`.
-- next: AGY-1109: Port `tools/gen-pipe-boundary-manifest.py` into native `mios-gen` subcommand (Phase 3.13).
+- next: AGY-1109: Port `tools/compile-templates.py` into native `mios-template-compile` (Phase 3.13).
 - blockers: -
 - unverified: -
+
+## 2026-10-07 · 20bea41f · AGY-1109: compile-templates native port (Phase 3.13)
+- objective: Port golden round-trip template compiler from tools/compile-templates.py into native Rust crate tools/native/mios-template-compile per ADR-0021, Law 14, and AGY-1067.
+- done:
+  - Enhanced `tools/native/mios-template-compile` with full `clap::Parser` CLI supporting `--root`, `--check`, and `--format json|text`, root resolution cascade (`MIOS_DRIFT_ROOT`, `MIOS_ROOT`, `MIOS_THEME_ROOT`, `MIOS_TOML_ROOT`, `.`), mock values loader from `[templates.placeholders]` in `mios.toml`, template registration verification against `[templates.*]` in `mios.toml`, syntax parsers for JSON, TOML, YAML, Python, and Bash across all 30 templates, deterministic error collection via `BTreeMap`, and structured JSON output.
+  - Updated `automation/98-drift-checks.sh` `check_templates_compilation` to dispatch `native_bin mios-template-compile --root "$ROOT" --check` first.
+  - Updated `usr/share/mios/mios.toml` to add `tools/compile-templates.py` to `[rust.categories.gen].replaces` (16 deleted scripts total) and remove from `scope`.
+  - Decremented `usr/share/mios/reference/python-untested-baseline.txt` by removing `tools/compile-templates.py`.
+  - Strangler-deleted `tools/compile-templates.py`.
+  - Added Trycmd golden master fixtures in `tests/golden/compile-templates/` (`cmd.toml`, `positive_check.trycmd`, `negative_missing_root.trycmd`) and two-sided unit/integration tests in `tools/native/mios-template-compile/tests/compile_templates.rs` (positive CLI check, structured JSON check, negative `toml-config` defect control, negative unregistered template control, negative missing root control, post-restoration check).
+  - Built `mios-template-compile` debug and release in WSL (`podman-MiOS-DEV`) and copied release binary to `/usr/bin/mios-template-compile`.
+  - Verified negative control in WSL: `bash tests/drift-gate-negatives.sh test_templates_compilation` passed cleanly.
+  - Verified full `tools/sync-generated.sh` across all 23 projection steps with zero unprojected diffs.
+  - Certified by Subagent Trio: Reviewer (APPROVE), Challenger (APPROVE), Auditor (CLEAN).
+  - Committed in `C:\MiOS` as `20bea41f` on branch `codex/uncommitted-mcp-ux`.
+- next: AGY-1110: Port `tools/gen-pipe-boundary-manifest.py` into native `mios-gen` subcommand (Phase 3.14).
+- blockers: -
+- unverified: -
+
 
 
 
