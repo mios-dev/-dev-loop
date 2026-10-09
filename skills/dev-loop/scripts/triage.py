@@ -7,8 +7,6 @@ Generates minimal standalone reproduction scripts and exports actionable finding
 
 import argparse
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
@@ -16,7 +14,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # runs standalone by path; the shared helper sits next to it

@@ -4,7 +4,6 @@ scripts/contracts.py
 Ephemeral cross-worktree interface exchange for concurrent Dev Loop workers.
 """
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional

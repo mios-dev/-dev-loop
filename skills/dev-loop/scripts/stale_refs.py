@@ -106,7 +106,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 SCHEMA = "devloop.stale_refs/1"
 BASELINE_SCHEMA = "devloop.stale_refs.baseline/1"

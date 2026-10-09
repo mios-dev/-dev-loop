@@ -4,7 +4,6 @@ scripts/verify_harness.py
 Two-sided verification runner with automated mutation testing.
 """
 import subprocess
-import sys
 from typing import Callable, List, Tuple
 
 def run_two_sided_test(

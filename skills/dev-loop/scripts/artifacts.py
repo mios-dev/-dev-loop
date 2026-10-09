@@ -261,11 +261,6 @@ class TaskFile(JsonlFile):
         return super().render(tasks)
 
 
-def read_task_file(p: Path) -> tuple[list[dict], str]:
-    """(records with status normalised to the internal words, the file's dialect: 'openai' or 'legacy')."""
-    f = TaskFile(p); return f.tasks, f.dialect
-
-
 def load_tasks(root: Path, path=None) -> list[dict]:
     return TaskFile(Path(path) if path else tasks_path(root)).tasks
 
@@ -806,7 +801,6 @@ def _cmd_tasks(a, root: Path, path: Path):
             return
 
         candidates = []
-        import subprocess
         for t in archived_tasks:
             if t.get("review_state") == "reactivated":
                 continue

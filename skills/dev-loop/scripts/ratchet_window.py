@@ -20,13 +20,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 BASELINE_FILE = ".devloop/ratchet_baseline.json"
 DEFAULT_MIN_COMMITS = 3

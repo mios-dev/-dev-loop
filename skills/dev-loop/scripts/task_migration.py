@@ -18,10 +18,9 @@ import argparse
 import json
 import os
 import re
-import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 STATUS_MAP = {
     "done": "done",

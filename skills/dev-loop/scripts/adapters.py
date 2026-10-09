@@ -39,14 +39,13 @@ import time
 from pathlib import Path
 
 try:
-    from git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
+    from git_lock import run_git_safe
 except ImportError:
     try:
-        from scripts.git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
+        from scripts.git_lock import run_git_safe
     except ImportError:
-        import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from git_lock import run_git_safe, resolve_git_dir, resolve_main_git_dir
+        from git_lock import run_git_safe
 
 HERE = Path(__file__).resolve().parent
 SKILL_DEFAULT = HERE.parent / "SKILL.md"  # scripts/ -> skill dir

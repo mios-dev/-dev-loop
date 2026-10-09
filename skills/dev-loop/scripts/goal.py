@@ -8,7 +8,6 @@ Implements loop engineering Level 2-4: Verification, Event-driven evaluation, an
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
